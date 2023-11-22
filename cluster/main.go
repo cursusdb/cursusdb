@@ -83,7 +83,7 @@ func (cluster *Cluster) TCP_TLSListener() {
 	//tls.Listen("tcp", "0.0.0.0:7222", config)
 
 	// Setup the listener
-	cluster.Listener, err = net.Listen("tcp", "0.0.0.0:7681") // Default Cursus cluster port is 7680
+	cluster.Listener, err = net.Listen("tcp", "0.0.0.0:7681") // Default Cursus cluster port is 7681
 	if err != nil {
 		log.Println("TCP_TLSListener():", err.Error()) // Log an error
 		cluster.SignalChannel <- os.Interrupt          // Send interrupt to signal channel
@@ -269,8 +269,6 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 					}
 
-					log.Println("QHY", body)
-
 					res := cluster.QueryNodesRet(connection, body, wg, mu)
 					for _, r := range res {
 						if !strings.EqualFold(r, "null") {
@@ -315,7 +313,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 				query = ""
 				continue
-			case strings.HasPrefix(query, "select "): // select
+			case strings.HasPrefix(query, "select "):
 				// select * from users where firstName == "alex";
 				// select 2 from users where age > 22;
 				// select 22,2 from users where age > 22 && name == 'john' && createdOn >= 19992929;
@@ -655,6 +653,11 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 				query = ""
 				continue
+			default:
+				connection.Text.PrintfLine("Invalid query")
+				query = ""
+				continue
+
 			}
 		}
 
@@ -719,8 +722,6 @@ func (cluster *Cluster) InsertIntoNode(connection *Connection, insert string, co
 		connection.Text.PrintfLine("Cannot insert. %s", err.Error())
 		return
 	}
-
-	log.Println("FUCKED", string(jsonString))
 
 	rand.Seed(time.Now().UnixNano())
 	node := cluster.NodeConnections[(0 + rand.Intn((len(cluster.NodeConnections)-1)-0+1))]
@@ -831,7 +832,6 @@ func main() {
 			os.Exit(1)
 		}
 
-		log.Println(cluster.Config)
 	}
 
 	cluster.ConnectToNodes()

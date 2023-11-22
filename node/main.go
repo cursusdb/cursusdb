@@ -391,7 +391,7 @@ func (n *Node) sel(collection string, k interface{}, v interface{}, vol int, ski
 	}
 
 	var objects []interface{}
-	for _, d := range n.Data.Map[collection] {
+	for i, d := range n.Data.Map[collection] {
 		if k == nil && v == nil && opr == nil {
 			if skip != 0 {
 				skip = skip - 1
@@ -399,7 +399,7 @@ func (n *Node) sel(collection string, k interface{}, v interface{}, vol int, ski
 			}
 
 			if vol != -1 {
-				if len(objects) == vol {
+				if i-1 == vol-1 {
 					return objects
 				}
 			}
@@ -619,7 +619,7 @@ func (n *Node) sel(collection string, k interface{}, v interface{}, vol int, ski
 func (n *Node) insert(collection string, jsonMap map[string]interface{}, connection *Connection) error {
 	jsonStr, err := json.Marshal(jsonMap)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 
 	if strings.Contains(string(jsonStr), "[{\"") {
@@ -654,7 +654,7 @@ func (n *Node) insert(collection string, jsonMap map[string]interface{}, connect
 
 	responseMap, err := json.Marshal(response)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 
 	connection.Text.PrintfLine(string(responseMap))
@@ -701,8 +701,6 @@ func (n *Node) HandleConnection(connection *Connection) {
 			switch {
 			case strings.EqualFold(action.(string), "select"):
 
-				log.Println(result)
-
 				if result["limit"].(string) == "*" {
 					result["limit"] = -1
 				} else if strings.Contains(result["limit"].(string), ",") {
@@ -737,7 +735,7 @@ func (n *Node) HandleConnection(connection *Connection) {
 						continue
 					}
 				}
-				log.Println(result)
+
 				results := n.sel(result["collection"].(string), result["key"], result["value"], result["limit"].(int), result["skip"].(int), result["opr"], result["lock"].(bool))
 				r, _ := json.Marshal(results)
 				connection.Text.PrintfLine(string(r))

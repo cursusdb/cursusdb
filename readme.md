@@ -63,3 +63,7 @@ select 4,6 from yourCollection where key == 'value';
 - Each node should have a limit of documents. Say 10 million default per node.
 - Cluster and nodes share same hashed key.
 - Cluster to authenticate via basic authentication ``"username\0password`` with basic (read or read/write OR read/write/delete permissions)
+
+
+### Cluster
+Default port: 7681
