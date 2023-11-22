@@ -41,33 +41,39 @@ import (
 	"time"
 )
 
+// Cluster type
 type Cluster struct {
-	Listener        net.Listener
-	Wg              *sync.WaitGroup
-	SignalChannel   chan os.Signal
-	Config          Config
-	NodeConnections []NodeConnection
-	Connections     []*Connection
+	Listener        net.Listener     // TCP listener
+	Wg              *sync.WaitGroup  // Go routine wait group
+	SignalChannel   chan os.Signal   // OS Signal channel
+	Config          Config           // Cluster config (read from yaml .clusterconfig)
+	NodeConnections []NodeConnection // Configured and forever connected node connections.
+	Connections     []*Connection    // Client connections
 }
 
+// Config is the cluster config type
 type Config struct {
-	Nodes []string `yaml:"nodes"`
+	Nodes []string `yaml:"nodes"` // Node host/ips
 }
 
+// NodeConnection is the cluster connected to a node as a client.
 type NodeConnection struct {
-	Conn *net.TCPConn
-	Text *textproto.Conn
+	Conn *net.TCPConn    // Net connection
+	Text *textproto.Conn // For writing and reading
 }
 
+// Connection is a TCP Client connection
 type Connection struct {
-	Conn net.Conn
-	Text *textproto.Conn
+	Conn net.Conn        // Net connection
+	Text *textproto.Conn // For writing and reading
 }
 
+// TCP_TLSListener start listening to TCP or TLS
 func (cluster *Cluster) TCP_TLSListener() {
-	defer cluster.Wg.Done()
-	var err error
+	defer cluster.Wg.Done() // Defer specific wait group to close up
+	var err error           // error variable
 
+	// TO BE IMPLEMENTED
 	//cer, err := tls.LoadX509KeyPair("cert", "key")
 	//if err != nil {
 	//	panic("error loading cert: " + err.Error())
@@ -75,47 +81,55 @@ func (cluster *Cluster) TCP_TLSListener() {
 	//
 	//config := &tls.Config{Certificates: []tls.Certificate{cer}}
 	//tls.Listen("tcp", "0.0.0.0:7222", config)
-	cluster.Listener, err = net.Listen("tcp", "0.0.0.0:7222")
+
+	// Setup the listener
+	cluster.Listener, err = net.Listen("tcp", "0.0.0.0:7681") // Default Cursus cluster port is 7680
 	if err != nil {
-		log.Println(err.Error())
-		cluster.SignalChannel <- os.Interrupt
-		return
+		log.Println("TCP_TLSListener():", err.Error()) // Log an error
+		cluster.SignalChannel <- os.Interrupt          // Send interrupt to signal channel
+		return                                         // close up go routine
 	}
 
+	// Starting accepting connections
 	for {
 		conn, err := cluster.Listener.Accept()
 		if err != nil {
-			return
+			return // Closed listener 99% of the time.
 		}
 
-		cluster.Wg.Add(1)
+		cluster.Wg.Add(1) // add new wg for handle connection go routine
 		go cluster.HandleConnection(&Connection{
 			Conn: conn,
 		})
+
+		// .. next connection
 	}
 
 }
 
+// IsString is a provided string a string literal?  "hello world"  OR 'hello world'
 func (cluster *Cluster) IsString(str string) bool {
-	switch {
-	case strings.HasPrefix(str, "\"") && strings.HasSuffix(str, "\""):
 
+	switch {
+	case strings.HasPrefix(str, "\"") && strings.HasSuffix(str, "\""): // has " and "
 		return true
-	case strings.HasPrefix(str, "'") && strings.HasSuffix(str, "'"):
+	case strings.HasPrefix(str, "'") && strings.HasSuffix(str, "'"): // has ' and '
 		return true
 	default:
 		return false
 	}
 }
 
+// IsInt is a provided int an int?
 func (cluster *Cluster) IsInt(str string) bool {
-	if _, err := strconv.Atoi(str); err == nil {
+	if _, err := strconv.Atoi(str); err == nil { // Atoi because, why not?
 		return true
 	}
 
 	return false
 }
 
+// IsFloat is a provided float a float64?
 func (cluster *Cluster) IsFloat(str string) bool {
 	if _, err := strconv.ParseFloat(str, 64); err == nil {
 		return true
@@ -124,6 +138,7 @@ func (cluster *Cluster) IsFloat(str string) bool {
 	return false
 }
 
+// IsBool is a provided bool a bool?
 func (cluster *Cluster) IsBool(str string) bool {
 	if _, err := strconv.ParseBool(str); err == nil {
 		return true
@@ -132,14 +147,19 @@ func (cluster *Cluster) IsBool(str string) bool {
 	return false
 }
 
+// HandleConnection handles client connections
 func (cluster *Cluster) HandleConnection(connection *Connection) {
-	defer cluster.Wg.Done()
-	cluster.Connections = append(cluster.Connections, connection)
-	connection.Text = textproto.NewConn(connection.Conn)
-	defer connection.Text.Close()
-	defer connection.Conn.Close()
+	defer cluster.Wg.Done() // close go routine on return
 
-	defer func(conn *Connection) {
+	cluster.Connections = append(cluster.Connections, connection) // Add connection to connections slice.
+
+	connection.Text = textproto.NewConn(connection.Conn) // Setup writer and reader for connection
+
+	defer connection.Text.Close() // close writer and reader on return
+	defer connection.Conn.Close() // close connection on return
+
+	defer func(conn *Connection) { // remove connection from connections slice on return
+		// REQUIRES A MUTEX!!
 		for i, c := range cluster.Connections {
 			if c == conn {
 				cluster.Connections = append(cluster.Connections[:i], cluster.Connections[i+1:]...)
@@ -148,8 +168,10 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 	}(connection)
 
-	scanner := bufio.NewScanner(connection.Conn)
-	query := ""
+	scanner := bufio.NewScanner(connection.Conn) // Start a new scanner
+	query := ""                                  // Client query variable
+
+	// Read until ; or a single 'quit'
 	for scanner.Scan() {
 		query += scanner.Text()
 		query = strings.Join(strings.Fields(strings.TrimSpace(query)), " ")
@@ -157,8 +179,9 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 		if strings.HasPrefix(scanner.Text(), "quit") {
 			break
 		} else if strings.HasSuffix(query, ";") {
-			fmt.Println("QUERY:", query)
+			log.Println("QUERY:", query) // Log
 
+			// On insert we require a mutex and
 			wg := &sync.WaitGroup{}
 			mu := &sync.Mutex{}
 
@@ -186,12 +209,14 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					continue
 				}
 
+				// Checking if there are any !s to process
 				var indexed = regexp.MustCompile(`"([^"]+!)"`) // "email!":
-
 				indexedRes := indexed.FindAllStringSubmatch(query, -1)
 				for _, indx := range indexedRes {
 
-					kValue := regexp.MustCompile(fmt.Sprintf(`%s"\s*:\s*(true|false|null|[A-Za-z]|[0-9]*[.]?[0-9]+|".*?"|'.*?')`, indx[1]))
+					//kValue := regexp.MustCompile(fmt.Sprintf(`%s"\s*:\s*(true|false|null|[A-Za-z]|[0-9]*[.]?[0-9]+|(\[.*?\])|".*?"|'.*?')`, indx[1]))
+
+					kValue := regexp.MustCompile(fmt.Sprintf(`"%s"\s*:\s*(true|false|null|[A-Za-z]|[0-9]*[.]?[0-9]+|".*?"|'.*?')`, indx[1]))
 
 					body := make(map[string]interface{})
 					body["action"] = "select"
@@ -200,6 +225,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					body["key"] = strings.TrimSpace(strings.TrimSuffix(indx[1], "!"))
 					body["opr"] = "=="
 					body["lock"] = true // lock on read.  There can be many clusters reading at one time.  This helps setup indexes across all nodes
+
 					body["value"] = kValue.FindStringSubmatch(query)[1]
 
 					if strings.EqualFold(body["value"].(string), "null") {
@@ -243,11 +269,17 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 					}
 
+					log.Println("QHY", body)
+
 					res := cluster.QueryNodesRet(connection, body, wg, mu)
 					for _, r := range res {
 						if !strings.EqualFold(r, "null") {
+							result := make(map[string]interface{})
+							result["statusCode"] = 4004
+							result["message"] = fmt.Sprintf("Document already exists")
 
-							connection.Text.PrintfLine("Document already exists %s", strings.ReplaceAll(rs[1], "!\":", "\":"))
+							r, _ := json.Marshal(result)
+							connection.Text.PrintfLine(string(r))
 							query = ""
 							goto cont
 						}
@@ -260,7 +292,6 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				continue
 
 			ok:
-
 				body := make(map[string]interface{})
 				body["action"] = "select"
 				body["limit"] = "1"
@@ -271,7 +302,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				body["value"] = uuid.New().String() // $id
 
 			retry:
-				body["value"] = uuid.New().String() // $id
+				body["value"] = uuid.New().String()
 
 				res := cluster.QueryNodesRet(connection, body, wg, mu)
 				for _, r := range res {
@@ -280,99 +311,125 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					}
 				}
 
-				cluster.InsertIntoNode(connection, rs[1], collection, body["value"].(string))
+				cluster.InsertIntoNode(connection, strings.ReplaceAll(rs[1], "!\":", "\":"), collection, body["value"].(string))
 
 				query = ""
 				continue
-			case strings.HasPrefix(query, "select "):
+			case strings.HasPrefix(query, "select "): // select
 				// select * from users where firstName == "alex";
 				// select 2 from users where age > 22;
 				// select 22,2 from users where age > 22 && name == 'john' && createdOn >= 19992929;
+				if !strings.Contains(query, "from ") {
+					connection.Text.PrintfLine("from is required!")
+					query = ""
+					continue
+				}
+
 				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
+				//if len(strings.Split(query, "&& ")) > 1 {
+				//	log.Println("ANDs...")
+				//	log.Println(strings.Split(query, "&& "))
+				//	continue
+				//}
 
-				if len(strings.Split(query, "&& ")) > 0 {
-					log.Println("ANDs...")
-					log.Println(strings.Split(query, "&& ")[2])
-					continue
-				} else if len(querySplit) != 6 {
-					connection.Text.PrintfLine("Invalid query")
-					query = ""
-					continue
-				}
+				if !strings.Contains(query, "where ") {
+					body := make(map[string]interface{})
+					body["action"] = querySplit[0]
+					body["limit"] = querySplit[1]
+					body["collection"] = strings.TrimSuffix(querySplit[2], ";")
 
-				body := make(map[string]interface{})
-				body["action"] = querySplit[0]
-				body["limit"] = querySplit[1]
-				body["collection"] = querySplit[2]
-				body["keys"] = querySplit[3]
-				body["opr"] = querySplit[4]
-				body["lock"] = false // lock on read.  There can be many clusters reading at one time.
-
-				switch {
-				case strings.EqualFold(body["opr"].(string), "=="):
-				case strings.EqualFold(body["opr"].(string), "!="):
-				case strings.EqualFold(body["opr"].(string), "<="):
-				case strings.EqualFold(body["opr"].(string), ">="):
-				case strings.EqualFold(body["opr"].(string), "<"):
-				case strings.EqualFold(body["opr"].(string), ">"):
-				default:
-					connection.Text.PrintfLine("Invalid query operator.")
-					query = ""
-					continue
-				}
-
-				body["value"] = strings.TrimSuffix(querySplit[5], ";")
-
-				if strings.EqualFold(body["value"].(string), "null") {
+					body["key"] = nil
+					body["opr"] = nil
 					body["value"] = nil
-				} else if cluster.IsString(body["value"].(string)) {
+					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
 
-					body["value"] = body["value"].(string)
-					body["value"] = strings.TrimSuffix(body["value"].(string), "\"")
-					body["value"] = strings.TrimPrefix(body["value"].(string), "\"")
-					body["value"] = strings.TrimSuffix(body["value"].(string), "'")
-					body["value"] = strings.TrimPrefix(body["value"].(string), "'")
-				} else if cluster.IsBool(body["value"].(string)) {
-
-					b, err := strconv.ParseBool(body["value"].(string))
+					err := cluster.QueryNodes(connection, body, wg, mu)
 					if err != nil {
 						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
 						query = ""
 						continue
 					}
 
-					body["value"] = b
-				} else if cluster.IsFloat(body["value"].(string)) {
+					query = ""
+					continue
+				} else {
 
-					f, err := strconv.ParseFloat(body["value"].(string), 64)
+					body := make(map[string]interface{})
+					body["action"] = querySplit[0]
+					body["limit"] = querySplit[1]
+					body["collection"] = querySplit[2]
+
+					body["key"] = querySplit[3]
+					body["opr"] = querySplit[4]
+					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
+
+					switch {
+					case strings.EqualFold(body["opr"].(string), "=="):
+					case strings.EqualFold(body["opr"].(string), "!="):
+					case strings.EqualFold(body["opr"].(string), "<="):
+					case strings.EqualFold(body["opr"].(string), ">="):
+					case strings.EqualFold(body["opr"].(string), "<"):
+					case strings.EqualFold(body["opr"].(string), ">"):
+					default:
+						connection.Text.PrintfLine("Invalid query operator.")
+						query = ""
+						continue
+					}
+
+					body["value"] = strings.TrimSuffix(querySplit[5], ";")
+
+					if strings.EqualFold(body["value"].(string), "null") {
+						body["value"] = nil
+					} else if cluster.IsString(body["value"].(string)) {
+
+						body["value"] = body["value"].(string)
+						body["value"] = strings.TrimSuffix(body["value"].(string), "\"")
+						body["value"] = strings.TrimPrefix(body["value"].(string), "\"")
+						body["value"] = strings.TrimSuffix(body["value"].(string), "'")
+						body["value"] = strings.TrimPrefix(body["value"].(string), "'")
+					} else if cluster.IsBool(body["value"].(string)) {
+
+						b, err := strconv.ParseBool(body["value"].(string))
+						if err != nil {
+							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+							query = ""
+							continue
+						}
+
+						body["value"] = b
+					} else if cluster.IsFloat(body["value"].(string)) {
+
+						f, err := strconv.ParseFloat(body["value"].(string), 64)
+						if err != nil {
+							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+							query = ""
+							continue
+						}
+
+						body["value"] = f
+					} else if cluster.IsInt(body["value"].(string)) {
+						i, err := strconv.Atoi(body["value"].(string))
+						if err != nil {
+							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+							query = ""
+							continue
+						}
+
+						body["value"] = i
+
+					}
+
+					err := cluster.QueryNodes(connection, body, wg, mu)
 					if err != nil {
 						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
 						query = ""
 						continue
 					}
 
-					body["value"] = f
-				} else if cluster.IsInt(body["value"].(string)) {
-					i, err := strconv.Atoi(body["value"].(string))
-					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-						query = ""
-						continue
-					}
-
-					body["value"] = i
-
-				}
-
-				err := cluster.QueryNodes(connection, body, wg, mu)
-				if err != nil {
-					connection.Text.PrintfLine("Something went wrong. %s", err.Error())
 					query = ""
 					continue
 				}
 
-				query = ""
-				continue
 			case strings.HasPrefix(query, "update "):
 				// update * in users where firstName == "alex" to = "daniel";
 				// update 2 in users where age > 22; -- gets the last 2 inserted users documents where age is > 22!
@@ -641,23 +698,18 @@ func (cluster *Cluster) QueryNodesRet(connection *Connection, body map[string]in
 
 // InsertIntoNode selects one node within cluster nodes and inserts json document.
 func (cluster *Cluster) InsertIntoNode(connection *Connection, insert string, collection string, id string) {
-	data := make(map[string]interface{})
-	err := json.Unmarshal([]byte(insert), &data)
+	doc := make(map[string]interface{})
+	err := json.Unmarshal([]byte(insert), &doc)
 	if err != nil {
 		connection.Text.PrintfLine("Cannot insert. %s", err.Error())
 		return
 	}
 
-	data["$id"] = id
-	jsonStringData, err := json.Marshal(data)
-	if err != nil {
-		connection.Text.PrintfLine("Cannot insert. %s", err.Error())
-		return
-	}
+	doc["$id"] = id
 
 	jsonMap := make(map[string]interface{})
 
-	jsonMap["document"] = string(jsonStringData)
+	jsonMap["document"] = doc
 	jsonMap["action"] = "insert"
 
 	jsonMap["collection"] = collection
@@ -667,6 +719,8 @@ func (cluster *Cluster) InsertIntoNode(connection *Connection, insert string, co
 		connection.Text.PrintfLine("Cannot insert. %s", err.Error())
 		return
 	}
+
+	log.Println("FUCKED", string(jsonString))
 
 	rand.Seed(time.Now().UnixNano())
 	node := cluster.NodeConnections[(0 + rand.Intn((len(cluster.NodeConnections)-1)-0+1))]
@@ -748,8 +802,6 @@ func (cluster *Cluster) ConnectToNodes() {
 func main() {
 	var cluster Cluster
 
-	cluster.Config.Nodes = append(cluster.Config.Nodes, "232.232.22")
-	cluster.Config.Nodes = append(cluster.Config.Nodes, "2332.2332.22")
 	if _, err := os.Stat("./.clusterconfig"); errors.Is(err, os.ErrNotExist) {
 		clusterConfigFile, err := os.OpenFile("./.clusterconfig", os.O_CREATE|os.O_RDWR, 0777)
 		if err != nil {

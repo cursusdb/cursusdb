@@ -380,7 +380,7 @@ func (n *Node) update(collection, k string, v interface{}, nv interface{}, vol i
 	return objects
 }
 
-func (n *Node) sel(collection string, k string, v interface{}, vol int, skip int, opr string, lock bool) []interface{} {
+func (n *Node) sel(collection string, k interface{}, v interface{}, vol int, skip int, opr interface{}, lock bool) []interface{} {
 
 	if lock {
 		writeMu, ok := n.Data.Writers[collection]
@@ -392,212 +392,222 @@ func (n *Node) sel(collection string, k string, v interface{}, vol int, skip int
 
 	var objects []interface{}
 	for _, d := range n.Data.Map[collection] {
-		if opr == "" {
-			fmt.Sprintf("Query operator required.")
-			return nil
-		}
-
-		if skip != 0 {
-			skip = skip - 1
-			continue
-		}
-
-		if vol != -1 {
-			if len(objects) == vol {
-				return objects
-			}
-		}
-
-		vType := fmt.Sprintf("%T", v)
-
-		_, ok := d[k]
-		if ok {
-
-			if d[k] == nil {
-				if opr == "DEL" {
-
-				} else if opr == "UPDATE" {
-
-				}
-				objects = append(objects, d)
+		if k == nil && v == nil && opr == nil {
+			if skip != 0 {
+				skip = skip - 1
 				continue
 			}
 
-			if reflect.TypeOf(d[k]).Kind() == reflect.Slice {
-				for _, dd := range d[k].([]interface{}) {
+			if vol != -1 {
+				if len(objects) == vol {
+					return objects
+				}
+			}
+			objects = append(objects, d)
+		} else {
 
-					if len(objects) == vol {
-						return objects
+			if opr == "" {
+				fmt.Sprintf("Query operator required.")
+				return nil
+			}
+
+			if skip != 0 {
+				skip = skip - 1
+				continue
+			}
+
+			if vol != -1 {
+				if len(objects) == vol {
+					return objects
+				}
+			}
+
+			vType := fmt.Sprintf("%T", v)
+
+			_, ok := d[k.(string)]
+			if ok {
+
+				if d[k.(string)] == nil {
+					objects = append(objects, d)
+					continue
+				}
+
+				if reflect.TypeOf(d[k.(string)]).Kind() == reflect.Slice {
+					for _, dd := range d[k.(string)].([]interface{}) {
+
+						if len(objects) == vol {
+							return objects
+						}
+
+						if reflect.TypeOf(dd).Kind() == reflect.Float64 {
+							if vType == "int" {
+								var interfaceI int = int(dd.(float64))
+
+								if opr == "==" {
+									if reflect.DeepEqual(interfaceI, v) {
+										objects = append(objects, d)
+									}
+								} else if opr == "!=" {
+									if !reflect.DeepEqual(interfaceI, v) {
+										objects = append(objects, d)
+									}
+								} else if opr == ">" {
+									if vType == "int" {
+										if interfaceI > v.(int) {
+											objects = append(objects, d)
+										}
+									}
+								} else if opr == "<" {
+									if vType == "int" {
+										if interfaceI < v.(int) {
+											objects = append(objects, d)
+										}
+									}
+								} else if opr == ">=" {
+									if vType == "int" {
+										if interfaceI >= v.(int) {
+											objects = append(objects, d)
+										}
+									}
+								} else if opr == "<=" {
+									if vType == "int" {
+										if interfaceI <= v.(int) {
+											objects = append(objects, d)
+										}
+									}
+								}
+							} else if vType == "float64" {
+								var interfaceI float64 = d[k.(string)].(float64)
+
+								if opr == "==" {
+									if reflect.DeepEqual(interfaceI, v) {
+										objects = append(objects, d)
+									}
+								} else if opr == "!=" {
+									if !reflect.DeepEqual(interfaceI, v) {
+										objects = append(objects, d)
+									}
+								} else if opr == ">" {
+									if float64(interfaceI) > v.(float64) {
+										objects = append(objects, d)
+									}
+
+								} else if opr == "<" {
+									if float64(interfaceI) < v.(float64) {
+										objects = append(objects, d)
+									}
+
+								} else if opr == ">=" {
+
+									if float64(interfaceI) >= v.(float64) {
+										objects = append(objects, d)
+									}
+
+								} else if opr == "<=" {
+									if float64(interfaceI) <= v.(float64) {
+										objects = append(objects, d)
+									}
+
+								}
+							}
+						} else if reflect.TypeOf(dd).Kind() == reflect.Map {
+							//for kkk, ddd := range dd.(map[string]interface{}) {
+							//	// unimplemented
+							//}
+						} else {
+							if opr == "==" {
+								if reflect.DeepEqual(dd, v) {
+									objects = append(objects, d)
+								}
+							} else if opr == "!=" {
+								if !reflect.DeepEqual(dd, v) {
+									objects = append(objects, d)
+								}
+							}
+						}
+
 					}
+				} else if vType == "int" {
+					var interfaceI int = int(d[k.(string)].(float64))
 
-					if reflect.TypeOf(dd).Kind() == reflect.Float64 {
+					if opr == "==" {
+						if reflect.DeepEqual(interfaceI, v) {
+							objects = append(objects, d)
+						}
+					} else if opr == "!=" {
+						if !reflect.DeepEqual(interfaceI, v) {
+							objects = append(objects, d)
+						}
+					} else if opr == ">" {
 						if vType == "int" {
-							var interfaceI int = int(dd.(float64))
-
-							if opr == "==" {
-								if reflect.DeepEqual(interfaceI, v) {
-									objects = append(objects, d)
-								}
-							} else if opr == "!=" {
-								if !reflect.DeepEqual(interfaceI, v) {
-									objects = append(objects, d)
-								}
-							} else if opr == ">" {
-								if vType == "int" {
-									if interfaceI > v.(int) {
-										objects = append(objects, d)
-									}
-								}
-							} else if opr == "<" {
-								if vType == "int" {
-									if interfaceI < v.(int) {
-										objects = append(objects, d)
-									}
-								}
-							} else if opr == ">=" {
-								if vType == "int" {
-									if interfaceI >= v.(int) {
-										objects = append(objects, d)
-									}
-								}
-							} else if opr == "<=" {
-								if vType == "int" {
-									if interfaceI <= v.(int) {
-										objects = append(objects, d)
-									}
-								}
-							}
-						} else if vType == "float64" {
-							var interfaceI float64 = d[k].(float64)
-
-							if opr == "==" {
-								if reflect.DeepEqual(interfaceI, v) {
-									objects = append(objects, d)
-								}
-							} else if opr == "!=" {
-								if !reflect.DeepEqual(interfaceI, v) {
-									objects = append(objects, d)
-								}
-							} else if opr == ">" {
-								if float64(interfaceI) > v.(float64) {
-									objects = append(objects, d)
-								}
-
-							} else if opr == "<" {
-								if float64(interfaceI) < v.(float64) {
-									objects = append(objects, d)
-								}
-
-							} else if opr == ">=" {
-
-								if float64(interfaceI) >= v.(float64) {
-									objects = append(objects, d)
-								}
-
-							} else if opr == "<=" {
-								if float64(interfaceI) <= v.(float64) {
-									objects = append(objects, d)
-								}
-
-							}
-						}
-					} else if reflect.TypeOf(dd).Kind() == reflect.Map {
-						//for kkk, ddd := range dd.(map[string]interface{}) {
-						//	// unimplemented
-						//}
-					} else {
-						if opr == "==" {
-							if reflect.DeepEqual(dd, v) {
+							if interfaceI > v.(int) {
 								objects = append(objects, d)
 							}
-						} else if opr == "!=" {
-							if !reflect.DeepEqual(dd, v) {
+						}
+					} else if opr == "<" {
+						if vType == "int" {
+							if interfaceI < v.(int) {
+								objects = append(objects, d)
+							}
+						}
+					} else if opr == ">=" {
+						if vType == "int" {
+							if interfaceI >= v.(int) {
+								objects = append(objects, d)
+							}
+						}
+					} else if opr == "<=" {
+						if vType == "int" {
+							if interfaceI <= v.(int) {
 								objects = append(objects, d)
 							}
 						}
 					}
+				} else if vType == "float64" {
+					var interfaceI float64 = d[k.(string)].(float64)
 
-				}
-			} else if vType == "int" {
-				var interfaceI int = int(d[k].(float64))
+					if opr == "==" {
+						if reflect.DeepEqual(interfaceI, v) {
+							objects = append(objects, d)
+						}
+					} else if opr == "!=" {
+						if !reflect.DeepEqual(interfaceI, v) {
+							objects = append(objects, d)
+						}
+					} else if opr == ">" {
+						if float64(interfaceI) > v.(float64) {
+							objects = append(objects, d)
+						}
 
-				if opr == "==" {
-					if reflect.DeepEqual(interfaceI, v) {
-						objects = append(objects, d)
+					} else if opr == "<" {
+						if float64(interfaceI) < v.(float64) {
+							objects = append(objects, d)
+						}
+
+					} else if opr == ">=" {
+
+						if float64(interfaceI) >= v.(float64) {
+							objects = append(objects, d)
+						}
+
+					} else if opr == "<=" {
+						if float64(interfaceI) <= v.(float64) {
+							objects = append(objects, d)
+						}
+
 					}
-				} else if opr == "!=" {
-					if !reflect.DeepEqual(interfaceI, v) {
-						objects = append(objects, d)
-					}
-				} else if opr == ">" {
-					if vType == "int" {
-						if interfaceI > v.(int) {
+				} else {
+					if opr == "==" {
+						if reflect.DeepEqual(d[k.(string)], v) {
+							objects = append(objects, d)
+						}
+					} else if opr == "!=" {
+						if !reflect.DeepEqual(d[k.(string)], v) {
 							objects = append(objects, d)
 						}
 					}
-				} else if opr == "<" {
-					if vType == "int" {
-						if interfaceI < v.(int) {
-							objects = append(objects, d)
-						}
-					}
-				} else if opr == ">=" {
-					if vType == "int" {
-						if interfaceI >= v.(int) {
-							objects = append(objects, d)
-						}
-					}
-				} else if opr == "<=" {
-					if vType == "int" {
-						if interfaceI <= v.(int) {
-							objects = append(objects, d)
-						}
-					}
-				}
-			} else if vType == "float64" {
-				var interfaceI float64 = d[k].(float64)
-
-				if opr == "==" {
-					if reflect.DeepEqual(interfaceI, v) {
-						objects = append(objects, d)
-					}
-				} else if opr == "!=" {
-					if !reflect.DeepEqual(interfaceI, v) {
-						objects = append(objects, d)
-					}
-				} else if opr == ">" {
-					if float64(interfaceI) > v.(float64) {
-						objects = append(objects, d)
-					}
-
-				} else if opr == "<" {
-					if float64(interfaceI) < v.(float64) {
-						objects = append(objects, d)
-					}
-
-				} else if opr == ">=" {
-
-					if float64(interfaceI) >= v.(float64) {
-						objects = append(objects, d)
-					}
-
-				} else if opr == "<=" {
-					if float64(interfaceI) <= v.(float64) {
-						objects = append(objects, d)
-					}
 
 				}
-			} else {
-				if opr == "==" {
-					if reflect.DeepEqual(d[k], v) {
-						objects = append(objects, d)
-					}
-				} else if opr == "!=" {
-					if !reflect.DeepEqual(d[k], v) {
-						objects = append(objects, d)
-					}
-				}
-
 			}
 		}
 
@@ -606,10 +616,10 @@ func (n *Node) sel(collection string, k string, v interface{}, vol int, skip int
 	return objects
 }
 
-func (n *Node) insert(collection, jsonStr string) error {
-	jsonStr, err := strconv.Unquote(jsonStr)
+func (n *Node) insert(collection string, jsonMap map[string]interface{}, connection *Connection) error {
+	jsonStr, err := json.Marshal(jsonMap)
 	if err != nil {
-		return err
+		fmt.Println(err)
 	}
 
 	if strings.Contains(string(jsonStr), "[{\"") {
@@ -620,8 +630,8 @@ func (n *Node) insert(collection, jsonStr string) error {
 		return errors.New("nested JSON objects not permitted")
 	}
 
-	result := make(map[string]interface{})
-	err = json.Unmarshal([]byte(jsonStr), &result)
+	doc := make(map[string]interface{})
+	err = json.Unmarshal([]byte(jsonStr), &doc)
 	if err != nil {
 		return err
 	}
@@ -630,11 +640,24 @@ func (n *Node) insert(collection, jsonStr string) error {
 		writeMu.Lock()
 		defer writeMu.Unlock()
 
-		n.Data.Map[collection] = append(n.Data.Map[collection], result)
+		n.Data.Map[collection] = append(n.Data.Map[collection], doc)
 	} else {
 		n.Data.Writers[collection] = &sync.RWMutex{}
-		n.Data.Map[collection] = append(n.Data.Map[collection], result)
+		n.Data.Map[collection] = append(n.Data.Map[collection], doc)
 	}
+
+	response := make(map[string]interface{})
+	response["statusCode"] = 2000
+	response["message"] = "Document inserted"
+
+	response["insert"] = doc
+
+	responseMap, err := json.Marshal(response)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	connection.Text.PrintfLine(string(responseMap))
 
 	return nil
 }
@@ -678,6 +701,8 @@ func (n *Node) HandleConnection(connection *Connection) {
 			switch {
 			case strings.EqualFold(action.(string), "select"):
 
+				log.Println(result)
+
 				if result["limit"].(string) == "*" {
 					result["limit"] = -1
 				} else if strings.Contains(result["limit"].(string), ",") {
@@ -712,8 +737,8 @@ func (n *Node) HandleConnection(connection *Connection) {
 						continue
 					}
 				}
-
-				results := n.sel(result["collection"].(string), result["key"].(string), result["value"], result["limit"].(int), result["skip"].(int), result["opr"].(string), result["lock"].(bool))
+				log.Println(result)
+				results := n.sel(result["collection"].(string), result["key"], result["value"], result["limit"].(int), result["skip"].(int), result["opr"], result["lock"].(bool))
 				r, _ := json.Marshal(results)
 				connection.Text.PrintfLine(string(r))
 				continue
@@ -757,14 +782,15 @@ func (n *Node) HandleConnection(connection *Connection) {
 				connection.Text.PrintfLine(string(r))
 				continue
 			case strings.EqualFold(action.(string), "insert"):
-				doc := result["document"]
+
 				collection := result["collection"]
+				doc := result["document"]
 				delete(result, "document")
 				delete(result, "collection")
 				delete(result, "action")
+				delete(result, "skip")
 
-				insertJson, _ := json.Marshal(doc)
-				err := n.insert(collection.(string), string(insertJson))
+				err := n.insert(collection.(string), doc.(map[string]interface{}), connection)
 				if err != nil {
 					// Only error returned is a 4003 which means cannot insert nested object
 					result["statusCode"] = 4003
@@ -774,21 +800,6 @@ func (n *Node) HandleConnection(connection *Connection) {
 					continue
 				}
 
-				result["statusCode"] = 2000
-				result["message"] = "Document inserted"
-
-				jsonStr, err := strconv.Unquote(string(insertJson))
-				if err != nil {
-					connection.Text.PrintfLine(string(err.Error()))
-					continue
-				}
-
-				result2 := make(map[string]interface{})
-				err = json.Unmarshal([]byte(jsonStr), &result2)
-				result["insert"] = result2
-				r, _ := json.Marshal(result)
-
-				connection.Text.PrintfLine(string(r))
 				continue
 			default:
 

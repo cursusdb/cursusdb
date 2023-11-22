@@ -11,7 +11,25 @@ select * from yourCollection where key >= 1;
 select * from yourCollection where key <= 1;
 select * from yourCollection where key < 1;
 select * from yourCollection where key > 1.55;
+select * from yourCollection where key > 1.55 && anotherKey != 'value' && anotherKey2 == "value";
 
+```
+
+### Inserting
+``` 
+insert into yourCollection({SIMPLE JSON})
+insert into yourCollection({"email": "jdoe@example.com", "firstName": "John"}) 
+
+```
+
+When inserting you can check if the key and value already exists using ``!``
+``` 
+insert into yourCollection({"email!": "jdoe@example.com", "firstName": "John"}) 
+``` 
+
+email jdoe@example.com does not exist and there is no document with either 'audi' or 'honda' values within cars key array.
+```
+insert into yourCollection({"email!": "jdoe@example.com", "firstName": "John", "cars!": ["audi", "honda"]}) 
 ```
 
 You can slice and limit
@@ -37,6 +55,7 @@ select 4,6 from yourCollection where key == 'value';
 - delete
 
 ## Todo
+- select with where clause (almost done)
 - && queries (``select * from users where firstName == 'Alex' && age > 21;``)
 - Finish delete
 - Comments
