@@ -37,7 +37,7 @@ select 4,6 from yourCollection where key == 'value';
 - delete
 
 ## Todo
-- && queries (select * from users where firstName == 'Alex' && age > 21;)
+- && queries (``select * from users where firstName == 'Alex' && age > 21;``)
 - Finish delete
 - Comments
 - Encryption at rest
