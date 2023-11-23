@@ -65,3 +65,19 @@ select 4,6 from yourCollection where key == 'value';
 
 ### Cluster
 Default port: 7681
+
+
+### Querying
+``` 
+Client: insert into users({"name!": "john", "age": 28});
+Cluster: {"insert":{"$id":"4d96408f-16d6-452d-90d5-51fdcb6aabe5","age":28,"name":"john"},"message":"Document inserted","statusCode":2000}
+
+Client: update 1 in users where name == 'john' && age > 16 with name = 'alex';
+Cluster: 127.0.0.1:7224: {"lock":false,"message":"No documents updated.","statusCode":2000,"updated":null}
+127.0.0.1:7223: {"lock":false,"message":"Document(s) updated.","statusCode":2000,"updated":[{"$id":"4d96408f-16d6-452d-90d5-51fdcb6aabe5","age":28,"name":"alex"}]}
+
+Client: select * from users;
+Client: select * from users where name == 'alex' && age >= 27;
+```
+
+using ``key!`` will make sure the value is unique across all nodes! 

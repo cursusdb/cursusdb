@@ -428,7 +428,7 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 				}
 
 				vType := fmt.Sprintf("%T", vs.([]interface{})[m])
-
+				log.Println(k, "HUH", vs.([]interface{})[m])
 				_, ok := d[k.(string)]
 				if ok {
 

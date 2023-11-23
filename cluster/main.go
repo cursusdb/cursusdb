@@ -449,7 +449,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					for k, s := range andSplit {
 						querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
 						log.Println("SPL", k, s)
-						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[0])
+						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
 						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
 						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
 
@@ -530,138 +530,155 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				}
 
 			case strings.HasPrefix(query, "update "):
-				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "in", ""))), " "), "from", ""), " ")
-
-				if len(querySplit) != 9 {
-					connection.Text.PrintfLine("Invalid query")
-					query = ""
-					continue
-				}
-
-				if querySplit[6] != "to" && querySplit[7] != "=" {
-					connection.Text.PrintfLine("Invalid query")
-					query = ""
-					continue
-				}
+				// update 1 in users where name == 'john' && age > 16 with name = 'alex';
 
 				body := make(map[string]interface{})
+
+				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.Split(query, "where")[0], "where", ""), "in", ""))), " "), "from", ""), " ")
+
 				body["action"] = querySplit[0]
 				body["limit"] = querySplit[1]
 				body["collection"] = querySplit[2]
-				body["key"] = querySplit[3]
-				body["opr"] = querySplit[4]
-				body["value"] = querySplit[5]
-				body["lock"] = false // lock on read.  There can be many clusters reading at one time.
-				body["to"] = strings.TrimSuffix(querySplit[8], ";")
 
-				switch {
-				case strings.EqualFold(body["opr"].(string), "=="):
-				case strings.EqualFold(body["opr"].(string), "!="):
-				case strings.EqualFold(body["opr"].(string), "<="):
-				case strings.EqualFold(body["opr"].(string), ">="):
-				case strings.EqualFold(body["opr"].(string), "<"):
-				case strings.EqualFold(body["opr"].(string), ">"):
-				default:
-					connection.Text.PrintfLine("Invalid query operator.")
-					query = ""
-					continue
-				}
+				searches := strings.Split(strings.Split(query, "where")[1], "&&")
+				update := strings.Split(searches[len(searches)-1], "with ")[len(strings.Split(searches[len(searches)-1], "with "))-1]
+				searches[len(searches)-1] = strings.Split(searches[len(searches)-1], "with ")[0]
 
-				if strings.EqualFold(body["value"].(string), "null") {
-					body["value"] = nil
-				} else if cluster.IsString(body["value"].(string)) {
+				log.Println("UPDATE", update)
 
-					body["value"] = body["value"].(string)
-					body["value"] = strings.TrimSuffix(body["value"].(string), "\"")
-					body["value"] = strings.TrimPrefix(body["value"].(string), "\"")
-					body["value"] = strings.TrimSuffix(body["value"].(string), "'")
-					body["value"] = strings.TrimPrefix(body["value"].(string), "'")
+				log.Println("SEARCHES", searches)
 
-				} else if cluster.IsBool(body["value"].(string)) {
-
-					b, err := strconv.ParseBool(body["value"].(string))
-					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-						query = ""
-						continue
-					}
-
-					body["value"] = b
-				} else if cluster.IsFloat(body["value"].(string)) {
-
-					f, err := strconv.ParseFloat(body["value"].(string), 64)
-					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-						query = ""
-						continue
-					}
-
-					body["value"] = f
-				} else if cluster.IsInt(body["value"].(string)) {
-					i, err := strconv.Atoi(body["value"].(string))
-					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-						query = ""
-						continue
-					}
-
-					body["value"] = i
-
-				}
-
-				if strings.EqualFold(body["to"].(string), "null") {
-					body["to"] = nil
-				} else if cluster.IsString(body["to"].(string)) {
-
-					body["to"] = body["to"].(string)
-					body["to"] = strings.TrimSuffix(body["to"].(string), "\"")
-					body["to"] = strings.TrimPrefix(body["to"].(string), "\"")
-					body["to"] = strings.TrimSuffix(body["to"].(string), "'")
-					body["to"] = strings.TrimPrefix(body["to"].(string), "'")
-
-				} else if cluster.IsBool(body["to"].(string)) {
-
-					b, err := strconv.ParseBool(body["to"].(string))
-					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-						query = ""
-						continue
-					}
-
-					body["to"] = b
-				} else if cluster.IsFloat(body["to"].(string)) {
-
-					f, err := strconv.ParseFloat(body["to"].(string), 64)
-					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-						query = ""
-						continue
-					}
-
-					body["to"] = f
-				} else if cluster.IsInt(body["to"].(string)) {
-					i, err := strconv.Atoi(body["to"].(string))
-					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-						query = ""
-						continue
-					}
-
-					body["to"] = i
-
-				}
-
-				err := cluster.QueryNodes(connection, body, wg, mu)
-				if err != nil {
-					connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-					query = ""
-					continue
-				}
-
-				query = ""
-				continue
+				//
+				//if len(querySplit) != 9 {
+				//	connection.Text.PrintfLine("Invalid query")
+				//	query = ""
+				//	continue
+				//}
+				//
+				//if querySplit[6] != "to" && querySplit[7] != "=" {
+				//	connection.Text.PrintfLine("Invalid query")
+				//	query = ""
+				//	continue
+				//}
+				//
+				//body := make(map[string]interface{})
+				//body["action"] = querySplit[0]
+				//body["limit"] = querySplit[1]
+				//body["collection"] = querySplit[2]
+				//body["key"] = querySplit[3]
+				//body["opr"] = querySplit[4]
+				//body["value"] = querySplit[5]
+				//body["lock"] = false // lock on read.  There can be many clusters reading at one time.
+				//body["to"] = strings.TrimSuffix(querySplit[8], ";")
+				//
+				//switch {
+				//case strings.EqualFold(body["opr"].(string), "=="):
+				//case strings.EqualFold(body["opr"].(string), "!="):
+				//case strings.EqualFold(body["opr"].(string), "<="):
+				//case strings.EqualFold(body["opr"].(string), ">="):
+				//case strings.EqualFold(body["opr"].(string), "<"):
+				//case strings.EqualFold(body["opr"].(string), ">"):
+				//default:
+				//	connection.Text.PrintfLine("Invalid query operator.")
+				//	query = ""
+				//	continue
+				//}
+				//
+				//if strings.EqualFold(body["value"].(string), "null") {
+				//	body["value"] = nil
+				//} else if cluster.IsString(body["value"].(string)) {
+				//
+				//	body["value"] = body["value"].(string)
+				//	body["value"] = strings.TrimSuffix(body["value"].(string), "\"")
+				//	body["value"] = strings.TrimPrefix(body["value"].(string), "\"")
+				//	body["value"] = strings.TrimSuffix(body["value"].(string), "'")
+				//	body["value"] = strings.TrimPrefix(body["value"].(string), "'")
+				//
+				//} else if cluster.IsBool(body["value"].(string)) {
+				//
+				//	b, err := strconv.ParseBool(body["value"].(string))
+				//	if err != nil {
+				//		connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+				//		query = ""
+				//		continue
+				//	}
+				//
+				//	body["value"] = b
+				//} else if cluster.IsFloat(body["value"].(string)) {
+				//
+				//	f, err := strconv.ParseFloat(body["value"].(string), 64)
+				//	if err != nil {
+				//		connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+				//		query = ""
+				//		continue
+				//	}
+				//
+				//	body["value"] = f
+				//} else if cluster.IsInt(body["value"].(string)) {
+				//	i, err := strconv.Atoi(body["value"].(string))
+				//	if err != nil {
+				//		connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+				//		query = ""
+				//		continue
+				//	}
+				//
+				//	body["value"] = i
+				//
+				//}
+				//
+				//if strings.EqualFold(body["to"].(string), "null") {
+				//	body["to"] = nil
+				//} else if cluster.IsString(body["to"].(string)) {
+				//
+				//	body["to"] = body["to"].(string)
+				//	body["to"] = strings.TrimSuffix(body["to"].(string), "\"")
+				//	body["to"] = strings.TrimPrefix(body["to"].(string), "\"")
+				//	body["to"] = strings.TrimSuffix(body["to"].(string), "'")
+				//	body["to"] = strings.TrimPrefix(body["to"].(string), "'")
+				//
+				//} else if cluster.IsBool(body["to"].(string)) {
+				//
+				//	b, err := strconv.ParseBool(body["to"].(string))
+				//	if err != nil {
+				//		connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+				//		query = ""
+				//		continue
+				//	}
+				//
+				//	body["to"] = b
+				//} else if cluster.IsFloat(body["to"].(string)) {
+				//
+				//	f, err := strconv.ParseFloat(body["to"].(string), 64)
+				//	if err != nil {
+				//		connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+				//		query = ""
+				//		continue
+				//	}
+				//
+				//	body["to"] = f
+				//} else if cluster.IsInt(body["to"].(string)) {
+				//	i, err := strconv.Atoi(body["to"].(string))
+				//	if err != nil {
+				//		connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+				//		query = ""
+				//		continue
+				//	}
+				//
+				//	body["to"] = i
+				//
+				//}
+				//
+				//err := cluster.QueryNodes(connection, body, wg, mu)
+				//if err != nil {
+				//	connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+				//	query = ""
+				//	continue
+				//}
+				//
+				//query = ""
+				//continue
 			case strings.HasPrefix(query, "delete "):
-
+				// TO BE IMPLEMENTED
 				// delete * from users where firstName == "alex";
 				// delete 2 from users where age > 22; -- gets the last 2 inserted users documents where age is > 22!
 				// delete 22,2 from users where age > 22;
