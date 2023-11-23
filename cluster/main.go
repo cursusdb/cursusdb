@@ -245,9 +245,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					body["keys"] = append(body["keys"].([]interface{}), strings.TrimSpace(strings.TrimSuffix(indx[1], "!"))) // add key for query
 					body["oprs"] = append(body["oprs"].([]interface{}), "==")                                                // == obviously
 
-					cluster.NodesMu.Lock()
 					body["lock"] = true // lock on read.  There can be many clusters reading at one time.  This helps setup uniqueness across all nodes if indexes are required
-					cluster.NodesMu.Unlock()
 
 					if len(kValue.FindStringSubmatch(query)) > 0 {
 						if strings.HasPrefix(kValue.FindStringSubmatch(query)[1], "[") && strings.HasSuffix(kValue.FindStringSubmatch(query)[1], "]") {
@@ -266,6 +264,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 							}
 
+							cluster.NodesMu.Lock()
 							res := cluster.QueryNodesRet(connection, body, wg, mu)
 							for _, r := range res {
 								if !strings.EqualFold(r, "null") {
@@ -279,6 +278,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 									goto cont
 								}
 							}
+							cluster.NodesMu.Unlock()
 
 						} else {
 
@@ -323,8 +323,9 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 								body["values"].([]interface{})[0] = i
 
 							}
-
+							cluster.NodesMu.Lock()
 							res := cluster.QueryNodesRet(connection, body, wg, mu)
+							cluster.NodesMu.Unlock()
 							for _, r := range res {
 								if !strings.EqualFold(r, "null") {
 									result := make(map[string]interface{})
@@ -361,28 +362,42 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				body["oprs"] = interface2
 				body["oprs"] = append(body["oprs"].([]interface{}), "==")
 
-				body["lock"] = true // lock on read.  There can be many clusters reading at one time.  This helps setup indexes across all nodes
+				body["lock"] = true // lock on read.  There can be many clusters reading at one time.  This helps setup uniqueness across all nodes
 				body["values"] = interface3
 				body["values"] = append(body["values"].([]interface{}), uuid.New().String())
 
-			retry:
-				body["values"].([]interface{})[0] = uuid.New().String()
-
+				cluster.NodesMu.Lock()
 				res := cluster.QueryNodesRet(connection, body, wg, mu)
 				for _, r := range res {
 					if !strings.EqualFold(r, "null") {
+						cluster.NodesMu.Unlock()
+						goto retry // $id already exists
+					}
+				}
+				cluster.NodesMu.Unlock()
+
+				goto insert
+			retry:
+				body["values"].([]interface{})[0] = uuid.New().String()
+				cluster.NodesMu.Lock()
+				res = cluster.QueryNodesRet(connection, body, wg, mu)
+				for _, r := range res {
+					if !strings.EqualFold(r, "null") {
+						cluster.NodesMu.Unlock()
 						goto retry // $id already exists
 					}
 				}
 
+				cluster.NodesMu.Unlock()
+				goto insert
+
+			insert:
 				cluster.InsertIntoNode(connection, strings.ReplaceAll(insertJson[1], "!\":", "\":"), collection, body["values"].([]interface{})[0].(string))
 
 				query = ""
 				continue
 			case strings.HasPrefix(query, "select "):
-				// select * from users where firstName == "alex";
-				// select 2 from users where age > 22;
-				// select 22,2 from users where age > 22 && name == 'john' && createdOn >= 19992929;
+
 				if !strings.Contains(query, "from ") {
 					connection.Text.PrintfLine("from is required!")
 					query = ""
@@ -415,104 +430,101 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					query = ""
 					continue
 				} else {
-					if len(strings.Split(query, "&& ")) >= 1 {
-						log.Println("ANDs...")
-						andSplit := strings.Split(query, "&& ")
-						body := make(map[string]interface{})
-						body["action"] = querySplit[0]
-						body["limit"] = querySplit[1]
-						body["collection"] = querySplit[2]
-						var interface1 []interface{}
-						var interface2 []interface{}
-						var interface3 []interface{}
+					andSplit := strings.Split(query, "&& ")
+					body := make(map[string]interface{})
+					body["action"] = querySplit[0]
+					body["limit"] = querySplit[1]
+					body["collection"] = querySplit[2]
 
-						body["keys"] = interface1
-						body["oprs"] = interface2
-						body["values"] = interface3
+					var interface1 []interface{}
+					var interface2 []interface{}
+					var interface3 []interface{}
 
-						for k, s := range andSplit {
-							querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
+					body["keys"] = interface1
+					body["oprs"] = interface2
+					body["values"] = interface3
 
-							body["keys"] = append(body["keys"].([]interface{}), querySplitNested[0])
-							body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[1])
-							body["lock"] = false // lock on read.  There can be many clusters reading at one time.
+					for k, s := range andSplit {
+						querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
+						log.Println("SPL", k, s)
+						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[0])
+						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
+						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
 
-							switch {
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
-							default:
-								connection.Text.PrintfLine("Invalid query operator.")
-								query = ""
-								goto cont2
-							}
-
-							goto skip
-
-						cont2:
-							continue
-
-						skip:
-
-							body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[2], ";"))
-							log.Println("SLEEP", body["values"])
-
-							if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
-								body["values"].([]interface{})[k] = nil
-							} else if cluster.IsString(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-								body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
-								body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
-								body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
-								body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
-							} else if cluster.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-								b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
-								if err != nil {
-									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-									query = ""
-									continue
-								}
-
-								body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
-							} else if cluster.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-								f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
-								if err != nil {
-									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-									query = ""
-									continue
-								}
-
-								body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
-							} else if cluster.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-								i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
-								if err != nil {
-									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-									query = ""
-									continue
-								}
-
-								body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = i
-
-							}
-
-						}
-
-						err := cluster.QueryNodes(connection, body, wg, mu)
-						if err != nil {
-							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+						switch {
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
+						default:
+							connection.Text.PrintfLine("Invalid query operator.")
 							query = ""
-							continue
+							goto cont2
 						}
 
-						query = ""
+						goto skip
+
+					cont2:
 						continue
 
+					skip:
+
+						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
+
+						if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
+							body["values"].([]interface{})[k] = nil
+						} else if cluster.IsString(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
+						} else if cluster.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
+							if err != nil {
+								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
+						} else if cluster.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
+							if err != nil {
+								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
+						} else if cluster.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
+							if err != nil {
+								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = i
+
+						}
+
 					}
+
+					err := cluster.QueryNodes(connection, body, wg, mu)
+					if err != nil {
+						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+						query = ""
+						continue
+					}
+
+					query = ""
+					continue
+
 				}
 
 			case strings.HasPrefix(query, "update "):
