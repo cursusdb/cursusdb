@@ -184,15 +184,11 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 		} else if strings.HasSuffix(query, ";") {
 			log.Println("QUERY:", query) // Log
 
-			// On insert we require a mutex and
 			wg := &sync.WaitGroup{}
 			mu := &sync.Mutex{}
 
 			switch {
 			case strings.HasPrefix(query, "insert "):
-				// insert into users({"firstName": "alex", "email": "apadula@postdaemon.com", "age": 23, "active": false});
-				// insert into users({"firstName!": "alex", "email": "apadula@postdaemon.com", "age": 23, "active": false}); ! means only insert if non existent on all nodes.
-				// update 1 in users to firstName! = 'alex'; // only if firstName value does not exist.
 
 				if !strings.HasPrefix(query, "insert into ") {
 					connection.Text.PrintfLine("Invalid query")
@@ -343,11 +339,11 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				}
 
 				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
-				//if len(strings.Split(query, "&& ")) > 1 {
-				//	log.Println("ANDs...")
-				//	log.Println(strings.Split(query, "&& "))
-				//	continue
-				//}
+				if len(strings.Split(query, "&& ")) > 1 {
+					log.Println("ANDs...")
+					log.Println(strings.Split(query, "&& "))
+					continue
+				}
 
 				if !strings.Contains(query, "where ") {
 					body := make(map[string]interface{})
