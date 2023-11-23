@@ -49,6 +49,7 @@ type Cluster struct {
 	Config          Config           // Cluster config (read from yaml .clusterconfig)
 	NodeConnections []NodeConnection // Configured and forever connected node connections.
 	Connections     []*Connection    // Client connections
+	ConnectionsMu   *sync.Mutex
 }
 
 // Config is the cluster config type
@@ -150,8 +151,9 @@ func (cluster *Cluster) IsBool(str string) bool {
 // HandleConnection handles client connections
 func (cluster *Cluster) HandleConnection(connection *Connection) {
 	defer cluster.Wg.Done() // close go routine on return
-
+	cluster.ConnectionsMu.Lock()
 	cluster.Connections = append(cluster.Connections, connection) // Add connection to connections slice.
+	cluster.ConnectionsMu.Unlock()
 
 	connection.Text = textproto.NewConn(connection.Conn) // Setup writer and reader for connection
 
@@ -159,10 +161,12 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 	defer connection.Conn.Close() // close connection on return
 
 	defer func(conn *Connection) { // remove connection from connections slice on return
-		// REQUIRES A MUTEX!!
+
 		for i, c := range cluster.Connections {
 			if c == conn {
+				cluster.ConnectionsMu.Lock()
 				cluster.Connections = append(cluster.Connections[:i], cluster.Connections[i+1:]...)
+				cluster.ConnectionsMu.Unlock()
 			}
 		}
 
@@ -833,6 +837,8 @@ func main() {
 		}
 
 	}
+
+	cluster.ConnectionsMu = &sync.Mutex{}
 
 	cluster.ConnectToNodes()
 

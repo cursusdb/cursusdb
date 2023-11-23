@@ -55,12 +55,10 @@ select 4,6 from yourCollection where key == 'value';
 - delete
 
 ## Todo
-- select with where clause (almost done)
 - && queries (``select * from users where firstName == 'Alex' && age > 21;``)
 - Finish delete
 - Comments
 - Encryption at rest
-- Glitch with select n,n must fix
 - Bring update to speed with select in regards to updates in logic.
 - Each node should have a limit of documents. Say 10 million default per node.
 - Cluster and nodes share same hashed key.

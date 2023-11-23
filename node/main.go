@@ -44,6 +44,7 @@ type Node struct {
 	SignalChannel chan os.Signal
 	Connections   []*Connection
 	Data          Data
+	MaxDocuments  uint64 // Default 15,000,000
 }
 
 type Data struct {
@@ -391,6 +392,7 @@ func (n *Node) sel(collection string, k interface{}, v interface{}, vol int, ski
 	}
 
 	var objects []interface{}
+
 	for i, d := range n.Data.Map[collection] {
 		if k == nil && v == nil && opr == nil {
 			if skip != 0 {
@@ -399,6 +401,7 @@ func (n *Node) sel(collection string, k interface{}, v interface{}, vol int, ski
 			}
 
 			if vol != -1 {
+				log.Println(i, vol)
 				if i-1 == vol-1 {
 					return objects
 				}
