@@ -482,7 +482,7 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 										}
 									}
 								} else if vType == "float64" {
-									var interfaceI float64 = d[k.(string)].(float64)
+									var interfaceI float64 = dd.(float64)
 
 									if oprs.([]interface{})[m] == "==" {
 										if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
