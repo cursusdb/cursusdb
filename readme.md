@@ -55,12 +55,10 @@ select 4,6 from yourCollection where key == 'value';
 - delete
 
 ## Todo
-- && queries (``select * from users where firstName == 'Alex' && age > 21;``)
-- Finish delete
-- Comments
-- Encryption at rest
 - Bring update to speed with select in regards to updates in logic.
-- Each node should have a limit of documents. Say 10 million default per node.
+- Finish delete
+- Encryption at rest
+- Comments
 - Cluster and nodes share same hashed key.
 - Cluster to authenticate via basic authentication ``"username\0password`` with basic (read or read/write OR read/write/delete permissions)
 
