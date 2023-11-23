@@ -54,7 +54,9 @@ type Cluster struct {
 
 // Config is the cluster config type
 type Config struct {
-	Nodes []string `yaml:"nodes"` // Node host/ips
+	Nodes   []string `yaml:"nodes"` // Node host/ips
+	TLSCert string   `yaml:"tls-cert"`
+	TLSKey  string   `yaml:"tls-key"`
 }
 
 // NodeConnection is the cluster connected to a node as a client.
@@ -528,12 +530,6 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				}
 
 			case strings.HasPrefix(query, "update "):
-				// update * in users where firstName == "alex" to = "daniel";
-				// update 2 in users where age > 22; -- gets the last 2 inserted users documents where age is > 22!
-				// update 22,2 in users where age > 22 to = 23;
-				// select * in users where firstName == "alex"  to = "daniel";
-				// select 2 in users where age > 22 to = 23;
-				// select 22,2 in users where age > 22 to = 23;
 				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "in", ""))), " "), "from", ""), " ")
 
 				if len(querySplit) != 9 {
