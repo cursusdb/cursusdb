@@ -381,7 +381,7 @@ func (n *Node) update(collection, k string, v interface{}, nv interface{}, vol i
 	return objects
 }
 
-func (n *Node) sel(collection string, k interface{}, v interface{}, vol int, skip int, opr interface{}, lock bool) []interface{} {
+func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool) []interface{} {
 
 	if lock {
 		writeMu, ok := n.Data.Writers[collection]
@@ -394,222 +394,225 @@ func (n *Node) sel(collection string, k interface{}, v interface{}, vol int, ski
 	var objects []interface{}
 
 	for i, d := range n.Data.Map[collection] {
-		if k == nil && v == nil && opr == nil {
+		if ks == nil && vs == nil && oprs == nil {
 			if skip != 0 {
 				skip = skip - 1
 				continue
 			}
 
 			if vol != -1 {
-				log.Println(i, vol)
 				if i-1 == vol-1 {
 					return objects
 				}
 			}
 			objects = append(objects, d)
+			continue
 		} else {
 
-			if opr == "" {
-				fmt.Sprintf("Query operator required.")
-				return nil
-			}
+			for m, k := range ks.([]interface{}) {
 
-			if skip != 0 {
-				skip = skip - 1
-				continue
-			}
-
-			if vol != -1 {
-				if len(objects) == vol {
-					return objects
+				if oprs.([]interface{})[m] == "" {
+					fmt.Sprintf("Query operator required.")
+					return nil
 				}
-			}
 
-			vType := fmt.Sprintf("%T", v)
-
-			_, ok := d[k.(string)]
-			if ok {
-
-				if d[k.(string)] == nil {
-					objects = append(objects, d)
+				if skip != 0 {
+					skip = skip - 1
 					continue
 				}
 
-				if reflect.TypeOf(d[k.(string)]).Kind() == reflect.Slice {
-					for _, dd := range d[k.(string)].([]interface{}) {
+				if vol != -1 {
+					if len(objects) == vol {
+						return objects
+					}
+				}
 
-						if len(objects) == vol {
-							return objects
+				vType := fmt.Sprintf("%T", vs.([]interface{})[m])
+
+				_, ok := d[k.(string)]
+				if ok {
+
+					if d[k.(string)] == nil {
+						objects = append(objects, d)
+						continue
+					}
+
+					if reflect.TypeOf(d[k.(string)]).Kind() == reflect.Slice {
+						for _, dd := range d[k.(string)].([]interface{}) {
+
+							if len(objects) == vol {
+								return objects
+							}
+
+							if reflect.TypeOf(dd).Kind() == reflect.Float64 {
+								if vType == "int" {
+									var interfaceI int = int(dd.(float64))
+
+									if oprs.([]interface{})[m] == "==" {
+										if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+											objects = append(objects, d)
+										}
+									} else if oprs.([]interface{})[m] == "!=" {
+										if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+											objects = append(objects, d)
+										}
+									} else if oprs.([]interface{})[m] == ">" {
+										if vType == "int" {
+											if interfaceI > vs.([]interface{})[m].(int) {
+												objects = append(objects, d)
+											}
+										}
+									} else if oprs.([]interface{})[m] == "<" {
+										if vType == "int" {
+											if interfaceI < vs.([]interface{})[m].(int) {
+												objects = append(objects, d)
+											}
+										}
+									} else if oprs.([]interface{})[m] == ">=" {
+										if vType == "int" {
+											if interfaceI >= vs.([]interface{})[m].(int) {
+												objects = append(objects, d)
+											}
+										}
+									} else if oprs.([]interface{})[m] == "<=" {
+										if vType == "int" {
+											if interfaceI <= vs.([]interface{})[m].(int) {
+												objects = append(objects, d)
+											}
+										}
+									}
+								} else if vType == "float64" {
+									var interfaceI float64 = d[k.(string)].(float64)
+
+									if oprs.([]interface{})[m] == "==" {
+										if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+											objects = append(objects, d)
+										}
+									} else if oprs.([]interface{})[m] == "!=" {
+										if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+											objects = append(objects, d)
+										}
+									} else if oprs.([]interface{})[m] == ">" {
+										if float64(interfaceI) > vs.([]interface{})[m].(float64) {
+											objects = append(objects, d)
+										}
+
+									} else if oprs.([]interface{})[m] == "<" {
+										if float64(interfaceI) < vs.([]interface{})[m].(float64) {
+											objects = append(objects, d)
+										}
+
+									} else if oprs.([]interface{})[m] == ">=" {
+
+										if float64(interfaceI) >= vs.([]interface{})[m].(float64) {
+											objects = append(objects, d)
+										}
+
+									} else if oprs.([]interface{})[m] == "<=" {
+										if float64(interfaceI) <= vs.([]interface{})[m].(float64) {
+											objects = append(objects, d)
+										}
+
+									}
+								}
+							} else if reflect.TypeOf(dd).Kind() == reflect.Map {
+								//for kkk, ddd := range dd.(map[string]interface{}) {
+								//	// unimplemented
+								//}
+							} else {
+								if oprs.([]interface{})[m] == "==" {
+									if reflect.DeepEqual(dd, vs.([]interface{})[m]) {
+										objects = append(objects, d)
+									}
+								} else if oprs.([]interface{})[m] == "!=" {
+									if !reflect.DeepEqual(dd, vs.([]interface{})[m]) {
+										objects = append(objects, d)
+									}
+								}
+							}
+
 						}
+					} else if vType == "int" {
+						var interfaceI int = int(d[k.(string)].(float64))
 
-						if reflect.TypeOf(dd).Kind() == reflect.Float64 {
+						if oprs.([]interface{})[m] == "==" {
+							if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+								objects = append(objects, d)
+							}
+						} else if oprs.([]interface{})[m] == "!=" {
+							if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+								objects = append(objects, d)
+							}
+						} else if oprs.([]interface{})[m] == ">" {
 							if vType == "int" {
-								var interfaceI int = int(dd.(float64))
-
-								if opr == "==" {
-									if reflect.DeepEqual(interfaceI, v) {
-										objects = append(objects, d)
-									}
-								} else if opr == "!=" {
-									if !reflect.DeepEqual(interfaceI, v) {
-										objects = append(objects, d)
-									}
-								} else if opr == ">" {
-									if vType == "int" {
-										if interfaceI > v.(int) {
-											objects = append(objects, d)
-										}
-									}
-								} else if opr == "<" {
-									if vType == "int" {
-										if interfaceI < v.(int) {
-											objects = append(objects, d)
-										}
-									}
-								} else if opr == ">=" {
-									if vType == "int" {
-										if interfaceI >= v.(int) {
-											objects = append(objects, d)
-										}
-									}
-								} else if opr == "<=" {
-									if vType == "int" {
-										if interfaceI <= v.(int) {
-											objects = append(objects, d)
-										}
-									}
-								}
-							} else if vType == "float64" {
-								var interfaceI float64 = d[k.(string)].(float64)
-
-								if opr == "==" {
-									if reflect.DeepEqual(interfaceI, v) {
-										objects = append(objects, d)
-									}
-								} else if opr == "!=" {
-									if !reflect.DeepEqual(interfaceI, v) {
-										objects = append(objects, d)
-									}
-								} else if opr == ">" {
-									if float64(interfaceI) > v.(float64) {
-										objects = append(objects, d)
-									}
-
-								} else if opr == "<" {
-									if float64(interfaceI) < v.(float64) {
-										objects = append(objects, d)
-									}
-
-								} else if opr == ">=" {
-
-									if float64(interfaceI) >= v.(float64) {
-										objects = append(objects, d)
-									}
-
-								} else if opr == "<=" {
-									if float64(interfaceI) <= v.(float64) {
-										objects = append(objects, d)
-									}
-
-								}
-							}
-						} else if reflect.TypeOf(dd).Kind() == reflect.Map {
-							//for kkk, ddd := range dd.(map[string]interface{}) {
-							//	// unimplemented
-							//}
-						} else {
-							if opr == "==" {
-								if reflect.DeepEqual(dd, v) {
+								if interfaceI > vs.([]interface{})[m].(int) {
 									objects = append(objects, d)
 								}
-							} else if opr == "!=" {
-								if !reflect.DeepEqual(dd, v) {
+							}
+						} else if oprs.([]interface{})[m] == "<" {
+							if vType == "int" {
+								if interfaceI < vs.([]interface{})[m].(int) {
+									objects = append(objects, d)
+								}
+							}
+						} else if oprs.([]interface{})[m] == ">=" {
+							if vType == "int" {
+								if interfaceI >= vs.([]interface{})[m].(int) {
+									objects = append(objects, d)
+								}
+							}
+						} else if oprs.([]interface{})[m] == "<=" {
+							if vType == "int" {
+								if interfaceI <= vs.([]interface{})[m].(int) {
 									objects = append(objects, d)
 								}
 							}
 						}
+					} else if vType == "float64" {
+						var interfaceI float64 = d[k.(string)].(float64)
 
-					}
-				} else if vType == "int" {
-					var interfaceI int = int(d[k.(string)].(float64))
+						if oprs.([]interface{})[m] == "==" {
+							if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+								objects = append(objects, d)
+							}
+						} else if oprs.([]interface{})[m] == "!=" {
+							if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+								objects = append(objects, d)
+							}
+						} else if oprs.([]interface{})[m] == ">" {
+							if float64(interfaceI) > vs.([]interface{})[m].(float64) {
+								objects = append(objects, d)
+							}
 
-					if opr == "==" {
-						if reflect.DeepEqual(interfaceI, v) {
-							objects = append(objects, d)
+						} else if oprs.([]interface{})[m] == "<" {
+							if float64(interfaceI) < vs.([]interface{})[m].(float64) {
+								objects = append(objects, d)
+							}
+
+						} else if oprs.([]interface{})[m] == ">=" {
+
+							if float64(interfaceI) >= vs.([]interface{})[m].(float64) {
+								objects = append(objects, d)
+							}
+
+						} else if oprs.([]interface{})[m] == "<=" {
+							if float64(interfaceI) <= vs.([]interface{})[m].(float64) {
+								objects = append(objects, d)
+							}
+
 						}
-					} else if opr == "!=" {
-						if !reflect.DeepEqual(interfaceI, v) {
-							objects = append(objects, d)
-						}
-					} else if opr == ">" {
-						if vType == "int" {
-							if interfaceI > v.(int) {
+					} else {
+						if oprs.([]interface{})[m] == "==" {
+							if reflect.DeepEqual(d[k.(string)], vs.([]interface{})[m]) {
+								objects = append(objects, d)
+							}
+						} else if oprs.([]interface{})[m] == "!=" {
+							if !reflect.DeepEqual(d[k.(string)], vs.([]interface{})[m]) {
 								objects = append(objects, d)
 							}
 						}
-					} else if opr == "<" {
-						if vType == "int" {
-							if interfaceI < v.(int) {
-								objects = append(objects, d)
-							}
-						}
-					} else if opr == ">=" {
-						if vType == "int" {
-							if interfaceI >= v.(int) {
-								objects = append(objects, d)
-							}
-						}
-					} else if opr == "<=" {
-						if vType == "int" {
-							if interfaceI <= v.(int) {
-								objects = append(objects, d)
-							}
-						}
-					}
-				} else if vType == "float64" {
-					var interfaceI float64 = d[k.(string)].(float64)
-
-					if opr == "==" {
-						if reflect.DeepEqual(interfaceI, v) {
-							objects = append(objects, d)
-						}
-					} else if opr == "!=" {
-						if !reflect.DeepEqual(interfaceI, v) {
-							objects = append(objects, d)
-						}
-					} else if opr == ">" {
-						if float64(interfaceI) > v.(float64) {
-							objects = append(objects, d)
-						}
-
-					} else if opr == "<" {
-						if float64(interfaceI) < v.(float64) {
-							objects = append(objects, d)
-						}
-
-					} else if opr == ">=" {
-
-						if float64(interfaceI) >= v.(float64) {
-							objects = append(objects, d)
-						}
-
-					} else if opr == "<=" {
-						if float64(interfaceI) <= v.(float64) {
-							objects = append(objects, d)
-						}
 
 					}
-				} else {
-					if opr == "==" {
-						if reflect.DeepEqual(d[k.(string)], v) {
-							objects = append(objects, d)
-						}
-					} else if opr == "!=" {
-						if !reflect.DeepEqual(d[k.(string)], v) {
-							objects = append(objects, d)
-						}
-					}
-
 				}
 			}
 		}
@@ -739,7 +742,9 @@ func (n *Node) HandleConnection(connection *Connection) {
 					}
 				}
 
-				results := n.sel(result["collection"].(string), result["key"], result["value"], result["limit"].(int), result["skip"].(int), result["opr"], result["lock"].(bool))
+				log.Println(result)
+
+				results := n.sel(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool))
 				r, _ := json.Marshal(results)
 				connection.Text.PrintfLine(string(r))
 				continue
