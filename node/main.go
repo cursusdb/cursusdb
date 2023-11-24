@@ -21,6 +21,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -58,6 +59,19 @@ type Connection struct {
 	Text *textproto.Conn
 }
 
+func tolerance(a, b, e float64) bool {
+	d := a - b
+	if d < 0 {
+		d = -d
+	}
+	if b != 0 {
+		e = e * b
+		if e < 0 {
+			e = -e
+		}
+	}
+	return d < e
+}
 func (n *Node) TCP_TLSListener(port int) {
 	defer n.Wg.Done()
 	var err error
@@ -183,14 +197,14 @@ func (n *Node) update(collection, k string, v interface{}, nv interface{}, vol i
 							var interfaceI float64 = d[k].(float64)
 
 							if opr == "==" {
-								if reflect.DeepEqual(interfaceI, v) {
+								if float64(interfaceI) == v.(float64) {
 									n.Data.Writers[collection].Lock()
 									d[k].([]interface{})[i] = nv
 									n.Data.Writers[collection].Unlock()
 									objects = append(objects, d)
 								}
 							} else if opr == "!=" {
-								if !reflect.DeepEqual(interfaceI, v) {
+								if float64(interfaceI) != v.(float64) {
 									n.Data.Writers[collection].Lock()
 									d[k].([]interface{})[i] = nv
 									n.Data.Writers[collection].Unlock()
@@ -545,7 +559,9 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 									var interfaceI float64 = dd.(float64)
 
 									if oprs.([]interface{})[m] == "==" {
-										if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+
+										if bytes.Equal([]byte(fmt.Sprintf("%f", float64(interfaceI))), []byte(fmt.Sprintf("%f", float64(vs.([]interface{})[m].(float64))))) {
+
 											conditionsMet += 1
 											(func() {
 												for _, o := range objects {
@@ -558,7 +574,7 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 											})()
 										}
 									} else if oprs.([]interface{})[m] == "!=" {
-										if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+										if float64(interfaceI) != vs.([]interface{})[m].(float64) {
 											conditionsMet += 1
 											(func() {
 												for _, o := range objects {
@@ -758,8 +774,11 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 						var interfaceI float64 = d[k.(string)].(float64)
 
 						if oprs.([]interface{})[m] == "==" {
-							if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+
+							if bytes.Equal([]byte(fmt.Sprintf("%f", float64(interfaceI))), []byte(fmt.Sprintf("%f", float64(vs.([]interface{})[m].(float64))))) {
+
 								conditionsMet += 1
+
 								(func() {
 									for _, o := range objects {
 										if reflect.DeepEqual(o, d) {
@@ -771,7 +790,7 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 								})()
 							}
 						} else if oprs.([]interface{})[m] == "!=" {
-							if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+							if float64(interfaceI) != vs.([]interface{})[m].(float64) {
 								conditionsMet += 1
 								(func() {
 									for _, o := range objects {
