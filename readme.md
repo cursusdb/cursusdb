@@ -80,4 +80,20 @@ Client: select * from users;
 Client: select * from users where name == 'alex' && age >= 27;
 ```
 
+``` 
+insert into users({"name": "Alex", "last": "Padula", "age": 28});
+{"insert":{"$id":"c85c3776-1b7c-4d90-85a7-d6d74ee9428e","age":28,"last":"Padula","name":"Alex"},"message":"Document inserted","statusCode":2000}
+insert into users({"name!": "Alex", "last": "Padula", "age": 28});
+{"message":"Document already exists","statusCode":4004}
+select * from users;
+127.0.0.1:7223: [{"$id":"c85c3776-1b7c-4d90-85a7-d6d74ee9428e","age":28,"last":"Padula","name":"Alex"}]
+127.0.0.1:7224: null
+select * from users where name == 'Alex' && age == 28;
+127.0.0.1:7223: [{"$id":"c85c3776-1b7c-4d90-85a7-d6d74ee9428e","age":28,"last":"Padula","name":"Alex"}]
+127.0.0.1:7224: null
+select * from users where name == 'John' || age == 28;
+127.0.0.1:7224: null
+127.0.0.1:7223: [{"$id":"c85c3776-1b7c-4d90-85a7-d6d74ee9428e","age":28,"last":"Padula","name":"Alex"}
+```
+
 using ``key!`` will make sure the value is unique across all nodes! 

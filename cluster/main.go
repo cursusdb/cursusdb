@@ -235,6 +235,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					body["action"] = "select"       // We will select 1 from all nodes with provided key value
 					body["limit"] = "1"             // limit of 1 of course
 					body["collection"] = collection // collection is provided collection
+					body["conditions"] = []string{""}
 
 					var interface1 []interface{} // In-order to have an interface slice in go you must set them up prior to using them.
 					var interface2 []interface{} // ^
