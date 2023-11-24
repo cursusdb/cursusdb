@@ -883,7 +883,10 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 	if slices.Contains(conditions, "&&") {
 		if uint64(len(conditions)) != conditionsMet {
 			var nullObjects []interface{}
-			objects = nullObjects
+
+			if !slices.Contains(conditions, "||") {
+				objects = nullObjects
+			}
 		}
 	}
 

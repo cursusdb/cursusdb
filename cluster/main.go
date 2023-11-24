@@ -442,7 +442,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					body["action"] = querySplit[0]
 					body["limit"] = querySplit[1]
 					body["collection"] = querySplit[2]
-					body["conditions"] = []string{"||"}
+					body["conditions"] = []string{"*"}
 
 					var interface1 []interface{}
 					var interface2 []interface{}
