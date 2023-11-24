@@ -548,7 +548,6 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
 
 				// update 1 in users where name == 'jackson' && age == 44 set name = 'alex', age = 28;
-				log.Println(querySplit)
 				var setStartIndex uint
 				for seti, t := range querySplit {
 					if t == "set" {
@@ -560,7 +559,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				body["action"] = querySplit[0]
 				body["limit"] = querySplit[1]
 				body["collection"] = querySplit[2]
-				body["conditions"] = []string{"*"}
+				body["conditions"] = []string{}
 
 				var interface1 []interface{}
 				var interface2 []interface{}
@@ -574,7 +573,6 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				body["new-values"] = interface5
 
 				conditions := querySplit[4:setStartIndex]
-				log.Println("CONDS", conditions)
 				newValues := strings.Split(strings.ReplaceAll(strings.Join(querySplit[setStartIndex:], " "), "set ", ""), ",")
 
 				for _, nvSet := range newValues {
@@ -713,11 +711,9 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 						lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
 						valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
 
-						body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
+						body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(query[lindx+valLen:lindx+valLen+4]), "'", ""), "\"", "")))
 					}
 				}
-
-				log.Println("BOD", body)
 
 				err := cluster.QueryNodes(connection, body, wg, mu)
 				if err != nil {
