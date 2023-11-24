@@ -57,6 +57,7 @@ type Config struct {
 	Nodes   []string `yaml:"nodes"` // Node host/ips
 	TLSCert string   `yaml:"tls-cert"`
 	TLSKey  string   `yaml:"tls-key"`
+	TLS     bool     `default:"true" yaml:"tls"`
 }
 
 // NodeConnection is the cluster connected to a node as a client.
@@ -358,6 +359,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				body["action"] = "select"
 				body["limit"] = "1"
 				body["collection"] = collection
+				body["conditions"] = []string{""}
 
 				body["keys"] = interface1
 				body["keys"] = append(body["keys"].([]interface{}), "$id")
@@ -420,6 +422,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					body["keys"] = interface1
 					body["oprs"] = interface2
 					body["values"] = interface3
+					body["conditions"] = []string{""}
 					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
 
 					err := cluster.QueryNodes(connection, body, wg, mu)
@@ -432,11 +435,14 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					query = ""
 					continue
 				} else {
-					andSplit := strings.Split(query, "&& ")
+					r, _ := regexp.Compile("[\\&&\\||]+")
+					andSplit := r.Split(query, -1) //strings.Split(query, "&& ")
+
 					body := make(map[string]interface{})
 					body["action"] = querySplit[0]
 					body["limit"] = querySplit[1]
 					body["collection"] = querySplit[2]
+					body["conditions"] = []string{"||"}
 
 					var interface1 []interface{}
 					var interface2 []interface{}
@@ -448,7 +454,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 					for k, s := range andSplit {
 						querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
-						log.Println("SPL", k, s)
+
 						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
 						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
 						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
@@ -474,6 +480,13 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					skip:
 
 						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
+
+						if k < len(andSplit)-1 {
+							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+
+							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
+						}
 
 						if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
 							body["values"].([]interface{})[k] = nil
