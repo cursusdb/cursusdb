@@ -1292,6 +1292,30 @@ func (n *Node) HandleConnection(connection *Connection) {
 
 				if result["limit"].(string) == "*" {
 					result["limit"] = -1
+				} else if strings.Contains(result["limit"].(string), ",") {
+					if len(strings.Split(result["limit"].(string), ",")) == 2 {
+						result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
+						if err != nil {
+							connection.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
+							query = ""
+							continue
+						}
+
+						if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
+							result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+							if err != nil {
+								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								query = ""
+								continue
+							}
+						} else {
+							result["limit"] = -1
+						}
+					} else {
+						connection.Text.PrintfLine("Invalid limiting value.")
+						query = ""
+						continue
+					}
 				} else {
 					result["limit"], err = strconv.Atoi(result["limit"].(string))
 					if err != nil {
