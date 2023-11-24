@@ -648,6 +648,532 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 	return objects
 }
 
+func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
+	//var writeMu *sync.RWMutex
+	//if lock {
+	//	var ok bool
+	//	writeMu, ok = n.Data.Writers[collection]
+	//	if ok {
+	//		writeMu.Lock()
+	//	}
+	//}
+	//
+	//defer func(wmu *sync.RWMutex, l bool) {
+	//	if l {
+	//		defer wmu.Unlock()
+	//	}
+	//}(writeMu, lock)
+
+	var objects []interface{}
+
+	var conditionsMet uint64
+	//The && operator displays a document if all the conditions are TRUE.
+	//The || operator displays a record if any of the conditions are TRUE.
+
+	for i, d := range n.Data.Map[collection] {
+		if ks == nil && vs == nil && oprs == nil {
+			if skip != 0 {
+				skip = skip - 1
+				continue
+			}
+
+			if vol != -1 {
+				if i-1 == vol-1 {
+					return objects
+				}
+			}
+			objects = append(objects, d)
+
+			for k, _ := range n.Data.Map[collection][i] {
+				delete(n.Data.Map[collection][i], k)
+			}
+
+			continue
+		} else {
+
+			for m, k := range ks.([]interface{}) {
+
+				if oprs.([]interface{})[m] == "" {
+					fmt.Sprintf("Query operator required.")
+					return nil
+				}
+
+				if skip != 0 {
+					skip = skip - 1
+					continue
+				}
+
+				if vol != -1 {
+					if len(objects) == vol {
+						return objects
+					}
+				}
+
+				vType := fmt.Sprintf("%T", vs.([]interface{})[m])
+
+				_, ok := d[k.(string)]
+				if ok {
+
+					if d[k.(string)] == nil {
+						objects = append(objects, d)
+						continue
+					}
+
+					if reflect.TypeOf(d[k.(string)]).Kind() == reflect.Slice {
+						for _, dd := range d[k.(string)].([]interface{}) {
+
+							if len(objects) == vol {
+								return objects
+							}
+
+							if reflect.TypeOf(dd).Kind() == reflect.Float64 {
+								if vType == "int" {
+									var interfaceI int = int(dd.(float64))
+
+									if oprs.([]interface{})[m] == "==" {
+										if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+											conditionsMet += 1
+											(func() {
+												for _, o := range objects {
+													if reflect.DeepEqual(o, d) {
+														goto exists
+													}
+												}
+												objects = append(objects, d)
+											exists:
+											})()
+										}
+									} else if oprs.([]interface{})[m] == "!=" {
+										if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+											conditionsMet += 1
+											(func() {
+												for _, o := range objects {
+													if reflect.DeepEqual(o, d) {
+														goto exists
+													}
+												}
+												objects = append(objects, d)
+											exists:
+											})()
+										}
+									} else if oprs.([]interface{})[m] == ">" {
+										if vType == "int" {
+											if interfaceI > vs.([]interface{})[m].(int) {
+												conditionsMet += 1
+												(func() {
+													for _, o := range objects {
+														if reflect.DeepEqual(o, d) {
+															goto exists
+														}
+													}
+													objects = append(objects, d)
+												exists:
+												})()
+											}
+										}
+									} else if oprs.([]interface{})[m] == "<" {
+										if vType == "int" {
+											if interfaceI < vs.([]interface{})[m].(int) {
+												conditionsMet += 1
+												(func() {
+													for _, o := range objects {
+														if reflect.DeepEqual(o, d) {
+															goto exists
+														}
+													}
+													objects = append(objects, d)
+												exists:
+												})()
+											}
+										}
+									} else if oprs.([]interface{})[m] == ">=" {
+										if vType == "int" {
+											if interfaceI >= vs.([]interface{})[m].(int) {
+												conditionsMet += 1
+												(func() {
+													for _, o := range objects {
+														if reflect.DeepEqual(o, d) {
+															goto exists
+														}
+													}
+													objects = append(objects, d)
+												exists:
+												})()
+											}
+										}
+									} else if oprs.([]interface{})[m] == "<=" {
+										if vType == "int" {
+											if interfaceI <= vs.([]interface{})[m].(int) {
+												conditionsMet += 1
+												(func() {
+													for _, o := range objects {
+														if reflect.DeepEqual(o, d) {
+															goto exists
+														}
+													}
+													objects = append(objects, d)
+												exists:
+												})()
+											}
+										}
+									}
+								} else if vType == "float64" {
+									var interfaceI float64 = dd.(float64)
+
+									if oprs.([]interface{})[m] == "==" {
+
+										if bytes.Equal([]byte(fmt.Sprintf("%f", float64(interfaceI))), []byte(fmt.Sprintf("%f", float64(vs.([]interface{})[m].(float64))))) {
+
+											conditionsMet += 1
+											(func() {
+												for _, o := range objects {
+													if reflect.DeepEqual(o, d) {
+														goto exists
+													}
+												}
+												objects = append(objects, d)
+											exists:
+											})()
+										}
+									} else if oprs.([]interface{})[m] == "!=" {
+										if float64(interfaceI) != vs.([]interface{})[m].(float64) {
+											conditionsMet += 1
+											(func() {
+												for _, o := range objects {
+													if reflect.DeepEqual(o, d) {
+														goto exists
+													}
+												}
+												objects = append(objects, d)
+											exists:
+											})()
+										}
+									} else if oprs.([]interface{})[m] == ">" {
+										if float64(interfaceI) > vs.([]interface{})[m].(float64) {
+											conditionsMet += 1
+											(func() {
+												for _, o := range objects {
+													if reflect.DeepEqual(o, d) {
+														goto exists
+													}
+												}
+												objects = append(objects, d)
+											exists:
+											})()
+										}
+
+									} else if oprs.([]interface{})[m] == "<" {
+										if float64(interfaceI) < vs.([]interface{})[m].(float64) {
+											conditionsMet += 1
+											(func() {
+												for _, o := range objects {
+													if reflect.DeepEqual(o, d) {
+														goto exists
+													}
+												}
+												objects = append(objects, d)
+											exists:
+											})()
+										}
+
+									} else if oprs.([]interface{})[m] == ">=" {
+
+										if float64(interfaceI) >= vs.([]interface{})[m].(float64) {
+											conditionsMet += 1
+											(func() {
+												for _, o := range objects {
+													if reflect.DeepEqual(o, d) {
+														goto exists
+													}
+												}
+												objects = append(objects, d)
+											exists:
+											})()
+										}
+
+									} else if oprs.([]interface{})[m] == "<=" {
+										if float64(interfaceI) <= vs.([]interface{})[m].(float64) {
+											conditionsMet += 1
+											(func() {
+												for _, o := range objects {
+													if reflect.DeepEqual(o, d) {
+														goto exists
+													}
+												}
+												objects = append(objects, d)
+											exists:
+											})()
+										}
+
+									}
+								}
+							} else if reflect.TypeOf(dd).Kind() == reflect.Map {
+								//for kkk, ddd := range dd.(map[string]interface{}) {
+								//	// unimplemented
+								//}
+							} else {
+								if oprs.([]interface{})[m] == "==" {
+									if reflect.DeepEqual(dd, vs.([]interface{})[m]) {
+										conditionsMet += 1
+										(func() {
+											for _, o := range objects {
+												if reflect.DeepEqual(o, d) {
+													goto exists
+												}
+											}
+											objects = append(objects, d)
+										exists:
+										})()
+									}
+								} else if oprs.([]interface{})[m] == "!=" {
+									if !reflect.DeepEqual(dd, vs.([]interface{})[m]) {
+										conditionsMet += 1
+										(func() {
+											for _, o := range objects {
+												if reflect.DeepEqual(o, d) {
+													goto exists
+												}
+											}
+											objects = append(objects, d)
+										exists:
+										})()
+									}
+								}
+							}
+
+						}
+					} else if vType == "int" {
+						var interfaceI int = int(d[k.(string)].(float64))
+
+						if oprs.([]interface{})[m] == "==" {
+							if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+								conditionsMet += 1
+								(func() {
+									for _, o := range objects {
+										if reflect.DeepEqual(o, d) {
+											goto exists
+										}
+									}
+									objects = append(objects, d)
+								exists:
+								})()
+							}
+						} else if oprs.([]interface{})[m] == "!=" {
+							if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+								conditionsMet += 1
+								(func() {
+									for _, o := range objects {
+										if reflect.DeepEqual(o, d) {
+											goto exists
+										}
+									}
+									objects = append(objects, d)
+								exists:
+								})()
+							}
+						} else if oprs.([]interface{})[m] == ">" {
+							if vType == "int" {
+								if interfaceI > vs.([]interface{})[m].(int) {
+									conditionsMet += 1
+									(func() {
+										for _, o := range objects {
+											if reflect.DeepEqual(o, d) {
+												goto exists
+											}
+										}
+										objects = append(objects, d)
+									exists:
+									})()
+								}
+							}
+						} else if oprs.([]interface{})[m] == "<" {
+							if vType == "int" {
+								if interfaceI < vs.([]interface{})[m].(int) {
+									conditionsMet += 1
+									(func() {
+										for _, o := range objects {
+											if reflect.DeepEqual(o, d) {
+												goto exists
+											}
+										}
+										objects = append(objects, d)
+									exists:
+									})()
+								}
+							}
+						} else if oprs.([]interface{})[m] == ">=" {
+							if vType == "int" {
+								if interfaceI >= vs.([]interface{})[m].(int) {
+									conditionsMet += 1
+									(func() {
+										for _, o := range objects {
+											if reflect.DeepEqual(o, d) {
+												goto exists
+											}
+										}
+										objects = append(objects, d)
+									exists:
+									})()
+								}
+							}
+						} else if oprs.([]interface{})[m] == "<=" {
+							if vType == "int" {
+								if interfaceI <= vs.([]interface{})[m].(int) {
+									conditionsMet += 1
+									(func() {
+										for _, o := range objects {
+											if reflect.DeepEqual(o, d) {
+												goto exists
+											}
+										}
+										objects = append(objects, d)
+									exists:
+									})()
+								}
+							}
+						}
+					} else if vType == "float64" {
+						var interfaceI float64 = d[k.(string)].(float64)
+
+						if oprs.([]interface{})[m] == "==" {
+
+							if bytes.Equal([]byte(fmt.Sprintf("%f", float64(interfaceI))), []byte(fmt.Sprintf("%f", float64(vs.([]interface{})[m].(float64))))) {
+
+								conditionsMet += 1
+
+								(func() {
+									for _, o := range objects {
+										if reflect.DeepEqual(o, d) {
+											goto exists
+										}
+									}
+									objects = append(objects, d)
+								exists:
+								})()
+							}
+						} else if oprs.([]interface{})[m] == "!=" {
+							if float64(interfaceI) != vs.([]interface{})[m].(float64) {
+								conditionsMet += 1
+								(func() {
+									for _, o := range objects {
+										if reflect.DeepEqual(o, d) {
+											goto exists
+										}
+									}
+									objects = append(objects, d)
+								exists:
+								})()
+							}
+						} else if oprs.([]interface{})[m] == ">" {
+							if float64(interfaceI) > vs.([]interface{})[m].(float64) {
+								conditionsMet += 1
+								(func() {
+									for _, o := range objects {
+										if reflect.DeepEqual(o, d) {
+											goto exists
+										}
+									}
+									objects = append(objects, d)
+								exists:
+								})()
+							}
+
+						} else if oprs.([]interface{})[m] == "<" {
+							if float64(interfaceI) < vs.([]interface{})[m].(float64) {
+								conditionsMet += 1
+								(func() {
+									for _, o := range objects {
+										if reflect.DeepEqual(o, d) {
+											goto exists
+										}
+									}
+									objects = append(objects, d)
+								exists:
+								})()
+							}
+
+						} else if oprs.([]interface{})[m] == ">=" {
+
+							if float64(interfaceI) >= vs.([]interface{})[m].(float64) {
+								conditionsMet += 1
+								(func() {
+									for _, o := range objects {
+										if reflect.DeepEqual(o, d) {
+											goto exists
+										}
+									}
+									objects = append(objects, d)
+								exists:
+								})()
+							}
+
+						} else if oprs.([]interface{})[m] == "<=" {
+							if float64(interfaceI) <= vs.([]interface{})[m].(float64) {
+								conditionsMet += 1
+								(func() {
+									for _, o := range objects {
+										if reflect.DeepEqual(o, d) {
+											goto exists
+										}
+									}
+									objects = append(objects, d)
+								exists:
+								})()
+							}
+
+						}
+					} else {
+						if oprs.([]interface{})[m] == "==" {
+							if reflect.DeepEqual(d[k.(string)], vs.([]interface{})[m]) {
+								conditionsMet += 1
+
+								(func() {
+									for _, o := range objects {
+										if reflect.DeepEqual(o, d) {
+											goto exists
+										}
+									}
+									objects = append(objects, d)
+								exists:
+								})()
+
+							}
+						} else if oprs.([]interface{})[m] == "!=" {
+							if !reflect.DeepEqual(d[k.(string)], vs.([]interface{})[m]) {
+								conditionsMet += 1
+
+								(func() {
+									for _, o := range objects {
+										if reflect.DeepEqual(o, d) {
+											goto exists
+										}
+									}
+									objects = append(objects, d)
+								exists:
+								})()
+							}
+						}
+
+					}
+				}
+			}
+		}
+
+	}
+
+	if slices.Contains(conditions, "&&") {
+		if uint64(len(conditions)) != conditionsMet {
+			var nullObjects []interface{}
+
+			if !slices.Contains(conditions, "||") {
+				objects = nullObjects
+			}
+		}
+	}
+
+	return objects
+}
+
 func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
 
 	if lock {
@@ -1247,6 +1773,47 @@ func (n *Node) HandleConnection(connection *Connection) {
 		action, ok := result["action"]
 		if ok {
 			switch {
+			case strings.EqualFold(action.(string), "delete"):
+
+				if result["limit"].(string) == "*" {
+					result["limit"] = -1
+				} else if strings.Contains(result["limit"].(string), ",") {
+					if len(strings.Split(result["limit"].(string), ",")) == 2 {
+						result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
+						if err != nil {
+							connection.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
+							query = ""
+							continue
+						}
+
+						if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
+							result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+							if err != nil {
+								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								query = ""
+								continue
+							}
+						} else {
+							result["limit"] = -1
+						}
+					} else {
+						connection.Text.PrintfLine("Invalid limiting value.")
+						query = ""
+						continue
+					}
+				} else {
+					result["limit"], err = strconv.Atoi(result["limit"].(string))
+					if err != nil {
+						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+						query = ""
+						continue
+					}
+				}
+
+				results := n.del(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
+				r, _ := json.Marshal(results)
+				connection.Text.PrintfLine(string(r))
+				continue
 			case strings.EqualFold(action.(string), "select"):
 
 				if result["limit"].(string) == "*" {

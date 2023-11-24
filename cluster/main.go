@@ -726,10 +726,147 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				continue
 
 			case strings.HasPrefix(query, "delete "):
-				// TO BE IMPLEMENTED
-				connection.Text.PrintfLine("Something went wrong.")
-				query = ""
-				continue
+				// delete 1 from users where name == 'alex' && last == 'padula';
+
+				if !strings.Contains(query, "from ") {
+					connection.Text.PrintfLine("from is required!")
+					query = ""
+					continue
+				}
+
+				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
+
+				if !strings.Contains(query, "where ") {
+					body := make(map[string]interface{})
+					body["action"] = querySplit[0]
+					body["limit"] = querySplit[1]
+					body["collection"] = strings.TrimSuffix(querySplit[2], ";")
+					var interface1 []interface{}
+					var interface2 []interface{}
+					var interface3 []interface{}
+
+					body["keys"] = interface1
+					body["oprs"] = interface2
+					body["values"] = interface3
+					body["conditions"] = []string{""}
+					body["lock"] = true // lock on delete.  There can be many clusters reading at one time.
+
+					err := cluster.QueryNodes(connection, body, wg, mu)
+					if err != nil {
+						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+						query = ""
+						continue
+					}
+
+					query = ""
+					continue
+				} else {
+					r, _ := regexp.Compile("[\\&&\\||]+")
+					andOrSplit := r.Split(query, -1)
+
+					body := make(map[string]interface{})
+					body["action"] = querySplit[0]
+					body["limit"] = querySplit[1]
+					body["collection"] = querySplit[2]
+					body["conditions"] = []string{"*"}
+
+					var interface1 []interface{}
+					var interface2 []interface{}
+					var interface3 []interface{}
+
+					body["keys"] = interface1
+					body["oprs"] = interface2
+					body["values"] = interface3
+
+					for k, s := range andOrSplit {
+						querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
+
+						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
+						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
+						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
+
+						switch {
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
+						default:
+							connection.Text.PrintfLine("Invalid query operator.")
+							query = ""
+							goto cont5
+						}
+
+						goto skip4
+
+					cont5:
+						continue
+
+					skip4:
+
+						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
+
+						if k < len(andOrSplit)-1 {
+							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+
+							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
+						}
+
+						if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
+							body["values"].([]interface{})[k] = nil
+						} else if cluster.IsString(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
+						} else if cluster.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
+							if err != nil {
+								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
+						} else if cluster.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
+							if err != nil {
+								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
+						} else if cluster.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
+							if err != nil {
+								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = i
+
+						}
+
+					}
+
+					err := cluster.QueryNodes(connection, body, wg, mu)
+					if err != nil {
+						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+						query = ""
+						continue
+					}
+
+					query = ""
+					continue
+
+				}
 
 			}
 		}
