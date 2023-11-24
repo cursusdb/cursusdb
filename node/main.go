@@ -106,6 +106,11 @@ func (n *Node) TCP_TLSListener(port int) {
 
 func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks []interface{}, nvs []interface{}, vol int, skip int, oprs []interface{}, conditions []interface{}) []interface{} {
 	var objects []interface{}
+
+	var conditionsMet uint64
+	//The && operator displays a document if all the conditions are TRUE.
+	//The || operator displays a record if any of the conditions are TRUE.
+
 	for i, d := range n.Data.Map[collection] {
 		if ks == nil && vs == nil && oprs == nil {
 			if skip != 0 {
@@ -123,17 +128,14 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 			continue
 		} else {
 
-			for m, k := range ks {
+			for m, k := range uks {
 
-				if oprs[m] == "" {
+				if oprs[0] == "" {
 					fmt.Sprintf("Query operator required.")
 					return nil
 				}
 
-				if oprs[m] == "" {
-					fmt.Sprintf("Query operator required.")
-					return nil
-				}
+				log.Println("DUDE", uks[m].(string), nvs[m])
 
 				if vol != -1 {
 					if len(objects) == vol {
@@ -165,21 +167,21 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 								if vType == "int" {
 									var interfaceI int = int(dd.(float64))
 
-									if oprs[m] == "==" {
+									if oprs[0] == "==" {
 										if reflect.DeepEqual(interfaceI, vs[m]) {
 											n.Data.Writers[collection].Lock()
 											d[uks[m].(string)].([]interface{})[i] = nvs[m]
 											n.Data.Writers[collection].Unlock()
 											objects = append(objects, d)
 										}
-									} else if oprs[m] == "!=" {
+									} else if oprs[0] == "!=" {
 										if !reflect.DeepEqual(interfaceI, vs[m]) {
 											n.Data.Writers[collection].Lock()
 											d[uks[m].(string)].([]interface{})[i] = nvs[m]
 											n.Data.Writers[collection].Unlock()
 											objects = append(objects, d)
 										}
-									} else if oprs[m] == ">" {
+									} else if oprs[0] == ">" {
 										if vType == "int" {
 											if interfaceI > vs[m].(int) {
 												n.Data.Writers[collection].Lock()
@@ -188,7 +190,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 												objects = append(objects, d)
 											}
 										}
-									} else if oprs[m] == "<" {
+									} else if oprs[0] == "<" {
 										if vType == "int" {
 											if interfaceI < vs[m].(int) {
 												n.Data.Writers[collection].Lock()
@@ -197,7 +199,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 												objects = append(objects, d)
 											}
 										}
-									} else if oprs[m] == ">=" {
+									} else if oprs[0] == ">=" {
 										if vType == "int" {
 											if interfaceI >= vs[m].(int) {
 												n.Data.Writers[collection].Lock()
@@ -206,7 +208,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 												objects = append(objects, d)
 											}
 										}
-									} else if oprs[m] == "<=" {
+									} else if oprs[0] == "<=" {
 										if vType == "int" {
 											if interfaceI <= vs[m].(int) {
 												n.Data.Writers[collection].Lock()
@@ -219,21 +221,21 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 								} else if vType == "float64" {
 									var interfaceI float64 = d[k.(string)].(float64)
 
-									if oprs[m] == "==" {
+									if oprs[0] == "==" {
 										if float64(interfaceI) == vs[m].(float64) {
 											n.Data.Writers[collection].Lock()
 											d[uks[m].(string)].([]interface{})[i] = nvs[m]
 											n.Data.Writers[collection].Unlock()
 											objects = append(objects, d)
 										}
-									} else if oprs[m] == "!=" {
+									} else if oprs[0] == "!=" {
 										if float64(interfaceI) != vs[m].(float64) {
 											n.Data.Writers[collection].Lock()
 											d[uks[m].(string)].([]interface{})[i] = nvs[m]
 											n.Data.Writers[collection].Unlock()
 											objects = append(objects, d)
 										}
-									} else if oprs[m] == ">" {
+									} else if oprs[0] == ">" {
 										if float64(interfaceI) > vs[m].(float64) {
 											n.Data.Writers[collection].Lock()
 											d[uks[m].(string)].([]interface{})[i] = nvs[m]
@@ -241,7 +243,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											objects = append(objects, d)
 										}
 
-									} else if oprs[m] == "<" {
+									} else if oprs[0] == "<" {
 										if float64(interfaceI) < vs[m].(float64) {
 											n.Data.Writers[collection].Lock()
 											d[uks[m].(string)].([]interface{})[i] = nvs[m]
@@ -249,7 +251,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											objects = append(objects, d)
 										}
 
-									} else if oprs[m] == ">=" {
+									} else if oprs[0] == ">=" {
 
 										if float64(interfaceI) >= vs[m].(float64) {
 											n.Data.Writers[collection].Lock()
@@ -258,7 +260,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											objects = append(objects, d)
 										}
 
-									} else if oprs[m] == "<=" {
+									} else if oprs[0] == "<=" {
 										if float64(interfaceI) <= vs[m].(float64) {
 											n.Data.Writers[collection].Lock()
 											d[uks[m].(string)].([]interface{})[i] = nvs[m]
@@ -273,14 +275,14 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 								//	// unimplemented
 								//}
 							} else {
-								if oprs[m] == "==" {
+								if oprs[0] == "==" {
 									if reflect.DeepEqual(dd, vs[m]) {
 										n.Data.Writers[collection].Lock()
 										d[uks[m].(string)].([]interface{})[i] = nvs[m]
 										n.Data.Writers[collection].Unlock()
 										objects = append(objects, d)
 									}
-								} else if oprs[m] == "!=" {
+								} else if oprs[0] == "!=" {
 									if !reflect.DeepEqual(dd, vs[m]) {
 										n.Data.Writers[collection].Lock()
 										d[uks[m].(string)].([]interface{})[i] = nvs[m]
@@ -294,21 +296,21 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 					} else if vType == "int" {
 						var interfaceI int = int(d[k.(string)].(float64))
 
-						if oprs[m] == "==" {
+						if oprs[0] == "==" {
 							if reflect.DeepEqual(interfaceI, vs[m]) {
 								n.Data.Writers[collection].Lock()
 								d[uks[m].(string)] = nvs[m]
 								n.Data.Writers[collection].Unlock()
 								objects = append(objects, d)
 							}
-						} else if oprs[m] == "!=" {
+						} else if oprs[0] == "!=" {
 							if !reflect.DeepEqual(interfaceI, vs[m]) {
 								n.Data.Writers[collection].Lock()
 								d[uks[m].(string)] = nvs[m]
 								n.Data.Writers[collection].Unlock()
 								objects = append(objects, d)
 							}
-						} else if oprs[m] == ">" {
+						} else if oprs[0] == ">" {
 							if vType == "int" {
 								if interfaceI > vs[m].(int) {
 									n.Data.Writers[collection].Lock()
@@ -317,7 +319,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 									objects = append(objects, d)
 								}
 							}
-						} else if oprs[m] == "<" {
+						} else if oprs[0] == "<" {
 							if vType == "int" {
 								if interfaceI < vs[m].(int) {
 									n.Data.Writers[collection].Lock()
@@ -326,16 +328,17 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 									objects = append(objects, d)
 								}
 							}
-						} else if oprs[m] == ">=" {
+						} else if oprs[0] == ">=" {
 							if vType == "int" {
 								if interfaceI >= vs[m].(int) {
 									n.Data.Writers[collection].Lock()
 									d[uks[m].(string)] = nvs[m]
 									n.Data.Writers[collection].Unlock()
 									objects = append(objects, d)
+									conditionsMet += 1
 								}
 							}
-						} else if oprs[m] == "<=" {
+						} else if oprs[0] == "<=" {
 							if vType == "int" {
 								if interfaceI <= vs[m].(int) {
 									n.Data.Writers[collection].Lock()
@@ -348,21 +351,21 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 					} else if vType == "float64" {
 						var interfaceI float64 = d[k.(string)].(float64)
 
-						if oprs[m] == "==" {
+						if oprs[0] == "==" {
 							if reflect.DeepEqual(interfaceI, vs[m]) {
 								n.Data.Writers[collection].Lock()
 								d[uks[m].(string)] = nvs[m]
 								n.Data.Writers[collection].Unlock()
 								objects = append(objects, d)
 							}
-						} else if oprs[m] == "!=" {
+						} else if oprs[0] == "!=" {
 							if !reflect.DeepEqual(interfaceI, vs[m]) {
 								n.Data.Writers[collection].Lock()
 								d[uks[m].(string)] = nvs[m]
 								n.Data.Writers[collection].Unlock()
 								objects = append(objects, d)
 							}
-						} else if oprs[m] == ">" {
+						} else if oprs[0] == ">" {
 							if float64(interfaceI) > vs[m].(float64) {
 								n.Data.Writers[collection].Lock()
 								d[uks[m].(string)] = nvs[m]
@@ -370,7 +373,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 								objects = append(objects, d)
 							}
 
-						} else if oprs[m] == "<" {
+						} else if oprs[0] == "<" {
 							if float64(interfaceI) < vs[m].(float64) {
 								n.Data.Writers[collection].Lock()
 								d[uks[m].(string)] = nvs[m]
@@ -378,7 +381,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 								objects = append(objects, d)
 							}
 
-						} else if oprs[m] == ">=" {
+						} else if oprs[0] == ">=" {
 							if float64(interfaceI) >= vs[m].(float64) {
 								n.Data.Writers[collection].Lock()
 								d[uks[m].(string)] = nvs[m]
@@ -386,7 +389,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 								objects = append(objects, d)
 							}
 
-						} else if oprs[m] == "<=" {
+						} else if oprs[0] == "<=" {
 							if float64(interfaceI) <= vs[m].(float64) {
 								n.Data.Writers[collection].Lock()
 								d[uks[m].(string)] = nvs[m]
@@ -397,14 +400,14 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 						}
 					} else {
 						log.Println("YOOO")
-						if oprs[m] == "==" {
+						if oprs[0] == "==" {
 							if reflect.DeepEqual(d[k.(string)], vs[m]) {
 								n.Data.Writers[collection].Lock()
 								d[uks[m].(string)] = nvs[m]
 								n.Data.Writers[collection].Unlock()
 								objects = append(objects, d)
 							}
-						} else if oprs[m] == "!=" {
+						} else if oprs[0] == "!=" {
 							if !reflect.DeepEqual(d[k.(string)], vs[m]) {
 								n.Data.Writers[collection].Lock()
 								d[uks[m].(string)] = nvs[m]
