@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -120,6 +121,29 @@ func (n *Node) TCP_TLSListener() {
 		})
 	}
 
+}
+
+func (n *Node) WriteToFile() {
+	f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
+	if err != nil {
+		log.Println("WriteToFile():", err.Error())
+		n.SignalChannel <- os.Interrupt
+		return
+	}
+
+	defer f.Close()
+
+	e := gob.NewEncoder(f)
+
+	// Encoding the map
+	err = e.Encode(n.Data.Map)
+	if err != nil {
+		log.Println("WriteToFile():", err.Error())
+		n.SignalChannel <- os.Interrupt
+		return
+	}
+
+	log.Println("WriteToFile(): Completed.")
 }
 
 // update is a function to update the nodes data map
@@ -2081,6 +2105,8 @@ func (n *Node) SignalListener() {
 			if n.Listener != nil {
 				n.Listener.Close()
 			}
+
+			n.WriteToFile()
 			return
 		default:
 			time.Sleep(time.Millisecond * 125)
@@ -2124,6 +2150,20 @@ func main() {
 			os.Exit(1)
 		}
 
+	}
+
+	if _, err := os.Stat("./.cdat"); errors.Is(err, os.ErrNotExist) {
+		fmt.Println("New previous data to read.")
+	} else {
+		fmt.Println("Node data read into memory.")
+		dataFile, err := os.Open("./.cdat")
+		d := gob.NewDecoder(dataFile)
+
+		err = d.Decode(&node.Data.Map)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
 	}
 
 	flag.IntVar(&node.Config.Port, "port", node.Config.Port, "port for node")
