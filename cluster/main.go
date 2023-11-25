@@ -21,12 +21,16 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"github.com/google/uuid"
+	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"log"
 	"math/rand"
@@ -61,6 +65,7 @@ type Config struct {
 	TLSKey  string   `yaml:"tls-key"`
 	TLS     bool     `default:"false" yaml:"tls"`
 	Port    int      `yaml:"port"`
+	Users   []string `yaml:"users"` // Array of encoded users
 }
 
 // NodeConnection is the cluster connected to a node as a client.
@@ -71,8 +76,9 @@ type NodeConnection struct {
 
 // Connection is a TCP Client connection
 type Connection struct {
-	Conn net.Conn        // Net connection
-	Text *textproto.Conn // For writing and reading
+	Conn net.Conn               // Net connection
+	Text *textproto.Conn        // For writing and reading
+	User map[string]interface{} // Authenticated User
 }
 
 // TCP_TLSListener start listening to TCP or TLS
@@ -191,6 +197,39 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 		}
 
 	}(connection)
+
+	// Expect Authentication: username\0password b64 encoded
+
+	auth, err := connection.Text.ReadLine()
+	if err != nil {
+		connection.Text.PrintfLine("%d %s", 3, "Unable to read authentication header.")
+		return
+	}
+	authSpl := strings.Split(auth, "Authentication:")
+	if len(authSpl) != 2 {
+		connection.Text.PrintfLine("%d %s", 1, "Missing authentication header.")
+		return
+	}
+
+	authValues, err := base64.StdEncoding.DecodeString(strings.TrimSpace(authSpl[1]))
+	if err != nil {
+		connection.Text.PrintfLine("%d %s", 2, "Invalid authentication value.")
+		return
+	}
+
+	authValuesSpl := strings.Split(string(authValues), "\\0")
+	if len(authValuesSpl) != 2 {
+		connection.Text.PrintfLine("%d %s", 2, "Invalid authentication value.")
+		return
+	}
+
+	_, _, err = cluster.AuthenticateUser(authValuesSpl[0], authValuesSpl[1])
+	if err != nil {
+		connection.Text.PrintfLine("%d %s", 4, err.Error()) // no user exists
+		return
+	}
+
+	connection.Text.PrintfLine("%d %s", 0, "Authentication successful.")
 
 	scanner := bufio.NewScanner(connection.Conn) // Start a new scanner
 	query := ""                                  // Client query variable
@@ -1036,6 +1075,78 @@ func (cluster *Cluster) ConnectToNodes() {
 	}
 }
 
+func (cluster *Cluster) NewUser(username, password, permission string) (string, map[string]interface{}, error) {
+	user := make(map[string]interface{}) // Create map with username, password, and permission
+	user["username"] = username
+	user["password"] = password
+
+	if cluster.ValidatePermission(permission) {
+		user["permission"] = permission
+		b := bytes.Buffer{}
+		e := gob.NewEncoder(&b)
+
+		err := e.Encode(user)
+		if err != nil {
+			return "", user, err
+		}
+
+		cluster.Config.Users = append(cluster.Config.Users, base64.StdEncoding.EncodeToString(b.Bytes()))
+
+		return base64.StdEncoding.EncodeToString(b.Bytes()), user, nil
+	} else {
+		return "", user, errors.New("invalid permission")
+	}
+}
+
+func (cluster *Cluster) AuthenticateUser(username string, password string) (string, map[string]interface{}, error) {
+
+	user := make(map[string]interface{}) // Create map with username, password, and permission
+	user["username"] = username
+	user["password"] = password
+	user["permission"] = "R"
+	bR := bytes.Buffer{}
+	e := gob.NewEncoder(&bR)
+
+	err := e.Encode(user)
+	if err != nil {
+		return "", user, err
+	}
+
+	user["username"] = username
+	user["password"] = password
+	user["permission"] = "RW"
+	bRW := bytes.Buffer{}
+	e = gob.NewEncoder(&bRW)
+
+	err = e.Encode(user)
+	if err != nil {
+		return "", user, err
+	}
+
+	for _, u := range cluster.Config.Users {
+		if u == base64.StdEncoding.EncodeToString(bR.Bytes()) {
+			user["permission"] = "R"
+			return u, user, nil
+		} else if u == base64.StdEncoding.EncodeToString(bRW.Bytes()) {
+			user["permission"] = "RW"
+			return u, user, nil
+		}
+	}
+
+	return "", user, errors.New("No user exists")
+}
+
+func (cluster *Cluster) ValidatePermission(perm string) bool {
+	switch perm {
+	case "R":
+		return true
+	case "RW":
+		return true
+	default:
+		return false
+	}
+}
+
 func main() {
 	var cluster Cluster
 
@@ -1049,6 +1160,23 @@ func main() {
 		defer clusterConfigFile.Close()
 
 		cluster.Config.Port = 7681
+
+		fmt.Println("Before starting your CursusDB cluster you must first create a database user.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).")
+		fmt.Print("Username>")
+		username, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			os.Exit(1)
+		}
+		fmt.Println("")
+		fmt.Print("Password>")
+		password, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			os.Exit(1)
+		}
+
+		cluster.NewUser(string(username), string(password), "RW")
+
+		fmt.Println("")
 
 		yamlData, err := yaml.Marshal(&cluster.Config)
 		if err != nil {

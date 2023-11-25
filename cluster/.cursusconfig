@@ -4,3 +4,5 @@ tls-cert: ""
 tls-key: ""
 tls: false
 port: 7681
+users:
+    - DX8EAQL/gAABDAEQAABQ/4AAAwh1c2VybmFtZQZzdHJpbmcMBgAEYWxleAhwYXNzd29yZAZzdHJpbmcMCgAIbWFwbGVzYWwKcGVybWlzc2lvbgZzdHJpbmcMBAACUlc=

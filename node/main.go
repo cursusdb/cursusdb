@@ -124,6 +124,7 @@ func (n *Node) TCP_TLSListener() {
 }
 
 func (n *Node) WriteToFile() {
+
 	f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
 	if err != nil {
 		log.Println("WriteToFile():", err.Error())

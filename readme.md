@@ -56,13 +56,25 @@ insert into users({"email!": "test@example.com" ...});
 - ``update``
 - ``delete``
 
+### Status codes
+#### Authentication 
+- ``0`` Authentication successful.
+- ``1`` Unable to read authentication header.
+- ``2`` Invalid authentication value.
+- ``3`` No user exists
+#### Document
+- ``2000`` Document inserted/updated/deleted
+- ``4000`` Unmarsharable JSON insert
+- ``4001`` Missing action
+- ``4002`` None existent action
+- ``4003`` Nested JSON object cannot be inserted
+- ``4004`` Document already exists
+
+
 ## Todo
-- On node shutdown to write to file.
 - Encryption at rest
 - Comments
 - Cluster and nodes share same hashed key.
-- Cluster to authenticate via basic authentication ``"username\0password`` with basic (read or read/write OR read/write/delete permissions)
-
 
 ### Ports
 Default cluster port: 7681
