@@ -1012,20 +1012,27 @@ func (cluster *Cluster) ConnectToNodes() {
 	for _, n := range cluster.Config.Nodes {
 		tcpAddr, err := net.ResolveTCPAddr("tcp", n)
 		if err != nil {
-			println("ResolveTCPAddr failed:", err.Error())
-			os.Exit(1)
+			log.Println("ConnectToNodes():", err.Error())
+			cluster.SignalChannel <- os.Interrupt
+			return
 		}
 
 		conn, err := net.DialTCP("tcp", nil, tcpAddr)
 		if err != nil {
-			println("Dial failed:", err.Error())
-			os.Exit(1)
+			log.Println("ConnectToNodes():", err.Error())
+			cluster.SignalChannel <- os.Interrupt
+			return
 		}
+
+		conn.SetKeepAlive(true) // forever
 
 		cluster.NodeConnections = append(cluster.NodeConnections, NodeConnection{
 			Conn: conn,
 			Text: textproto.NewConn(conn),
 		})
+
+		log.Println("Node connection established to", conn.RemoteAddr().String())
+
 	}
 }
 
@@ -1063,6 +1070,11 @@ func main() {
 			os.Exit(1)
 		}
 
+	}
+
+	if len(cluster.Config.Nodes) == 0 {
+		fmt.Println("You must setup nodes for the Cursus to read from in your .cursusconfig file.")
+		os.Exit(0)
 	}
 
 	cluster.ConnectionsMu = &sync.Mutex{}

@@ -3,5 +3,5 @@ nodes:
     - 0.0.0.0:7224
 tls-cert: ""
 tls-key: ""
-tls: true
+tls: false
 port: 7681
