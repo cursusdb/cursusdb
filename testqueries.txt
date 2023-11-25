@@ -1,7 +1,3 @@
-## Cursus Database System
-JSON based, unstructured distributed database.  Capable of extremely fast parallel search.
-
-## Query Language
 ## Inserts
 ```
 insert into users({"name": "Alex", "last": "Lee", "age": 28});
@@ -33,38 +29,4 @@ delete 0,5 from users where age > 28 && name == 'Alex';
 ect
 ```
 
-# Uniqueness
-using ``key!`` will make sure the value is unique across all nodes!
-``` 
-insert into users({"email!": "test@example.com" ...});
-```
-
-### Operators
-- ``>``
-- ``>=``
-- ``<``
-- ``>=``
-- ``==``
-- ``!=``
-
-### Conditionals
-- ``&&``
-- ``||``
-
-### Actions
-- ``select``
-- ``update``
-- ``delete``
-
-## Todo
-- Encryption at rest
-- Comments
-- Cluster and nodes share same hashed key.
-- Cluster to authenticate via basic authentication ``"username\0password`` with basic (read or read/write OR read/write/delete permissions)
-
-
-### Ports
-Default cluster port: 7681
-
-Default node port: 7682
 
