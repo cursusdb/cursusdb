@@ -1179,24 +1179,28 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 				return nullObjects
 			} else if conditionsMet > 0 {
 				for _, i := range objects {
-					deleted = append(deleted, n.Data.Map[collection][i])
-					n.Data.Writers[collection].Lock()
-					n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-					n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-					n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
-					n.Data.Writers[collection].Unlock()
+					if i < uint64(len(n.Data.Map[collection])) {
+						deleted = append(deleted, n.Data.Map[collection][i])
+						n.Data.Writers[collection].Lock()
+						n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
+						n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
+						n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1]
+						n.Data.Writers[collection].Unlock()
+					}
 				}
 			}
 		}
 
 	} else if conditionsMet > 0 {
 		for _, i := range objects {
-			deleted = append(deleted, n.Data.Map[collection][i])
-			n.Data.Writers[collection].Lock()
-			n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-			n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-			n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
-			n.Data.Writers[collection].Unlock()
+			if i < uint64(len(n.Data.Map[collection])) {
+				deleted = append(deleted, n.Data.Map[collection][i])
+				n.Data.Writers[collection].Lock()
+				n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
+				n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
+				n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1]
+				n.Data.Writers[collection].Unlock()
+			}
 		}
 	}
 
@@ -1205,12 +1209,19 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 
 func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
 	if lock {
-		n.Data.Writers[collection].Lock()
+		l, ok := n.Data.Writers[collection]
+		if ok {
+			l.Lock()
+		}
+
 	}
 
 	defer func() {
 		if lock {
-			n.Data.Writers[collection].Unlock()
+			l, ok := n.Data.Writers[collection]
+			if ok {
+				l.Unlock()
+			}
 		}
 	}()
 
