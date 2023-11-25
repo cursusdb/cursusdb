@@ -57,6 +57,7 @@ insert into users({"email!": "test@example.com" ...});
 - ``delete``
 
 ## Todo
+- On node shutdown to write to file.
 - Encryption at rest
 - Comments
 - Cluster and nodes share same hashed key.

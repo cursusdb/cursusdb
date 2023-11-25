@@ -40,25 +40,37 @@ import (
 	"time"
 )
 
+// Node is the main Node struct
 type Node struct {
-	Listener      net.Listener
-	Wg            *sync.WaitGroup
-	SignalChannel chan os.Signal
-	Connections   []*Connection
-	Data          Data
-	MaxDocuments  uint64 // Default 15,000,000
+	Listener      net.Listener    // Tcp listener
+	Wg            *sync.WaitGroup // Main node wait group
+	SignalChannel chan os.Signal  // Signal channel
+	Connections   []*Connection   // TCP connections struct slice
+	Data          Data            // Node data
+	Config        Config          // Node config
+	MaxDocuments  uint64          // Default 15,000,000
 }
 
+// Config is the cluster config struct
+type Config struct {
+	TLSCert string `yaml:"tls-cert"`            // TLS cert path
+	TLSKey  string `yaml:"tls-key"`             // TLS cert key
+	TLS     bool   `default:"false" yaml:"tls"` // Use TLS?
+}
+
+// Data is the node data struct
 type Data struct {
-	Map     map[string][]map[string]interface{}
-	Writers map[string]*sync.RWMutex
+	Map     map[string][]map[string]interface{} // Data hash map
+	Writers map[string]*sync.RWMutex            // Collection writers
 }
 
+// Connection is a node tcp connection struct
 type Connection struct {
 	Conn net.Conn
-	Text *textproto.Conn
+	Text *textproto.Conn // Connection writer and reader
 }
 
+// TCP_TLSListener start listening on provided port on tls or regular tcp
 func (n *Node) TCP_TLSListener(port int) {
 	defer n.Wg.Done()
 	var err error
@@ -91,9 +103,7 @@ func (n *Node) TCP_TLSListener(port int) {
 
 }
 
-// update 1 in users where name == 'Alex' && age == 28 set name = 'Jack', age = 30;
-// update 1 in users where name == 'Alex' set name = 'Jack', age = 30;
-// update 1 in users where name == 'Jack' set name = 'John', age = 50;
+// update is a function to update the nodes data map
 func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks []interface{}, nvs []interface{}, vol int, skip int, oprs []interface{}, conditions []interface{}) []interface{} {
 
 	var objects []*map[string]interface{}
@@ -111,7 +121,6 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 
 			if vol != -1 {
 				if i-1 == vol-1 {
-					//return objects
 					break
 				}
 			}
@@ -134,7 +143,6 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 
 				if vol != -1 {
 					if len(objects) == vol {
-						//return objects
 						break
 					}
 				}
@@ -649,6 +657,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 	return updated
 }
 
+// del delete from node map
 func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
 
 	var objects []uint64
@@ -1731,6 +1740,7 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 	return objects
 }
 
+// insert into node map
 func (n *Node) insert(collection string, jsonMap map[string]interface{}, connection *Connection) error {
 	jsonStr, err := json.Marshal(jsonMap)
 	if err != nil {
@@ -1777,6 +1787,7 @@ func (n *Node) insert(collection string, jsonMap map[string]interface{}, connect
 	return nil
 }
 
+// HandleConnection handle an incoming tcp connection from a cluster
 func (n *Node) HandleConnection(connection *Connection) {
 	defer n.Wg.Done()
 	n.Connections = append(n.Connections, connection)
@@ -2007,6 +2018,7 @@ func (n *Node) HandleConnection(connection *Connection) {
 
 }
 
+// SignalListener listen for system signal
 func (n *Node) SignalListener() {
 	defer n.Wg.Done()
 
