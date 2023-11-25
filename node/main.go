@@ -1864,6 +1864,33 @@ func (n *Node) HandleConnection(connection *Connection) {
 
 				results := n.del(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
 				r, _ := json.Marshal(results)
+				result["statusCode"] = 2000
+
+				if reflect.DeepEqual(results, nil) || len(results) == 0 {
+					result["message"] = "No documents deleted."
+				} else {
+					result["message"] = fmt.Sprintf("%d Document(s) deleted successfully.", len(results))
+				}
+
+				delete(result, "document")
+				delete(result, "collection")
+				delete(result, "action")
+				delete(result, "key")
+				delete(result, "limit")
+				delete(result, "opr")
+				delete(result, "value")
+				delete(result, "lock")
+				delete(result, "new-values")
+				delete(result, "update-keys")
+				delete(result, "conditions")
+				delete(result, "keys")
+				delete(result, "oprs")
+				delete(result, "values")
+				delete(result, "skip")
+
+				result["deleted"] = results
+
+				r, _ = json.Marshal(result)
 				connection.Text.PrintfLine(string(r))
 				continue
 			case strings.EqualFold(action.(string), "select"):
@@ -1968,7 +1995,7 @@ func (n *Node) HandleConnection(connection *Connection) {
 				if reflect.DeepEqual(results, nil) || len(results) == 0 {
 					result["message"] = "No documents updated."
 				} else {
-					result["message"] = "Document(s) updated."
+					result["message"] = fmt.Sprintf("%d Document(s) updated successfully.", len(results))
 				}
 
 				result["updated"] = results
