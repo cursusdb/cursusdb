@@ -55,8 +55,6 @@ select 4,6 from yourCollection where key == 'value';
 - delete
 
 ## Todo
-- Bring update to speed with select in regards to updates in logic.
-- Finish delete
 - Encryption at rest
 - Comments
 - Cluster and nodes share same hashed key.
