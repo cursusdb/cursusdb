@@ -805,7 +805,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					body["oprs"] = interface2
 					body["values"] = interface3
 					body["conditions"] = []string{""}
-					body["lock"] = true // lock on delete.  There can be many clusters reading at one time.
+					body["lock"] = false
 
 					err := cluster.QueryNodes(connection, body, wg, mu)
 					if err != nil {
@@ -1152,13 +1152,6 @@ func main() {
 	var cluster Cluster
 
 	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
-		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777)
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-
-		defer clusterConfigFile.Close()
 
 		cluster.Config.Port = 7681
 
@@ -1178,6 +1171,14 @@ func main() {
 		cluster.NewUser(string(username), string(password), "RW")
 
 		fmt.Println("")
+
+		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+
+		defer clusterConfigFile.Close()
 
 		yamlData, err := yaml.Marshal(&cluster.Config)
 		if err != nil {
