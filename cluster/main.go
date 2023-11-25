@@ -1100,40 +1100,41 @@ func (cluster *Cluster) NewUser(username, password, permission string) (string, 
 
 func (cluster *Cluster) AuthenticateUser(username string, password string) (string, map[string]interface{}, error) {
 
-	user := make(map[string]interface{}) // Create map with username, password, and permission
-	user["username"] = username
-	user["password"] = password
-	user["permission"] = "R"
-	bR := bytes.Buffer{}
-	e := gob.NewEncoder(&bR)
+	for i := 0; i < 5; i++ { // retry as gob will sometimes provide wrong serialization
+		userR := make(map[string]interface{}) // Create map with username, password, and permission
+		userR["username"] = username
+		userR["password"] = password
+		userR["permission"] = "R"
+		bR := bytes.Buffer{}
+		e := gob.NewEncoder(&bR)
 
-	err := e.Encode(user)
-	if err != nil {
-		return "", user, err
-	}
+		err := e.Encode(userR)
+		if err != nil {
+			return "", userR, err
+		}
 
-	user["username"] = username
-	user["password"] = password
-	user["permission"] = "RW"
-	bRW := bytes.Buffer{}
-	e = gob.NewEncoder(&bRW)
+		userRW := make(map[string]interface{}) // Create map with username, password, and permission
+		userRW["username"] = username
+		userRW["password"] = password
+		userRW["permission"] = "RW"
+		bRW := bytes.Buffer{}
+		e = gob.NewEncoder(&bRW)
 
-	err = e.Encode(user)
-	if err != nil {
-		return "", user, err
-	}
+		err = e.Encode(userRW)
+		if err != nil {
+			return "", userRW, err
+		}
 
-	for _, u := range cluster.Config.Users {
-		if u == base64.StdEncoding.EncodeToString(bR.Bytes()) {
-			user["permission"] = "R"
-			return u, user, nil
-		} else if u == base64.StdEncoding.EncodeToString(bRW.Bytes()) {
-			user["permission"] = "RW"
-			return u, user, nil
+		for _, u := range cluster.Config.Users {
+			if u == base64.StdEncoding.EncodeToString(bR.Bytes()) {
+				return u, userR, nil
+			} else if u == base64.StdEncoding.EncodeToString(bRW.Bytes()) {
+				return u, userRW, nil
+			}
 		}
 	}
 
-	return "", user, errors.New("No user exists")
+	return "", nil, errors.New("No user exists")
 }
 
 func (cluster *Cluster) ValidatePermission(perm string) bool {
