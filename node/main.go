@@ -22,10 +22,12 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"log"
 	"net"
 	"net/textproto"
@@ -56,6 +58,7 @@ type Config struct {
 	TLSCert string `yaml:"tls-cert"`            // TLS cert path
 	TLSKey  string `yaml:"tls-key"`             // TLS cert key
 	TLS     bool   `default:"false" yaml:"tls"` // Use TLS?
+	Port    int    `yaml:"port"`
 }
 
 // Data is the node data struct
@@ -71,22 +74,38 @@ type Connection struct {
 }
 
 // TCP_TLSListener start listening on provided port on tls or regular tcp
-func (n *Node) TCP_TLSListener(port int) {
+func (n *Node) TCP_TLSListener() {
 	defer n.Wg.Done()
 	var err error
 
-	//cer, err := tls.LoadX509KeyPair("cert", "key")
-	//if err != nil {
-	//	panic("error loading cert: " + err.Error())
-	//}
-	//
-	//config := &tls.Config{Certificates: []tls.Certificate{cer}}
-	//tls.Listen("tcp", "0.0.0.0:7222", config)
-	n.Listener, err = net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
-	if err != nil {
-		log.Println(err.Error())
-		n.SignalChannel <- os.Interrupt
-		return
+	if n.Config.TLS {
+		if n.Config.TLSCert == "" && n.Config.TLSKey == "" {
+			log.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
+			n.SignalChannel <- os.Interrupt                                // Send interrupt to signal channel
+			return
+		}
+
+		cer, err := tls.LoadX509KeyPair(n.Config.TLSCert, n.Config.TLSKey)
+		if err != nil {
+			log.Println(err.Error())
+			n.SignalChannel <- os.Interrupt
+			return
+		}
+
+		config := &tls.Config{Certificates: []tls.Certificate{cer}}
+		n.Listener, err = tls.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", n.Config.Port), config)
+		if err != nil {
+			log.Println(err.Error())
+			n.SignalChannel <- os.Interrupt
+			return
+		}
+	} else {
+		n.Listener, err = net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", n.Config.Port))
+		if err != nil {
+			log.Println(err.Error())
+			n.SignalChannel <- os.Interrupt
+			return
+		}
 	}
 
 	for {
@@ -2059,7 +2078,9 @@ func (n *Node) SignalListener() {
 				c.Conn.Close()
 			}
 
-			n.Listener.Close()
+			if n.Listener != nil {
+				n.Listener.Close()
+			}
 			return
 		default:
 			time.Sleep(time.Millisecond * 125)
@@ -2072,8 +2093,40 @@ func main() {
 	node.Data.Map = make(map[string][]map[string]interface{})
 	node.Data.Writers = make(map[string]*sync.RWMutex)
 
-	var port int
-	flag.IntVar(&port, "port", 7222, "port for node")
+	if _, err := os.Stat("./.curodeconfig"); errors.Is(err, os.ErrNotExist) {
+		nodeConfigFile, err := os.OpenFile("./.curodeconfig", os.O_CREATE|os.O_RDWR, 0777)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+
+		defer nodeConfigFile.Close()
+
+		node.Config.Port = 7682
+
+		yamlData, err := yaml.Marshal(&node.Config)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+
+		nodeConfigFile.Write(yamlData)
+	} else {
+		nodeConfigFile, err := os.ReadFile("./.curodeconfig")
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+
+		err = yaml.Unmarshal(nodeConfigFile, &node.Config)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+
+	}
+
+	flag.IntVar(&node.Config.Port, "port", node.Config.Port, "port for node")
 	flag.Parse()
 
 	node.SignalChannel = make(chan os.Signal, 1)
@@ -2085,7 +2138,7 @@ func main() {
 	go node.SignalListener()
 
 	node.Wg.Add(1)
-	go node.TCP_TLSListener(port)
+	go node.TCP_TLSListener()
 
 	node.Wg.Wait()
 

@@ -21,8 +21,10 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -45,7 +47,7 @@ type Cluster struct {
 	Listener        net.Listener     // TCP listener
 	Wg              *sync.WaitGroup  // Go routine wait group
 	SignalChannel   chan os.Signal   // OS Signal channel
-	Config          Config           // Cluster config (read from yaml .clusterconfig)
+	Config          Config           // Cluster config (read from yaml .cursusconfig)
 	NodeConnections []NodeConnection // Configured and forever connected node connections.
 	Connections     []*Connection    // Client connections
 	ConnectionsMu   *sync.Mutex
@@ -57,7 +59,8 @@ type Config struct {
 	Nodes   []string `yaml:"nodes"` // Node host/ips
 	TLSCert string   `yaml:"tls-cert"`
 	TLSKey  string   `yaml:"tls-key"`
-	TLS     bool     `default:"true" yaml:"tls"`
+	TLS     bool     `default:"false" yaml:"tls"`
+	Port    int      `yaml:"port"`
 }
 
 // NodeConnection is the cluster connected to a node as a client.
@@ -77,21 +80,35 @@ func (cluster *Cluster) TCP_TLSListener() {
 	defer cluster.Wg.Done() // Defer specific wait group to close up
 	var err error           // error variable
 
-	// TO BE IMPLEMENTED
-	//cer, err := tls.LoadX509KeyPair("cert", "key")
-	//if err != nil {
-	//	panic("error loading cert: " + err.Error())
-	//}
-	//
-	//config := &tls.Config{Certificates: []tls.Certificate{cer}}
-	//tls.Listen("tcp", "0.0.0.0:7222", config)
+	if cluster.Config.TLS {
+		if cluster.Config.TLSCert == "" && cluster.Config.TLSKey == "" {
+			log.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
+			cluster.SignalChannel <- os.Interrupt                          // Send interrupt to signal channel
+			return
+		}
 
-	// Setup the listener
-	cluster.Listener, err = net.Listen("tcp", "0.0.0.0:7681") // Default Cursus cluster port is 7681
-	if err != nil {
-		log.Println("TCP_TLSListener():", err.Error()) // Log an error
-		cluster.SignalChannel <- os.Interrupt          // Send interrupt to signal channel
-		return                                         // close up go routine
+		cer, err := tls.LoadX509KeyPair(cluster.Config.TLSCert, cluster.Config.TLSKey)
+		if err != nil {
+			log.Println("TCP_TLSListener():", err.Error()) // Log an error
+			cluster.SignalChannel <- os.Interrupt          // Send interrupt to signal channel
+			return                                         // close up go routine
+		}
+
+		config := &tls.Config{Certificates: []tls.Certificate{cer}}
+		cluster.Listener, err = tls.Listen("tcp", "0.0.0.0:7222", config)
+		if err != nil {
+			log.Println("TCP_TLSListener():", err.Error()) // Log an error
+			cluster.SignalChannel <- os.Interrupt          // Send interrupt to signal channel
+			return                                         // close up go routine
+		}
+
+	} else {
+		cluster.Listener, err = net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", cluster.Config.Port)) // Default Cursus cluster port is 7681
+		if err != nil {
+			log.Println("TCP_TLSListener():", err.Error()) // Log an error
+			cluster.SignalChannel <- os.Interrupt          // Send interrupt to signal channel
+			return                                         // close up go routine
+		}
 	}
 
 	// Starting accepting connections
@@ -981,7 +998,9 @@ func (cluster *Cluster) SignalListener() {
 				c.Conn.Close()
 			}
 
-			cluster.Listener.Close()
+			if cluster.Listener != nil {
+				cluster.Listener.Close()
+			}
 			return
 		default:
 			time.Sleep(time.Millisecond * 125)
@@ -1013,14 +1032,16 @@ func (cluster *Cluster) ConnectToNodes() {
 func main() {
 	var cluster Cluster
 
-	if _, err := os.Stat("./.clusterconfig"); errors.Is(err, os.ErrNotExist) {
-		clusterConfigFile, err := os.OpenFile("./.clusterconfig", os.O_CREATE|os.O_RDWR, 0777)
+	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
+		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
 
 		defer clusterConfigFile.Close()
+
+		cluster.Config.Port = 7681
 
 		yamlData, err := yaml.Marshal(&cluster.Config)
 		if err != nil {
@@ -1030,7 +1051,7 @@ func main() {
 
 		clusterConfigFile.Write(yamlData)
 	} else {
-		clusterConfigFile, err := os.ReadFile("./.clusterconfig")
+		clusterConfigFile, err := os.ReadFile("./.cursusconfig")
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
@@ -1046,6 +1067,9 @@ func main() {
 
 	cluster.ConnectionsMu = &sync.Mutex{}
 	cluster.NodesMu = &sync.Mutex{}
+
+	flag.IntVar(&cluster.Config.Port, "port", cluster.Config.Port, "port for cluster")
+	flag.Parse()
 
 	cluster.ConnectToNodes()
 
