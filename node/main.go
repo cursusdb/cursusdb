@@ -650,26 +650,10 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 }
 
 func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
-	//var writeMu *sync.RWMutex
-	//if lock {
-	//	var ok bool
-	//	writeMu, ok = n.Data.Writers[collection]
-	//	if ok {
-	//		writeMu.Lock()
-	//	}
-	//}
-	//
-	//defer func(wmu *sync.RWMutex, l bool) {
-	//	if l {
-	//		defer wmu.Unlock()
-	//	}
-	//}(writeMu, lock)
 
-	var objects []interface{}
+	var objects []uint64
 
 	var conditionsMet uint64
-	//The && operator displays a document if all the conditions are TRUE.
-	//The || operator displays a record if any of the conditions are TRUE.
 
 	for i, d := range n.Data.Map[collection] {
 		if ks == nil && vs == nil && oprs == nil {
@@ -680,15 +664,10 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 
 			if vol != -1 {
 				if i-1 == vol-1 {
-					return objects
+					break
 				}
 			}
-			objects = append(objects, d)
-
-			// Delete
-			n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-			n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-			n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+			objects = append(objects, uint64(i))
 
 			continue
 		} else {
@@ -707,7 +686,7 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 
 				if vol != -1 {
 					if len(objects) == vol {
-						return objects
+						break
 					}
 				}
 
@@ -717,10 +696,7 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 				if ok {
 
 					if d[k.(string)] == nil {
-						objects = append(objects, d)
-						n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-						n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-						n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+						objects = append(objects, uint64(i))
 						continue
 					}
 
@@ -728,7 +704,7 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 						for _, dd := range d[k.(string)].([]interface{}) {
 
 							if len(objects) == vol {
-								return objects
+								break
 							}
 
 							if reflect.TypeOf(dd).Kind() == reflect.Float64 {
@@ -744,10 +720,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 														goto exists
 													}
 												}
-												objects = append(objects, d)
-												n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-												n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-												n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+												objects = append(objects, uint64(i))
+
 											exists:
 											})()
 										}
@@ -760,10 +734,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 														goto exists
 													}
 												}
-												objects = append(objects, d)
-												n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-												n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-												n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+												objects = append(objects, uint64(i))
+
 											exists:
 											})()
 										}
@@ -777,10 +749,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 															goto exists
 														}
 													}
-													objects = append(objects, d)
-													n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-													n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-													n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+													objects = append(objects, uint64(i))
+
 												exists:
 												})()
 											}
@@ -795,10 +765,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 															goto exists
 														}
 													}
-													objects = append(objects, d)
-													n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-													n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-													n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+													objects = append(objects, uint64(i))
+
 												exists:
 												})()
 											}
@@ -813,10 +781,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 															goto exists
 														}
 													}
-													objects = append(objects, d)
-													n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-													n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-													n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+													objects = append(objects, uint64(i))
+
 												exists:
 												})()
 											}
@@ -831,10 +797,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 															goto exists
 														}
 													}
-													objects = append(objects, d)
-													n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-													n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-													n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+													objects = append(objects, uint64(i))
+
 												exists:
 												})()
 											}
@@ -854,10 +818,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 														goto exists
 													}
 												}
-												objects = append(objects, d)
-												n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-												n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-												n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+												objects = append(objects, uint64(i))
+
 											exists:
 											})()
 										}
@@ -870,10 +832,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 														goto exists
 													}
 												}
-												objects = append(objects, d)
-												n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-												n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-												n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+												objects = append(objects, uint64(i))
+
 											exists:
 											})()
 										}
@@ -886,10 +846,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 														goto exists
 													}
 												}
-												objects = append(objects, d)
-												n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-												n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-												n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+												objects = append(objects, uint64(i))
+
 											exists:
 											})()
 										}
@@ -903,10 +861,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 														goto exists
 													}
 												}
-												objects = append(objects, d)
-												n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-												n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-												n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+												objects = append(objects, uint64(i))
+
 											exists:
 											})()
 										}
@@ -921,10 +877,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 														goto exists
 													}
 												}
-												objects = append(objects, d)
-												n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-												n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-												n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+												objects = append(objects, uint64(i))
+
 											exists:
 											})()
 										}
@@ -938,10 +892,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 														goto exists
 													}
 												}
-												objects = append(objects, d)
-												n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-												n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-												n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+												objects = append(objects, uint64(i))
+
 											exists:
 											})()
 										}
@@ -962,10 +914,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 													goto exists
 												}
 											}
-											objects = append(objects, d)
-											n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-											n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-											n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+											objects = append(objects, uint64(i))
+
 										exists:
 										})()
 									}
@@ -978,10 +928,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 													goto exists
 												}
 											}
-											objects = append(objects, d)
-											n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-											n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-											n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+											objects = append(objects, uint64(i))
+
 										exists:
 										})()
 									}
@@ -1001,10 +949,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 											goto exists
 										}
 									}
-									objects = append(objects, d)
-									n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-									n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-									n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+									objects = append(objects, uint64(i))
+
 								exists:
 								})()
 							}
@@ -1017,10 +963,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 											goto exists
 										}
 									}
-									objects = append(objects, d)
-									n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-									n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-									n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+									objects = append(objects, uint64(i))
+
 								exists:
 								})()
 							}
@@ -1034,10 +978,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 												goto exists
 											}
 										}
-										objects = append(objects, d)
-										n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-										n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-										n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+										objects = append(objects, uint64(i))
+
 									exists:
 									})()
 								}
@@ -1052,10 +994,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 												goto exists
 											}
 										}
-										objects = append(objects, d)
-										n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-										n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-										n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+										objects = append(objects, uint64(i))
+
 									exists:
 									})()
 								}
@@ -1070,10 +1010,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 												goto exists
 											}
 										}
-										objects = append(objects, d)
-										n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-										n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-										n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+										objects = append(objects, uint64(i))
+
 									exists:
 									})()
 								}
@@ -1088,10 +1026,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 												goto exists
 											}
 										}
-										objects = append(objects, d)
-										n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-										n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-										n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+										objects = append(objects, uint64(i))
+
 									exists:
 									})()
 								}
@@ -1112,10 +1048,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 											goto exists
 										}
 									}
-									objects = append(objects, d)
-									n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-									n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-									n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+									objects = append(objects, uint64(i))
+
 								exists:
 								})()
 							}
@@ -1128,10 +1062,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 											goto exists
 										}
 									}
-									objects = append(objects, d)
-									n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-									n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-									n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+									objects = append(objects, uint64(i))
+
 								exists:
 								})()
 							}
@@ -1144,10 +1076,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 											goto exists
 										}
 									}
-									objects = append(objects, d)
-									n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-									n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-									n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+									objects = append(objects, uint64(i))
+
 								exists:
 								})()
 							}
@@ -1161,10 +1091,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 											goto exists
 										}
 									}
-									objects = append(objects, d)
-									n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-									n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-									n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+									objects = append(objects, uint64(i))
+
 								exists:
 								})()
 							}
@@ -1179,10 +1107,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 											goto exists
 										}
 									}
-									objects = append(objects, d)
-									n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-									n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-									n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+									objects = append(objects, uint64(i))
+
 								exists:
 								})()
 							}
@@ -1196,10 +1122,8 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 											goto exists
 										}
 									}
-									objects = append(objects, d)
-									n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-									n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-									n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+									objects = append(objects, uint64(i))
+
 								exists:
 								})()
 							}
@@ -1216,10 +1140,7 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 											goto exists
 										}
 									}
-									objects = append(objects, d)
-									n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-									n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-									n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+									objects = append(objects, uint64(i))
 								exists:
 								})()
 
@@ -1234,10 +1155,7 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 											goto exists
 										}
 									}
-									objects = append(objects, d)
-									n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-									n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-									n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+									objects = append(objects, uint64(i))
 								exists:
 								})()
 							}
@@ -1250,18 +1168,51 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 
 	}
 
-	return objects
+	var deleted []interface{}
+
+	if slices.Contains(conditions, "&&") {
+		var nullObjects []interface{}
+
+		if uint64(len(conditions)) != conditionsMet {
+
+			if !slices.Contains(conditions, "||") {
+				return nullObjects
+			} else if conditionsMet > 0 {
+				for _, i := range objects {
+					deleted = append(deleted, n.Data.Map[collection][i])
+					n.Data.Writers[collection].Lock()
+					n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
+					n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
+					n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+					n.Data.Writers[collection].Unlock()
+				}
+			}
+		}
+
+	} else if conditionsMet > 0 {
+		for _, i := range objects {
+			deleted = append(deleted, n.Data.Map[collection][i])
+			n.Data.Writers[collection].Lock()
+			n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
+			n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
+			n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1] // Truncate slice.
+			n.Data.Writers[collection].Unlock()
+		}
+	}
+
+	return deleted
 }
 
 func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
-
 	if lock {
-		writeMu, ok := n.Data.Writers[collection]
-		if ok {
-			writeMu.Lock()
-			defer writeMu.Unlock()
-		}
+		n.Data.Writers[collection].Lock()
 	}
+
+	defer func() {
+		if lock {
+			n.Data.Writers[collection].Unlock()
+		}
+	}()
 
 	var objects []interface{}
 
