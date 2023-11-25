@@ -601,6 +601,26 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 
 			if !slices.Contains(conditions, "||") {
 				return nullObjects
+			} else if conditionsMet > 0 {
+				for _, d := range objects {
+					for m, _ := range uks {
+
+						n.Data.Writers[collection].Lock()
+						ne := make(map[string]interface{})
+
+						for kk, vv := range *d {
+							ne[kk] = vv
+						}
+
+						ne[uks[m].(string)] = nvs[m]
+
+						*d = ne
+						updated = append(updated, *d)
+						n.Data.Writers[collection].Unlock()
+
+					}
+
+				}
 			}
 		}
 
