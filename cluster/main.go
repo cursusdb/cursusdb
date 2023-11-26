@@ -1178,14 +1178,14 @@ func main() {
 
 		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
 		fmt.Print("username> ")
-		username, err := term.ReadPassword(syscall.Stdin)
+		username, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			os.Exit(1)
 		}
 		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(username))))
 		fmt.Println("")
 		fmt.Print("password> ")
-		password, err := term.ReadPassword(syscall.Stdin)
+		password, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			os.Exit(1)
 		}
@@ -1193,7 +1193,7 @@ func main() {
 		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(password))))
 		fmt.Println("")
 		fmt.Print("key> ")
-		key, err := term.ReadPassword(syscall.Stdin)
+		key, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			os.Exit(1)
 		}

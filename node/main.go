@@ -2265,7 +2265,7 @@ func main() {
 
 		fmt.Println("Node key is required.  A node key will encrypt all your data at rest and allow for only connections that contain a correct Key: header value matching the hashed key you provide.")
 		fmt.Print("key> ")
-		key, err := term.ReadPassword(syscall.Stdin)
+		key, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
