@@ -226,7 +226,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 		return
 	}
 
-	_, _, err = cluster.AuthenticateUser(authValuesSpl[0], authValuesSpl[1])
+	_, user, err := cluster.AuthenticateUser(authValuesSpl[0], authValuesSpl[1])
 	if err != nil {
 		connection.Text.PrintfLine("%d %s", 4, err.Error()) // no user exists
 		return
@@ -250,6 +250,23 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 			wg := &sync.WaitGroup{}
 			mu := &sync.Mutex{}
 
+			switch user["permission"] {
+			case "R":
+			case strings.HasPrefix(query, "update"):
+				connection.Text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+				continue
+			case strings.HasPrefix(query, "insert"):
+				connection.Text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+				continue
+			case strings.HasPrefix(query, "select"):
+				goto allowed
+				continue
+			case "RW":
+				goto allowed
+			}
+
+		allowed:
+
 			switch {
 			// Query starts with insert
 			case strings.HasPrefix(query, "insert "):
@@ -257,7 +274,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				// query is not valid
 				// must have a full prefix of 'insert into '
 				if !strings.HasPrefix(query, "insert into ") {
-					connection.Text.PrintfLine("Invalid query")
+					connection.Text.PrintfLine(fmt.Sprintf("%d Invalid query", 3000))
 					query = "" // Clear query variable and listen for another
 					continue
 				}
@@ -270,7 +287,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				collection := strings.ReplaceAll(strings.Split(query, "({\"")[0], "insert into ", "")
 
 				if len(insertJson) != 2 {
-					connection.Text.PrintfLine("Invalid query")
+					connection.Text.PrintfLine(fmt.Sprintf("%d Invalid query", 3000))
 					query = ""
 					continue
 				}
@@ -315,7 +332,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 							var arr []interface{}
 							err := json.Unmarshal([]byte(kValue.FindStringSubmatch(query)[1]), &arr)
 							if err != nil {
-								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 								query = ""
 								continue
 							}
@@ -359,7 +376,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 								b, err := strconv.ParseBool(body["values"].([]interface{})[0].(string))
 								if err != nil {
-									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+									connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 									query = ""
 									continue
 								}
@@ -369,7 +386,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 								f, err := strconv.ParseFloat(body["values"].([]interface{})[0].(string), 64)
 								if err != nil {
-									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+									connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 									query = ""
 									continue
 								}
@@ -378,7 +395,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 							} else if cluster.IsInt(body["values"].([]interface{})[0].(string)) {
 								i, err := strconv.Atoi(body["values"].([]interface{})[0].(string))
 								if err != nil {
-									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+									connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 									query = ""
 									continue
 								}
@@ -463,7 +480,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 			case strings.HasPrefix(query, "select "):
 
 				if !strings.Contains(query, "from ") {
-					connection.Text.PrintfLine("from is required!")
+					connection.Text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
 					query = ""
 					continue
 				}
@@ -487,7 +504,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 					err := cluster.QueryNodes(connection, body, wg, mu)
 					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+						connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
 						continue
 					}
@@ -527,7 +544,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 						default:
-							connection.Text.PrintfLine("Invalid query operator.")
+							connection.Text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 							query = ""
 							goto cont2
 						}
@@ -560,7 +577,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 								query = ""
 								continue
 							}
@@ -570,7 +587,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
 							if err != nil {
-								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 								query = ""
 								continue
 							}
@@ -579,7 +596,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 						} else if cluster.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 								query = ""
 								continue
 							}
@@ -592,7 +609,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 					err := cluster.QueryNodes(connection, body, wg, mu)
 					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+						connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
 						continue
 					}
@@ -639,7 +656,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					body["update-keys"] = append(body["update-keys"].([]interface{}), strings.TrimSpace(spl[0]))
 					var val interface{}
 					if len(spl) != 2 {
-						connection.Text.PrintfLine("Set is missing =")
+						connection.Text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
 						query = ""
 						goto cont4
 					}
@@ -657,7 +674,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 						b, err := strconv.ParseBool(val.(string))
 						if err != nil {
-							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+							connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 							query = ""
 							continue
 						}
@@ -667,7 +684,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 						f, err := strconv.ParseFloat(val.(string), 64)
 						if err != nil {
-							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+							connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 							query = ""
 							continue
 						}
@@ -676,7 +693,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					} else if cluster.IsInt(val.(string)) {
 						i, err := strconv.Atoi(val.(string))
 						if err != nil {
-							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+							connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 							query = ""
 							continue
 						}
@@ -712,7 +729,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 					default:
-						connection.Text.PrintfLine("Invalid query operator.")
+						connection.Text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 						query = ""
 						goto cont3
 					}
@@ -737,7 +754,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 						b, err := strconv.ParseBool(val.(string))
 						if err != nil {
-							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+							connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 							query = ""
 							continue
 						}
@@ -747,7 +764,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 						f, err := strconv.ParseFloat(val.(string), 64)
 						if err != nil {
-							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+							connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 							query = ""
 							continue
 						}
@@ -756,7 +773,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					} else if cluster.IsInt(val.(string)) {
 						i, err := strconv.Atoi(val.(string))
 						if err != nil {
-							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+							connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 							query = ""
 							continue
 						}
@@ -776,7 +793,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 				err := cluster.QueryNodes(connection, body, wg, mu)
 				if err != nil {
-					connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+					connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 					query = ""
 					continue
 				}
@@ -788,7 +805,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 				// delete 1 from users where name == 'alex' && last == 'padula';
 
 				if !strings.Contains(query, "from ") {
-					connection.Text.PrintfLine("from is required!")
+					connection.Text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
 					query = ""
 					continue
 				}
@@ -812,7 +829,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 					err := cluster.QueryNodes(connection, body, wg, mu)
 					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+						connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
 						continue
 					}
@@ -852,7 +869,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 						default:
-							connection.Text.PrintfLine("Invalid query operator.")
+							connection.Text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 							query = ""
 							goto cont5
 						}
@@ -885,7 +902,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 								query = ""
 								continue
 							}
@@ -895,7 +912,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
 							if err != nil {
-								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 								query = ""
 								continue
 							}
@@ -904,7 +921,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 						} else if cluster.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 								query = ""
 								continue
 							}
@@ -917,7 +934,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 					err := cluster.QueryNodes(connection, body, wg, mu)
 					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+						connection.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
 						continue
 					}
@@ -939,6 +956,7 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 
 }
 
+// QueryNodes queries all nodes in parallel and gets responses
 func (cluster *Cluster) QueryNodes(connection *Connection, body map[string]interface{}, wg *sync.WaitGroup, mu *sync.Mutex) error {
 	jsonString, _ := json.Marshal(body)
 
@@ -958,6 +976,7 @@ func (cluster *Cluster) QueryNodes(connection *Connection, body map[string]inter
 	return nil
 }
 
+// QueryNodesRet queries all nodes and combines responses
 func (cluster *Cluster) QueryNodesRet(connection *Connection, body map[string]interface{}, wg *sync.WaitGroup, mu *sync.Mutex) map[string]string {
 	jsonString, _ := json.Marshal(body)
 
@@ -1011,6 +1030,7 @@ func (cluster *Cluster) InsertIntoNode(connection *Connection, insert string, co
 
 }
 
+// QueryNode queries a specific node
 func (cluster *Cluster) QueryNode(wg *sync.WaitGroup, n NodeConnection, body []byte, responses map[string]string, mu *sync.Mutex) {
 	defer wg.Done()
 
@@ -1027,6 +1047,7 @@ func (cluster *Cluster) QueryNode(wg *sync.WaitGroup, n NodeConnection, body []b
 
 }
 
+// SignalListener listens to system signals and gracefully shuts down cluster
 func (cluster *Cluster) SignalListener() {
 	defer cluster.Wg.Done()
 
@@ -1055,6 +1076,7 @@ func (cluster *Cluster) SignalListener() {
 	}
 }
 
+// ConnectToNodes connects to configured nodes
 func (cluster *Cluster) ConnectToNodes() {
 	for _, n := range cluster.Config.Nodes {
 		tcpAddr, err := net.ResolveTCPAddr("tcp", n)
@@ -1096,6 +1118,7 @@ func (cluster *Cluster) ConnectToNodes() {
 	}
 }
 
+// NewUser creates new database user
 func (cluster *Cluster) NewUser(username, password, permission string) (string, map[string]interface{}, error) {
 	user := make(map[string]interface{}) // Create map with username, password, and permission
 	user["username"] = username
@@ -1119,6 +1142,7 @@ func (cluster *Cluster) NewUser(username, password, permission string) (string, 
 	}
 }
 
+// AuthenticateUser checks if a user exists and returns the user
 func (cluster *Cluster) AuthenticateUser(username string, password string) (string, map[string]interface{}, error) {
 
 	for i := 0; i < 5; i++ { // retry as gob will sometimes provide wrong serialization
@@ -1158,6 +1182,7 @@ func (cluster *Cluster) AuthenticateUser(username string, password string) (stri
 	return "", nil, errors.New("No user exists")
 }
 
+// ValidatePermission validates cluster permissions aka R or RW
 func (cluster *Cluster) ValidatePermission(perm string) bool {
 	switch perm {
 	case "R":
@@ -1169,6 +1194,7 @@ func (cluster *Cluster) ValidatePermission(perm string) bool {
 	}
 }
 
+// main is main program function
 func main() {
 	var cluster Cluster // Main cluster variable
 

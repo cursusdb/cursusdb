@@ -71,20 +71,26 @@ insert into users({"email!": "test@example.com" ...});
 - ``delete``
 
 ### Status codes
-#### Authentication 
+#### Authentication / Authorization
 - ``0`` Authentication successful.
 - ``1`` Unable to read authentication header.
 - ``2`` Invalid authentication value.
 - ``3`` No user exists
+- ``4`` User not authorized
 #### Document
 - ``2000`` Document inserted/updated/deleted
+- ``3000`` Invalid query
 - ``4000`` Unmarsharable JSON insert
 - ``4001`` Missing action
 - ``4002`` None existent action
 - ``4003`` Nested JSON object cannot be inserted
 - ``4004`` Document already exists
 - ``4005`` Invalid command/query
+- ``4006`` From is required
+- ``4007`` Invalid query operator
+- ``4008`` Set is missing =
 ### Node / Cluster 
+- ``500`` - Unknown error (with description)
 - ``100`` - Node is at peak allocation.
 
 
