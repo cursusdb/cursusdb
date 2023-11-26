@@ -70,6 +70,8 @@ insert into users({"email!": "test@example.com" ...});
 - ``4003`` Nested JSON object cannot be inserted
 - ``4004`` Document already exists
 - ``4005`` Invalid command/query
+### Node / Cluster 
+- ``100`` - Node is at peak allocation.
 
 
 ## Todo

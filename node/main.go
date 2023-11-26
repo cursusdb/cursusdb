@@ -35,6 +35,7 @@ import (
 	"os"
 	"os/signal"
 	"reflect"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -51,15 +52,15 @@ type Node struct {
 	Connections   []*Connection   // TCP connections struct slice
 	Data          Data            // Node data
 	Config        Config          // Node config
-	MaxDocuments  uint64          // Default 15,000,000
 }
 
 // Config is the cluster config struct
 type Config struct {
-	TLSCert string `yaml:"tls-cert"`            // TLS cert path
-	TLSKey  string `yaml:"tls-key"`             // TLS cert key
-	TLS     bool   `default:"false" yaml:"tls"` // Use TLS?
-	Port    int    `yaml:"port"`
+	TLSCert   string `yaml:"tls-cert"`            // TLS cert path
+	TLSKey    string `yaml:"tls-key"`             // TLS cert key
+	TLS       bool   `default:"false" yaml:"tls"` // Use TLS?
+	Port      int    `yaml:"port"`
+	MaxMemory uint64 `yaml:"max-memory"` // Default 10240MB = 10 GB (1024 * 10)
 }
 
 // Data is the node data struct
@@ -121,6 +122,14 @@ func (n *Node) TCP_TLSListener() {
 		})
 	}
 
+}
+
+// CurrentMemoryUsage returns current memory usage in mb
+func (n *Node) CurrentMemoryUsage() uint64 {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	return m.Alloc / 1024 / 1024
 }
 
 func (n *Node) WriteToFile() {
@@ -1786,6 +1795,10 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 
 // insert into node map
 func (n *Node) insert(collection string, jsonMap map[string]interface{}, connection *Connection) error {
+	if n.CurrentMemoryUsage() >= n.Config.MaxMemory {
+		return errors.New(fmt.Sprintf("%d node is at peak allocation", 100))
+	}
+
 	jsonStr, err := json.Marshal(jsonMap)
 	if err != nil {
 		return err
@@ -2130,6 +2143,7 @@ func main() {
 		defer nodeConfigFile.Close()
 
 		node.Config.Port = 7682
+		node.Config.MaxMemory = 10240
 
 		yamlData, err := yaml.Marshal(&node.Config)
 		if err != nil {
