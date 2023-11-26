@@ -1,6 +1,19 @@
 ## Cursus Database System
 JSON based, unstructured distributed database.  Capable of extremely fast parallel search.
 
+### Features
+- Secured cluster and node(s) communication with shared key and TLS.
+- Encrypted data at rest by default with chacha20poly1305.
+- In-Memory data during runtime
+- Very fast parallel search
+- Database Users with basic (R, RW) permissions
+- Cluster and node authentication.
+- JSON object insert.
+- Cluster and client authentication.
+- Unique values across all nodes based on key using "key!" on insert.
+- SQL like query language
+
+
 ## Query Language
 ### Inserts
 ```
@@ -75,9 +88,7 @@ insert into users({"email!": "test@example.com" ...});
 
 
 ## Todo
-- Encryption at rest
 - Comments
-- Cluster and nodes share same hashed key.
 
 ### Ports
 Default cluster port: 7681

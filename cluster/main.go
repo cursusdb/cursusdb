@@ -22,6 +22,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/gob"
@@ -44,6 +45,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 )
 
 // Cluster type
@@ -65,6 +67,7 @@ type Config struct {
 	TLSKey  string   `yaml:"tls-key"`
 	TLS     bool     `default:"false" yaml:"tls"`
 	Port    int      `yaml:"port"`
+	Key     string   `yaml:"key"`   // Cluster key - this key is used to encrypt data on all nodes and to authenticate with a node.
 	Users   []string `yaml:"users"` // Array of encoded users
 }
 
@@ -1160,18 +1163,31 @@ func main() {
 
 		cluster.Config.Port = 7681
 
-		fmt.Println("Before starting your CursusDB cluster you must first create a database user.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).")
-		fmt.Print("Username>")
+		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
+		fmt.Print("username> ")
 		username, err := term.ReadPassword(syscall.Stdin)
 		if err != nil {
 			os.Exit(1)
 		}
+		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(username))))
 		fmt.Println("")
-		fmt.Print("Password>")
+		fmt.Print("password> ")
 		password, err := term.ReadPassword(syscall.Stdin)
 		if err != nil {
 			os.Exit(1)
 		}
+
+		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(password))))
+		fmt.Println("")
+		fmt.Print("key> ")
+		key, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			os.Exit(1)
+		}
+		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key))))
+		fmt.Println("")
+		hashedKey := sha256.Sum256(key)
+		cluster.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...))
 
 		cluster.NewUser(string(username), string(password), "RW")
 

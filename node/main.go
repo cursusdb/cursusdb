@@ -22,13 +22,19 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"golang.org/x/crypto/chacha20poly1305"
+	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
+	"io"
 	"log"
 	"net"
 	"net/textproto"
@@ -42,6 +48,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 )
 
 // Node is the main Node struct
@@ -60,6 +67,7 @@ type Config struct {
 	TLSKey    string `yaml:"tls-key"`             // TLS cert key
 	TLS       bool   `default:"false" yaml:"tls"` // Use TLS?
 	Port      int    `yaml:"port"`
+	Key       string `yaml:"key"`        // Key for a cluster to communicate with the node and also used to resting data.
 	MaxMemory uint64 `yaml:"max-memory"` // Default 10240MB = 10 GB (1024 * 10)
 }
 
@@ -132,18 +140,48 @@ func (n *Node) CurrentMemoryUsage() uint64 {
 	return m.Alloc / 1024 / 1024
 }
 
+func (n *Node) encrypt(key, plaintext []byte) ([]byte, error) {
+	aead, err := chacha20poly1305.New(key)
+	if err != nil {
+		return nil, err
+	}
+
+	totalLen := aead.NonceSize() + len(plaintext) + aead.Overhead()
+	nonce := make([]byte, aead.NonceSize(), totalLen)
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, err
+	}
+
+	return aead.Seal(nonce, nonce, plaintext, nil), nil
+}
+
+func (n *Node) decrypt(key, ciphertext []byte) ([]byte, error) {
+	aead, err := chacha20poly1305.New(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(ciphertext) < aead.NonceSize() {
+		return nil, errors.New("ciphertext too short")
+	}
+
+	// Split nonce and ciphertext.
+	nonce, ciphertext := ciphertext[:aead.NonceSize()], ciphertext[aead.NonceSize():]
+
+	return aead.Open(nil, nonce, ciphertext, nil)
+}
+
+// WriteToFile will write the current node data to a .cdat file encrypted with your node key.
 func (n *Node) WriteToFile() {
 
-	f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
+	// Create temporary .cdat which is all serialized data.  An encryption is performed after the fact to not consume memory.
+	fTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
 	if err != nil {
 		log.Println("WriteToFile():", err.Error())
 		n.SignalChannel <- os.Interrupt
 		return
 	}
 
-	defer f.Close()
-
-	e := gob.NewEncoder(f)
+	e := gob.NewEncoder(fTmp)
 
 	// Encoding the map
 	err = e.Encode(n.Data.Map)
@@ -152,6 +190,60 @@ func (n *Node) WriteToFile() {
 		n.SignalChannel <- os.Interrupt
 		return
 	}
+
+	fTmp.Close()
+
+	// After serialization encrypt temp data file
+	fTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
+	if err != nil {
+		log.Println("WriteToFile():", err.Error())
+		n.SignalChannel <- os.Interrupt
+		return
+	}
+
+	//
+	reader := bufio.NewReader(fTmp)
+	buf := make([]byte, 1024)
+	f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
+	if err != nil {
+		log.Println("WriteToFile():", err.Error())
+		n.SignalChannel <- os.Interrupt
+		return
+	}
+	defer f.Close()
+
+	for {
+		read, err := reader.Read(buf)
+
+		if err != nil {
+			if err != io.EOF {
+				log.Println("WriteToFile():", err.Error())
+				n.SignalChannel <- os.Interrupt
+				return
+			}
+			break
+		}
+
+		if read > 0 {
+			decodedKey, err := base64.StdEncoding.DecodeString(n.Config.Key)
+			if err != nil {
+				log.Println("WriteToFile():", err.Error())
+				n.SignalChannel <- os.Interrupt
+				return
+			}
+
+			ciphertext, err := n.encrypt(decodedKey[:], buf[:read])
+			if err != nil {
+				log.Println("WriteToFile():", err.Error())
+				n.SignalChannel <- os.Interrupt
+				return
+			}
+
+			f.Write(ciphertext)
+		}
+	}
+
+	os.Remove(".cdat.tmp")
 
 	log.Println("WriteToFile(): Completed.")
 }
@@ -2145,6 +2237,19 @@ func main() {
 		node.Config.Port = 7682
 		node.Config.MaxMemory = 10240
 
+		fmt.Println("Node key is required.  A node key will encrypt all your data at rest and allow for only connections that contain a correct Key: header value matching the hashed key you provide.")
+		fmt.Print("key> ")
+		key, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+
+		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key))))
+		fmt.Println("")
+		hashedKey := sha256.Sum256(key)
+		node.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...))
+
 		yamlData, err := yaml.Marshal(&node.Config)
 		if err != nil {
 			fmt.Println(err.Error())
@@ -2168,17 +2273,71 @@ func main() {
 	}
 
 	if _, err := os.Stat("./.cdat"); errors.Is(err, os.ErrNotExist) {
-		fmt.Println("New previous data to read.")
+		fmt.Println("No previous data to read.  Creating new .cdat file.")
 	} else {
 		fmt.Println("Node data read into memory.")
 		dataFile, err := os.Open("./.cdat")
-		d := gob.NewDecoder(dataFile)
+
+		// Temporary decrypted data file.. to be serialized
+		fDFTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+
+		reader := bufio.NewReader(dataFile)
+		buf := make([]byte, 1024)
+
+		defer dataFile.Close()
+
+		for {
+			read, err := reader.Read(buf)
+
+			if err != nil {
+				if err != io.EOF {
+					fmt.Println(err.Error())
+					os.Exit(1)
+				}
+				break
+			}
+
+			if read > 0 {
+				decodedKey, err := base64.StdEncoding.DecodeString(node.Config.Key)
+				if err != nil {
+					fmt.Println(err.Error())
+					os.Exit(1)
+					return
+				}
+
+				ciphertext, err := node.decrypt(decodedKey[:], buf[:read])
+				if err != nil {
+					fmt.Println(err.Error())
+					os.Exit(1)
+					return
+				}
+
+				fDFTmp.Write(ciphertext)
+			}
+		}
+		fDFTmp.Close()
+
+		fDFTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+
+		d := gob.NewDecoder(fDFTmp)
 
 		err = d.Decode(&node.Data.Map)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
+
+		fDFTmp.Close()
+
+		os.Remove(".cdat.tmp")
 	}
 
 	flag.IntVar(&node.Config.Port, "port", node.Config.Port, "port for node")
