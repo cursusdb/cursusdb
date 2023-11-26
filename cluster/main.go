@@ -923,8 +923,13 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					continue
 
 				}
+			default:
+				connection.Text.PrintfLine("%d Invalid command/query.", 4005)
+				query = ""
+				continue
 
 			}
+
 		}
 
 	}
