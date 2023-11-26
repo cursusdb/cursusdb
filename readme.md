@@ -1,6 +1,6 @@
 ## Cursus Database System
 JSON based, unstructured distributed database.  Capable of extremely fast parallel search.
-The idea is if you have 10 million documents stored on 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million.  This is the power of parallel search.  You system is searching say in the users collection in multiple section of the collection simultaneously. 
+The idea is if you have 10 million documents stored on 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million.  This is the power of parallel search.  The Cursus system is searching say in the users collection in multiple sections of the collection simultaneously. 
 
 ### Features
 - Secured cluster and node(s) communication with shared key and TLS.
