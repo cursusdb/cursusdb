@@ -89,6 +89,7 @@ insert into users({"email!": "test@example.com" ...});
 
 ## Todo
 - Comments
+- Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replacing it's position on the clusters(s). This is a peer-2-peer like activity.
 
 ### Ports
 Default cluster port: 7681
