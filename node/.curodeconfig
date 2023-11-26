@@ -1,4 +1,0 @@
-tls-cert: ""
-tls-key: ""
-tls: false
-port: 7682

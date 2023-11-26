@@ -7,6 +7,10 @@ The CursusDB cluster.
 To run a cluster 
 ``` 
 ./cursus
+
+OR
+
+./cursus -port=1234
 ```
 
 if you don't have a ``.clusterconfig``, one will be created where you launch cursus.  The ``.clusterconfig`` is in yaml format.
