@@ -104,7 +104,7 @@ func (cluster *Cluster) TCP_TLSListener() {
 		}
 
 		config := &tls.Config{Certificates: []tls.Certificate{cer}}
-		cluster.Listener, err = tls.Listen("tcp", "0.0.0.0:7222", config)
+		cluster.Listener, err = tls.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", cluster.Config.Port), config)
 		if err != nil {
 			log.Println("TCP_TLSListener():", err.Error()) // Log an error
 			cluster.SignalChannel <- os.Interrupt          // Send interrupt to signal channel
@@ -1170,19 +1170,23 @@ func (cluster *Cluster) ValidatePermission(perm string) bool {
 }
 
 func main() {
-	var cluster Cluster
+	var cluster Cluster // Main cluster variable
 
+	// We check if a .cursusconfig file exists
 	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
+		// .cursusconfig does not exist..
 
-		cluster.Config.Port = 7681
+		cluster.Config.Port = 7681 // Default CursusDB cluster port
 
+		// Get initial database user credentials
 		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
 		fmt.Print("username> ")
 		username, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			os.Exit(1)
 		}
-		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(username))))
+
+		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(username)))) // Relay input with *
 		fmt.Println("")
 		fmt.Print("password> ")
 		password, err := term.ReadPassword(int(os.Stdin.Fd()))
@@ -1190,23 +1194,27 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(password))))
+		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(password)))) // Relay input with *
 		fmt.Println("")
 		fmt.Print("key> ")
 		key, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			os.Exit(1)
 		}
-		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key))))
+
+		// Get shared key
+		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key)))) // Relay input with *
 		fmt.Println("")
+
+		// Hash shared key
 		hashedKey := sha256.Sum256(key)
-		cluster.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...))
+		cluster.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...)) // Encode hashed key
 
-		cluster.NewUser(string(username), string(password), "RW")
+		cluster.NewUser(string(username), string(password), "RW") // Create new user with RW permissions
 
 		fmt.Println("")
 
-		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777)
+		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777) // Create .cursusconfig yaml file
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
@@ -1214,20 +1222,24 @@ func main() {
 
 		defer clusterConfigFile.Close()
 
+		// Marhsal config to yaml
 		yamlData, err := yaml.Marshal(&cluster.Config)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
 
-		clusterConfigFile.Write(yamlData)
-	} else {
+		clusterConfigFile.Write(yamlData) // Write to yaml config
+	} else { // .cursusconfig exists
+
+		// Read .cursus config
 		clusterConfigFile, err := os.ReadFile("./.cursusconfig")
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
 
+		// Unmarhsal config into cluster.config
 		err = yaml.Unmarshal(clusterConfigFile, &cluster.Config)
 		if err != nil {
 			fmt.Println(err.Error())
@@ -1236,31 +1248,37 @@ func main() {
 
 	}
 
+	// If cluster configured cluster nodes == 0, inform user to add a node
 	if len(cluster.Config.Nodes) == 0 {
 		fmt.Println("You must setup nodes for the Cursus to read from in your .cursusconfig file.")
 		os.Exit(0)
 	}
 
-	cluster.ConnectionsMu = &sync.Mutex{}
-	cluster.NodesMu = &sync.Mutex{}
+	cluster.ConnectionsMu = &sync.Mutex{} // Get connections mu
+	cluster.NodesMu = &sync.Mutex{}       // Cluster nodes mutex
 
+	// If port provided as flag use it instead of whats on config file
 	flag.IntVar(&cluster.Config.Port, "port", cluster.Config.Port, "port for cluster")
 	flag.Parse()
 
+	// Make signal channel
 	cluster.SignalChannel = make(chan os.Signal, 1)
 
+	// Listen to signals
 	signal.Notify(cluster.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
 
+	// Create cluster wait group
 	cluster.Wg = &sync.WaitGroup{}
 
 	cluster.Wg.Add(1)
-	go cluster.SignalListener()
+	go cluster.SignalListener() // Listen to signals and gracefully shutdown
 
-	cluster.ConnectToNodes()
+	cluster.ConnectToNodes() // Connect to configured nodes
 
 	cluster.Wg.Add(1)
-	go cluster.TCP_TLSListener()
+	go cluster.TCP_TLSListener() // Listen to TCP or TLS connections
 
-	cluster.Wg.Wait()
+	cluster.Wg.Wait() // Wait for all go routines to finish up
 
+	os.Exit(0) // exit
 }
