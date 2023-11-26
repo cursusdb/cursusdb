@@ -91,19 +91,19 @@ A node can have a private IP whereas the cluster has an address that is external
 #### Example using curush querying cluster
 ``` 
 ./curush -host 0.0.0.0
-Username>
-Password>
+Username> ******
+Password> *****
 curush>select * from users;
-2023/11/25 21:04:40 select * from users;
+
 127.0.0.1:7682: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90","age":28,"last":"Padula","name":"Alex"}]
 curush>select * from users;
-2023/11/25 21:04:41 select * from users;
+
 127.0.0.1:7682: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90","age":28,"last":"Padula","name":"Alex"}]
 curush>insert into users({"name": "Alex", "last": "Lee", "age": 28});
-2023/11/25 21:05:02 insert into users({"name": "Alex", "last": "Lee", "age": 28});
+
 {"insert":{"$id":"ecaaba0f-d130-42c9-81ad-ea6fc3461379","age":28,"last":"Lee","name":"Alex"},"message":"Document inserted","statusCode":2000}
 curush>select * from users;
-2023/11/25 21:05:04 select * from users;
+
 127.0.0.1:7682: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90","age":28,"last":"Padula","name":"Alex"},{"$id":"ecaaba0f-d130-42c9-81ad-ea6fc3461379","age":28,"last":"Lee","name":"Alex"}]
 ```
 
