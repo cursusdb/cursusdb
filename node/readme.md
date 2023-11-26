@@ -32,8 +32,8 @@
 
 
 ### Windows
-- ``env GOOS=windows GOARCH=amd64 go build -o bin/windows/amd64/curode``
-- ``env GOOS=windows GOARCH=386 go build -o bin/windows/386/curode``
+- ``env GOOS=windows GOARCH=amd64 go build -o bin/windows/amd64/curode.exe``
+- ``env GOOS=windows GOARCH=386 go build -o bin/windows/386/curode.exe``
 
 
 
