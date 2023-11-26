@@ -1073,12 +1073,25 @@ func (cluster *Cluster) ConnectToNodes() {
 
 		conn.SetKeepAlive(true) // forever
 
-		cluster.NodeConnections = append(cluster.NodeConnections, NodeConnection{
-			Conn: conn,
-			Text: textproto.NewConn(conn),
-		})
+		conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cluster.Config.Key)))
 
-		log.Println("Node connection established to", conn.RemoteAddr().String())
+		authBuf := make([]byte, 1024)
+
+		r, _ := conn.Read(authBuf[:])
+
+		if strings.HasPrefix(string(authBuf[:r]), "0") {
+
+			cluster.NodeConnections = append(cluster.NodeConnections, NodeConnection{
+				Conn: conn,
+				Text: textproto.NewConn(conn),
+			})
+
+			log.Println("Node connection established to", conn.RemoteAddr().String())
+		} else {
+			log.Println("ConnectToNodes():", "Invalid key.")
+			cluster.SignalChannel <- os.Interrupt
+			return
+		}
 
 	}
 }
@@ -1234,15 +1247,16 @@ func main() {
 	flag.IntVar(&cluster.Config.Port, "port", cluster.Config.Port, "port for cluster")
 	flag.Parse()
 
-	cluster.ConnectToNodes()
-
 	cluster.SignalChannel = make(chan os.Signal, 1)
 
 	signal.Notify(cluster.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
+
 	cluster.Wg = &sync.WaitGroup{}
 
 	cluster.Wg.Add(1)
 	go cluster.SignalListener()
+
+	cluster.ConnectToNodes()
 
 	cluster.Wg.Add(1)
 	go cluster.TCP_TLSListener()

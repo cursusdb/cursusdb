@@ -1953,243 +1953,269 @@ func (n *Node) HandleConnection(connection *Connection) {
 
 	}(connection)
 
-	scanner := bufio.NewScanner(connection.Conn)
+	// Node expects an encoded base64 header Key: v the v being the shared cluster and node key
 
-	for scanner.Scan() {
-		query := scanner.Text()
+	read, err := connection.Text.ReadLine()
+	if err != nil {
+		return
+	}
 
-		result := make(map[string]interface{})
+	if !strings.HasPrefix(read, "Key:") {
+		connection.Text.PrintfLine("Invalid key.  Node expecting cluster key.")
+		return
+	} else {
 
-		err := json.Unmarshal([]byte(query), &result)
-		if err != nil {
-			result["statusCode"] = 4000
-			result["message"] = "Unmarshalable JSON"
-			r, _ := json.Marshal(result)
-			connection.Text.PrintfLine(string(r))
-			continue
+		authSpl := strings.Split(read, "Key:")
+
+		if len(authSpl) != 2 {
+			connection.Text.PrintfLine("Invalid key.  Node expecting cluster key.")
+			return
 		}
 
-		result["skip"] = 0
+		if n.Config.Key != strings.TrimSpace(authSpl[1]) {
+			connection.Text.PrintfLine("Invalid key.")
+			return
+		}
 
-		action, ok := result["action"]
-		if ok {
-			switch {
-			case strings.EqualFold(action.(string), "delete"):
+		connection.Text.PrintfLine("0 Authentication successful.")
 
-				if result["limit"].(string) == "*" {
-					result["limit"] = -1
-				} else if strings.Contains(result["limit"].(string), ",") {
-					if len(strings.Split(result["limit"].(string), ",")) == 2 {
-						result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
-						if err != nil {
-							connection.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
-							query = ""
-							continue
-						}
+		scanner := bufio.NewScanner(connection.Conn)
 
-						if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
-							result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+		for scanner.Scan() {
+			query := scanner.Text()
+
+			result := make(map[string]interface{})
+
+			err := json.Unmarshal([]byte(query), &result)
+			if err != nil {
+				result["statusCode"] = 4000
+				result["message"] = "Unmarshalable JSON"
+				r, _ := json.Marshal(result)
+				connection.Text.PrintfLine(string(r))
+				continue
+			}
+
+			result["skip"] = 0
+
+			action, ok := result["action"]
+			if ok {
+				switch {
+				case strings.EqualFold(action.(string), "delete"):
+
+					if result["limit"].(string) == "*" {
+						result["limit"] = -1
+					} else if strings.Contains(result["limit"].(string), ",") {
+						if len(strings.Split(result["limit"].(string), ",")) == 2 {
+							result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
 							if err != nil {
-								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								connection.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
 								query = ""
 								continue
 							}
+
+							if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
+								result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+								if err != nil {
+									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+									query = ""
+									continue
+								}
+							} else {
+								result["limit"] = -1
+							}
 						} else {
-							result["limit"] = -1
-						}
-					} else {
-						connection.Text.PrintfLine("Invalid limiting value.")
-						query = ""
-						continue
-					}
-				} else {
-					result["limit"], err = strconv.Atoi(result["limit"].(string))
-					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-						query = ""
-						continue
-					}
-				}
-
-				results := n.del(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
-				r, _ := json.Marshal(results)
-				result["statusCode"] = 2000
-
-				if reflect.DeepEqual(results, nil) || len(results) == 0 {
-					result["message"] = "No documents deleted."
-				} else {
-					result["message"] = fmt.Sprintf("%d Document(s) deleted successfully.", len(results))
-				}
-
-				delete(result, "document")
-				delete(result, "collection")
-				delete(result, "action")
-				delete(result, "key")
-				delete(result, "limit")
-				delete(result, "opr")
-				delete(result, "value")
-				delete(result, "lock")
-				delete(result, "new-values")
-				delete(result, "update-keys")
-				delete(result, "conditions")
-				delete(result, "keys")
-				delete(result, "oprs")
-				delete(result, "values")
-				delete(result, "skip")
-
-				result["deleted"] = results
-
-				r, _ = json.Marshal(result)
-				connection.Text.PrintfLine(string(r))
-				continue
-			case strings.EqualFold(action.(string), "select"):
-
-				if result["limit"].(string) == "*" {
-					result["limit"] = -1
-				} else if strings.Contains(result["limit"].(string), ",") {
-					if len(strings.Split(result["limit"].(string), ",")) == 2 {
-						result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
-						if err != nil {
-							connection.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
+							connection.Text.PrintfLine("Invalid limiting value.")
 							query = ""
 							continue
 						}
-
-						if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
-							result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
-							if err != nil {
-								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-								query = ""
-								continue
-							}
-						} else {
-							result["limit"] = -1
-						}
 					} else {
-						connection.Text.PrintfLine("Invalid limiting value.")
-						query = ""
-						continue
-					}
-				} else {
-					result["limit"], err = strconv.Atoi(result["limit"].(string))
-					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-						query = ""
-						continue
-					}
-				}
-
-				results := n.sel(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
-				r, _ := json.Marshal(results)
-				connection.Text.PrintfLine(string(r))
-				continue
-			case strings.EqualFold(action.(string), "update"):
-
-				if result["limit"].(string) == "*" {
-					result["limit"] = -1
-				} else if strings.Contains(result["limit"].(string), ",") {
-					if len(strings.Split(result["limit"].(string), ",")) == 2 {
-						result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
+						result["limit"], err = strconv.Atoi(result["limit"].(string))
 						if err != nil {
-							connection.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
+							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
 							query = ""
 							continue
 						}
+					}
 
-						if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
-							result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+					results := n.del(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
+					r, _ := json.Marshal(results)
+					result["statusCode"] = 2000
+
+					if reflect.DeepEqual(results, nil) || len(results) == 0 {
+						result["message"] = "No documents deleted."
+					} else {
+						result["message"] = fmt.Sprintf("%d Document(s) deleted successfully.", len(results))
+					}
+
+					delete(result, "document")
+					delete(result, "collection")
+					delete(result, "action")
+					delete(result, "key")
+					delete(result, "limit")
+					delete(result, "opr")
+					delete(result, "value")
+					delete(result, "lock")
+					delete(result, "new-values")
+					delete(result, "update-keys")
+					delete(result, "conditions")
+					delete(result, "keys")
+					delete(result, "oprs")
+					delete(result, "values")
+					delete(result, "skip")
+
+					result["deleted"] = results
+
+					r, _ = json.Marshal(result)
+					connection.Text.PrintfLine(string(r))
+					continue
+				case strings.EqualFold(action.(string), "select"):
+
+					if result["limit"].(string) == "*" {
+						result["limit"] = -1
+					} else if strings.Contains(result["limit"].(string), ",") {
+						if len(strings.Split(result["limit"].(string), ",")) == 2 {
+							result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
 							if err != nil {
-								connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+								connection.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
 								query = ""
 								continue
 							}
+
+							if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
+								result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+								if err != nil {
+									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+									query = ""
+									continue
+								}
+							} else {
+								result["limit"] = -1
+							}
 						} else {
-							result["limit"] = -1
+							connection.Text.PrintfLine("Invalid limiting value.")
+							query = ""
+							continue
 						}
 					} else {
-						connection.Text.PrintfLine("Invalid limiting value.")
-						query = ""
-						continue
+						result["limit"], err = strconv.Atoi(result["limit"].(string))
+						if err != nil {
+							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+							query = ""
+							continue
+						}
 					}
-				} else {
-					result["limit"], err = strconv.Atoi(result["limit"].(string))
+
+					results := n.sel(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
+					r, _ := json.Marshal(results)
+					connection.Text.PrintfLine(string(r))
+					continue
+				case strings.EqualFold(action.(string), "update"):
+
+					if result["limit"].(string) == "*" {
+						result["limit"] = -1
+					} else if strings.Contains(result["limit"].(string), ",") {
+						if len(strings.Split(result["limit"].(string), ",")) == 2 {
+							result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
+							if err != nil {
+								connection.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
+								query = ""
+								continue
+							}
+
+							if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
+								result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+								if err != nil {
+									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+									query = ""
+									continue
+								}
+							} else {
+								result["limit"] = -1
+							}
+						} else {
+							connection.Text.PrintfLine("Invalid limiting value.")
+							query = ""
+							continue
+						}
+					} else {
+						result["limit"], err = strconv.Atoi(result["limit"].(string))
+						if err != nil {
+							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
+							query = ""
+							continue
+						}
+					}
+
+					results := n.update(result["collection"].(string), result["keys"].([]interface{}), result["values"].([]interface{}), result["update-keys"].([]interface{}), result["new-values"].([]interface{}), result["limit"].(int), result["skip"].(int), result["oprs"].([]interface{}), result["conditions"].([]interface{}))
+					r, _ := json.Marshal(results)
+
+					delete(result, "document")
+					delete(result, "collection")
+					delete(result, "action")
+					delete(result, "key")
+					delete(result, "limit")
+					delete(result, "opr")
+					delete(result, "value")
+					delete(result, "lock")
+					delete(result, "new-values")
+					delete(result, "update-keys")
+					delete(result, "conditions")
+					delete(result, "keys")
+					delete(result, "oprs")
+					delete(result, "values")
+					delete(result, "skip")
+
+					result["statusCode"] = 2000
+
+					if reflect.DeepEqual(results, nil) || len(results) == 0 {
+						result["message"] = "No documents updated."
+					} else {
+						result["message"] = fmt.Sprintf("%d Document(s) updated successfully.", len(results))
+					}
+
+					result["updated"] = results
+					r, _ = json.Marshal(result)
+
+					connection.Text.PrintfLine(string(r))
+					continue
+				case strings.EqualFold(action.(string), "insert"):
+
+					collection := result["collection"]
+					doc := result["document"]
+					delete(result, "document")
+					delete(result, "collection")
+					delete(result, "action")
+					delete(result, "skip")
+
+					err := n.insert(collection.(string), doc.(map[string]interface{}), connection)
 					if err != nil {
-						connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-						query = ""
+						// Only error returned is a 4003 which means cannot insert nested object
+						result["statusCode"] = 4003
+						result["message"] = err.Error()
+						r, _ := json.Marshal(result)
+						connection.Text.PrintfLine(string(r))
 						continue
 					}
-				}
 
-				results := n.update(result["collection"].(string), result["keys"].([]interface{}), result["values"].([]interface{}), result["update-keys"].([]interface{}), result["new-values"].([]interface{}), result["limit"].(int), result["skip"].(int), result["oprs"].([]interface{}), result["conditions"].([]interface{}))
-				r, _ := json.Marshal(results)
+					continue
+				default:
 
-				delete(result, "document")
-				delete(result, "collection")
-				delete(result, "action")
-				delete(result, "key")
-				delete(result, "limit")
-				delete(result, "opr")
-				delete(result, "value")
-				delete(result, "lock")
-				delete(result, "new-values")
-				delete(result, "update-keys")
-				delete(result, "conditions")
-				delete(result, "keys")
-				delete(result, "oprs")
-				delete(result, "values")
-				delete(result, "skip")
-
-				result["statusCode"] = 2000
-
-				if reflect.DeepEqual(results, nil) || len(results) == 0 {
-					result["message"] = "No documents updated."
-				} else {
-					result["message"] = fmt.Sprintf("%d Document(s) updated successfully.", len(results))
-				}
-
-				result["updated"] = results
-				r, _ = json.Marshal(result)
-
-				connection.Text.PrintfLine(string(r))
-				continue
-			case strings.EqualFold(action.(string), "insert"):
-
-				collection := result["collection"]
-				doc := result["document"]
-				delete(result, "document")
-				delete(result, "collection")
-				delete(result, "action")
-				delete(result, "skip")
-
-				err := n.insert(collection.(string), doc.(map[string]interface{}), connection)
-				if err != nil {
-					// Only error returned is a 4003 which means cannot insert nested object
-					result["statusCode"] = 4003
-					result["message"] = err.Error()
+					result["statusCode"] = 4002
+					result["message"] = "Invalid/Non-existent action"
 					r, _ := json.Marshal(result)
+
 					connection.Text.PrintfLine(string(r))
 					continue
 				}
-
-				continue
-			default:
-
-				result["statusCode"] = 4002
-				result["message"] = "Invalid/Non-existent action"
+			} else {
+				result["statusCode"] = 4001
+				result["message"] = "Missing action"
 				r, _ := json.Marshal(result)
 
 				connection.Text.PrintfLine(string(r))
 				continue
 			}
-		} else {
-			result["statusCode"] = 4001
-			result["message"] = "Missing action"
-			r, _ := json.Marshal(result)
-
-			connection.Text.PrintfLine(string(r))
-			continue
 		}
-
 	}
 
 }
@@ -2278,7 +2304,7 @@ func main() {
 		fmt.Println("Node data read into memory.")
 		dataFile, err := os.Open("./.cdat")
 
-		// Temporary decrypted data file.. to be serialized
+		// Temporary decrypted data file.. to be unserialized into map
 		fDFTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
 		if err != nil {
 			fmt.Println(err.Error())
