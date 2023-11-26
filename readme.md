@@ -81,3 +81,30 @@ Default cluster port: 7681
 
 Default node port: 7682
 
+
+### Notes
+If you write ``select 1 from users;``  This will select 1 from each node.  Therefore on your backend when calling Cursus, JOIN your results into one result.  If you have 4 nodes and you select 1 well you'll get 4 results if one record matches your query on each node.
+
+A cluster should be public where nodes should be private to the cluster.
+A node can have a private IP whereas the cluster has an address that is external and can be reached by outside applications for example
+
+#### Example using curush querying cluster
+``` 
+./curush -host 0.0.0.0
+Username>
+Password>
+curush>select * from users;
+2023/11/25 21:04:40 select * from users;
+127.0.0.1:7682: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90","age":28,"last":"Padula","name":"Alex"}]
+curush>select * from users;
+2023/11/25 21:04:41 select * from users;
+127.0.0.1:7682: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90","age":28,"last":"Padula","name":"Alex"}]
+curush>insert into users({"name": "Alex", "last": "Lee", "age": 28});
+2023/11/25 21:05:02 insert into users({"name": "Alex", "last": "Lee", "age": 28});
+{"insert":{"$id":"ecaaba0f-d130-42c9-81ad-ea6fc3461379","age":28,"last":"Lee","name":"Alex"},"message":"Document inserted","statusCode":2000}
+curush>select * from users;
+2023/11/25 21:05:04 select * from users;
+127.0.0.1:7682: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90","age":28,"last":"Padula","name":"Alex"},{"$id":"ecaaba0f-d130-42c9-81ad-ea6fc3461379","age":28,"last":"Lee","name":"Alex"}]
+```
+
+^ Single node
