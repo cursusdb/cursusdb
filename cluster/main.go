@@ -258,6 +258,9 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 			case strings.HasPrefix(query, "insert"):
 				connection.Text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
 				continue
+			case strings.HasPrefix(query, "delete"):
+				connection.Text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+				continue
 			case strings.HasPrefix(query, "select"):
 				goto allowed
 				continue
