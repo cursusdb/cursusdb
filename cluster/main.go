@@ -57,6 +57,7 @@ type Cluster struct {
 	NodeConnections []NodeConnection // Configured and forever connected node connections.
 	Connections     []*Connection    // Client connections
 	ConnectionsMu   *sync.Mutex
+	ConfigMu        *sync.Mutex
 	NodesMu         *sync.Mutex // Global node mutex for writing unique documents.
 }
 
@@ -948,6 +949,25 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					continue
 
 				}
+			case strings.HasPrefix(query, "delete user "):
+				splQ := strings.Split(query, "delete user ")
+
+				if len(splQ) != 2 {
+					connection.Text.PrintfLine("%d Invalid command/query.", 4005)
+					query = ""
+					continue
+				}
+
+				err := cluster.RemoveUser(splQ[1])
+				if err != nil {
+					connection.Text.PrintfLine("%d Database user %s removed successfully.", 201, splQ[1])
+					query = ""
+					continue
+				}
+
+				connection.Text.PrintfLine("%d No user exists with username %s.", 102, splQ[1])
+				query = ""
+				continue
 
 			case strings.HasPrefix(query, "new user "): // new user username, password, RW
 				splQ := strings.Split(query, "new user ")
@@ -1225,6 +1245,13 @@ func (cluster *Cluster) NewUser(username, password, permission string) (string, 
 	user := make(map[string]interface{}) // Create map with username, password, and permission
 	user["username"] = username
 	user["password"] = password
+	encodeUsername := base64.StdEncoding.EncodeToString([]byte(username))
+
+	for _, u := range cluster.Config.Users {
+		if strings.Split(u, ":")[0] == encodeUsername {
+			return "", user, errors.New(fmt.Sprintf("%d Database user already exists.", 103))
+		}
+	}
 
 	if cluster.ValidatePermission(permission) {
 		user["permission"] = permission
@@ -1236,12 +1263,32 @@ func (cluster *Cluster) NewUser(username, password, permission string) (string, 
 			return "", user, err
 		}
 
-		cluster.Config.Users = append(cluster.Config.Users, base64.StdEncoding.EncodeToString(b.Bytes()))
+		cluster.ConfigMu.Lock()
+		cluster.Config.Users = append(cluster.Config.Users, fmt.Sprintf("%s:%s", encodeUsername, base64.StdEncoding.EncodeToString(b.Bytes()))) // base64-encoded-username:struct-encoded
+		cluster.ConfigMu.Unlock()
 
 		return base64.StdEncoding.EncodeToString(b.Bytes()), user, nil
 	} else {
-		return "", user, errors.New(fmt.Sprintf("%d Invalid permission.", 200))
+		return "", user, errors.New(fmt.Sprintf("%d Invalid permission.", 101))
 	}
+}
+
+// RemoveUser removes a user by username
+func (cluster *Cluster) RemoveUser(username string) error {
+	encodeUsername := base64.StdEncoding.EncodeToString([]byte(username))
+
+	for i, user := range cluster.Config.Users {
+		if strings.Split(user, ":")[0] == encodeUsername {
+			cluster.ConfigMu.Lock()
+			cluster.Config.Users[i] = cluster.Config.Users[len(cluster.Config.Users)-1]
+			cluster.Config.Users[len(cluster.Config.Users)-1] = ""
+			cluster.Config.Users = cluster.Config.Users[:len(cluster.Config.Users)-1]
+			cluster.ConfigMu.Unlock()
+			return nil
+		}
+	}
+
+	return errors.New("No user found")
 }
 
 // AuthenticateUser checks if a user exists and returns the user
@@ -1273,9 +1320,9 @@ func (cluster *Cluster) AuthenticateUser(username string, password string) (stri
 		}
 
 		for _, u := range cluster.Config.Users {
-			if u == base64.StdEncoding.EncodeToString(bR.Bytes()) {
+			if u == fmt.Sprintf("%s:%s", base64.StdEncoding.EncodeToString([]byte(username)), base64.StdEncoding.EncodeToString(bR.Bytes())) {
 				return u, userR, nil
-			} else if u == base64.StdEncoding.EncodeToString(bRW.Bytes()) {
+			} else if u == fmt.Sprintf("%s:%s", base64.StdEncoding.EncodeToString([]byte(username)), base64.StdEncoding.EncodeToString(bRW.Bytes())) {
 				return u, userRW, nil
 			}
 		}
@@ -1384,6 +1431,7 @@ func main() {
 
 	cluster.ConnectionsMu = &sync.Mutex{} // Get connections mu
 	cluster.NodesMu = &sync.Mutex{}       // Cluster nodes mutex
+	cluster.ConfigMu = &sync.Mutex{}      // Cluster config mutex
 
 	// If port provided as flag use it instead of whats on config file
 	flag.IntVar(&cluster.Config.Port, "port", cluster.Config.Port, "port for cluster")

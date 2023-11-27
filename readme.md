@@ -157,6 +157,11 @@ Using a client like ``curush`` the CursusDB Shell Program.
 curush> new user someusername, somepassword, RW;
 ```
 
+#### Removing Database Users
+``` 
+delete user USERNAME;
+```
+
 ### Operators
 - ``>``
 - ``>=``
@@ -197,7 +202,10 @@ curush> new user someusername, somepassword, RW;
 - ``500`` - Unknown error (with description)
 - ``100`` - Node is at peak allocation.
 - ``101`` - Invalid permission.
+- ``102`` - User does not exist.
+- ``103`` - Database user already exists.
 - ``200`` - New database user created successfully.
+- ``201`` - Database user removed successfully.
 
 ## Todo
 - Comments
