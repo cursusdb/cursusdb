@@ -2230,20 +2230,24 @@ func (n *Node) HandleConnection(connection *Connection) {
 func (n *Node) SignalListener() {
 	defer n.Wg.Done()
 
+	// Wait for signal
 	for {
 		select {
-		case sig := <-n.SignalChannel:
+		case sig := <-n.SignalChannel: // signal received, gracefully shutdown
 			log.Println("received", sig)
 			log.Println("closing", len(n.Connections), "connections")
+			// Close all connections
 			for _, c := range n.Connections {
 				c.Text.Close()
 				c.Conn.Close()
 			}
 
+			// Close listener
 			if n.Listener != nil {
 				n.Listener.Close()
 			}
 
+			// Write node data to file using serialization and encryption
 			n.WriteToFile()
 			return
 		default:
@@ -2252,24 +2256,30 @@ func (n *Node) SignalListener() {
 	}
 }
 
+// main is the starting point for the CursusDB node software
 func main() {
-	var node Node
-	node.Data.Map = make(map[string][]map[string]interface{})
-	node.Data.Writers = make(map[string]*sync.RWMutex)
+	var node Node // Node type variable
 
+	node.Data.Map = make(map[string][]map[string]interface{}) // Main hashmap
+	node.Data.Writers = make(map[string]*sync.RWMutex)        // Read/Write mutexes per collection
+
+	// Check if .curodeconfig exists
 	if _, err := os.Stat("./.curodeconfig"); errors.Is(err, os.ErrNotExist) {
+
+		// Create .curodeconfig
 		nodeConfigFile, err := os.OpenFile("./.curodeconfig", os.O_CREATE|os.O_RDWR, 0777)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
 
+		// Defer close node config
 		defer nodeConfigFile.Close()
 
-		node.Config.Port = 7682
-		node.Config.MaxMemory = 10240
+		node.Config.Port = 7682       // Set default CursusDB node port
+		node.Config.MaxMemory = 10240 // Max memory 10GB default
 
-		fmt.Println("Node key is required.  A node key will encrypt all your data at rest and allow for only connections that contain a correct Key: header value matching the hashed key you provide.")
+		fmt.Println("Node key is required.  A node key is shared with your cluster and will encrypt all your data at rest and allow for only connections that contain a correct Key: header value matching the hashed key you provide.")
 		fmt.Print("key> ")
 		key, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
@@ -2277,25 +2287,32 @@ func main() {
 			os.Exit(1)
 		}
 
+		// Repear key with * so Alex would be ****
 		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key))))
 		fmt.Println("")
+
+		// Hash and encode key
 		hashedKey := sha256.Sum256(key)
 		node.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...))
 
+		// Marshal node config into yaml
 		yamlData, err := yaml.Marshal(&node.Config)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
 
+		// Write to node config
 		nodeConfigFile.Write(yamlData)
 	} else {
+		// Read node config
 		nodeConfigFile, err := os.ReadFile("./.curodeconfig")
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
 
+		// Unmarshal node config yaml
 		err = yaml.Unmarshal(nodeConfigFile, &node.Config)
 		if err != nil {
 			fmt.Println(err.Error())
@@ -2304,11 +2321,12 @@ func main() {
 
 	}
 
-	if _, err := os.Stat("./.cdat"); errors.Is(err, os.ErrNotExist) {
+	// Read rested data from .cdat file
+	if _, err := os.Stat("./.cdat"); errors.Is(err, os.ErrNotExist) { // Not exists we create it
 		fmt.Println("No previous data to read.  Creating new .cdat file.")
 	} else {
 		fmt.Println("Node data read into memory.")
-		dataFile, err := os.Open("./.cdat")
+		dataFile, err := os.Open("./.cdat") // Open .cdat
 
 		// Temporary decrypted data file.. to be unserialized into map
 		fDFTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
@@ -2317,6 +2335,7 @@ func main() {
 			os.Exit(1)
 		}
 
+		// Read encrypted data file
 		reader := bufio.NewReader(dataFile)
 		buf := make([]byte, 1024)
 
@@ -2341,14 +2360,14 @@ func main() {
 					return
 				}
 
-				ciphertext, err := node.decrypt(decodedKey[:], buf[:read])
+				serialized, err := node.decrypt(decodedKey[:], buf[:read])
 				if err != nil {
 					fmt.Println(err.Error())
 					os.Exit(1)
 					return
 				}
 
-				fDFTmp.Write(ciphertext)
+				fDFTmp.Write(serialized) // Decrypt serialized
 			}
 		}
 		fDFTmp.Close()
@@ -2361,6 +2380,7 @@ func main() {
 
 		d := gob.NewDecoder(fDFTmp)
 
+		// Now with all serialized data we encode into data hashmap
 		err = d.Decode(&node.Data.Map)
 		if err != nil {
 			fmt.Println(err.Error())
@@ -2369,23 +2389,24 @@ func main() {
 
 		fDFTmp.Close()
 
-		os.Remove(".cdat.tmp")
+		os.Remove(".cdat.tmp") // Remove temp
 	}
 
+	// Parse flags
 	flag.IntVar(&node.Config.Port, "port", node.Config.Port, "port for node")
 	flag.Parse()
 
-	node.SignalChannel = make(chan os.Signal, 1)
+	node.SignalChannel = make(chan os.Signal, 1) // Create signal channel
 
 	signal.Notify(node.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
-	node.Wg = &sync.WaitGroup{}
+	node.Wg = &sync.WaitGroup{} // Create wait group
 
 	node.Wg.Add(1)
-	go node.SignalListener()
+	go node.SignalListener() // Listen for signals to gracefully shutdown
 
 	node.Wg.Add(1)
-	go node.TCP_TLSListener()
+	go node.TCP_TLSListener() // Listen to tcp or tls cluster connections
 
-	node.Wg.Wait()
+	node.Wg.Wait() // Wait for all go routines
 
 }
