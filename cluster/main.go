@@ -1347,6 +1347,8 @@ func (cluster *Cluster) ValidatePermission(perm string) bool {
 func main() {
 	var cluster Cluster // Main cluster variable
 
+	cluster.ConfigMu = &sync.Mutex{} // Cluster config mutex
+
 	// We check if a .cursusconfig file exists
 	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
 		// .cursusconfig does not exist..
@@ -1431,7 +1433,6 @@ func main() {
 
 	cluster.ConnectionsMu = &sync.Mutex{} // Get connections mu
 	cluster.NodesMu = &sync.Mutex{}       // Cluster nodes mutex
-	cluster.ConfigMu = &sync.Mutex{}      // Cluster config mutex
 
 	// If port provided as flag use it instead of whats on config file
 	flag.IntVar(&cluster.Config.Port, "port", cluster.Config.Port, "port for cluster")
