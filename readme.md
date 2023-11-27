@@ -14,7 +14,7 @@ The idea is if you have 10 million documents stored on 100 nodes the cluster wil
 - Unique values across all nodes based on key using "key!" on insert.
 - SQL like query language
 
-## Cluster setup
+## Cluster & Node Building & Initial Setup
 Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
 
 You must make sure you have GO installed minimum version 1.21.3, once installed follow below.
