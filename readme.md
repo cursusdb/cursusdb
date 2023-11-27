@@ -144,6 +144,19 @@ using ``key!`` will make sure the value is unique across all nodes!
 insert into users({"email!": "test@example.com" ...});
 ```
 
+### Database Users
+CursusDB has 2 permissions R(read) and (RW).  RW can select, insert, delete, update and add new users whereas users with just R can only read.
+
+``` 
+new user USERNAME, PASSWORD, P
+```
+
+Using a client like ``curush`` the CursusDB Shell Program.
+
+``` 
+curush> new user someusername, somepassword, RW;
+```
+
 ### Operators
 - ``>``
 - ``>=``
@@ -183,7 +196,8 @@ insert into users({"email!": "test@example.com" ...});
 ### Node / Cluster 
 - ``500`` - Unknown error (with description)
 - ``100`` - Node is at peak allocation.
-
+- ``101`` - Invalid permission.
+- ``200`` - New database user created successfully.
 
 ## Todo
 - Comments

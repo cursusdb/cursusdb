@@ -948,6 +948,36 @@ func (cluster *Cluster) HandleConnection(connection *Connection) {
 					continue
 
 				}
+
+			case strings.HasPrefix(query, "new user "): // new user username, password, RW
+				splQ := strings.Split(query, "new user ")
+
+				// now we split at comma if value is equal to 2
+				if len(splQ) != 2 {
+					connection.Text.PrintfLine("%d Invalid command/query.", 4005)
+					query = ""
+					continue
+				}
+
+				splQComma := strings.Split(splQ[1], ",")
+
+				if len(splQComma) != 3 {
+					connection.Text.PrintfLine("%d Invalid command/query.", 4005)
+					query = ""
+					continue
+				}
+
+				_, _, err = cluster.NewUser(strings.TrimSpace(splQComma[0]), strings.TrimSpace(splQComma[1]), strings.TrimSpace(splQComma[2]))
+				if err != nil {
+					connection.Text.PrintfLine(err.Error())
+					query = ""
+					continue
+				}
+
+				connection.Text.PrintfLine(fmt.Sprintf("%d New database user %s created successfully.", 200, strings.TrimSpace(splQComma[0])))
+				query = ""
+				continue
+
 			default:
 				connection.Text.PrintfLine("%d Invalid command/query.", 4005)
 				query = ""
@@ -1078,6 +1108,24 @@ func (cluster *Cluster) SignalListener() {
 			if cluster.Listener != nil {
 				cluster.Listener.Close()
 			}
+
+			// Truncate .cursusconfig as new users could be added during runtime.
+			clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0777) // Create .cursusconfig yaml file
+			if err != nil {
+				fmt.Println(err.Error())
+				os.Exit(1)
+			}
+
+			// Marhsal config to yaml
+			yamlData, err := yaml.Marshal(&cluster.Config)
+			if err != nil {
+				fmt.Println(err.Error())
+				os.Exit(1)
+			}
+
+			clusterConfigFile.Write(yamlData) // Write to yaml config
+			clusterConfigFile.Close()
+
 			return
 		default:
 			time.Sleep(time.Millisecond * 125)
@@ -1192,7 +1240,7 @@ func (cluster *Cluster) NewUser(username, password, permission string) (string, 
 
 		return base64.StdEncoding.EncodeToString(b.Bytes()), user, nil
 	} else {
-		return "", user, errors.New("invalid permission")
+		return "", user, errors.New(fmt.Sprintf("%d Invalid permission.", 200))
 	}
 }
 
