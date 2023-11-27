@@ -97,6 +97,8 @@ insert into users({"name": "Alex", "lastName": "Padula", "age": 28, "email!": "a
 ```
 ![img_7.png](images/img_7.png)
 
+On inserts every document will get a unique ``$id `` key which is unique across all nodes.
+
 ![img_8.png](images/img_8.png)
 
 If we try and insert the same document we will get an error stating an existing document already exists.  This is because we set ``email`` with and ``!`` 
