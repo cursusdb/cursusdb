@@ -96,6 +96,7 @@ insert into users({"email!": "test@example.com" ...});
 
 ## Todo
 - Comments
+- If a cluster is secured with tls node connections must be secure by default with TLS.
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replacing it's position on the clusters(s). This is a peer-2-peer like activity.
 
 ### Ports

@@ -85,16 +85,18 @@ type Connection struct {
 
 // TCP_TLSListener start listening on provided port on tls or regular tcp
 func (n *Node) TCP_TLSListener() {
-	defer n.Wg.Done()
-	var err error
+	defer n.Wg.Done() // defer go routine complete
+	var err error     // local to function error variable
 
-	if n.Config.TLS {
-		if n.Config.TLSCert == "" && n.Config.TLSKey == "" {
+	if n.Config.TLS { // if node is set to use TLS
+
+		if n.Config.TLSCert == "" || n.Config.TLSKey == "" { // Check if TLS cert or key is missing
 			log.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
 			n.SignalChannel <- os.Interrupt                                // Send interrupt to signal channel
 			return
 		}
 
+		// Load key pair
 		cer, err := tls.LoadX509KeyPair(n.Config.TLSCert, n.Config.TLSKey)
 		if err != nil {
 			log.Println(err.Error())
@@ -102,7 +104,8 @@ func (n *Node) TCP_TLSListener() {
 			return
 		}
 
-		config := &tls.Config{Certificates: []tls.Certificate{cer}}
+		config := &tls.Config{Certificates: []tls.Certificate{cer}} // Set config for tls listener
+
 		n.Listener, err = tls.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", n.Config.Port), config)
 		if err != nil {
 			log.Println(err.Error())
@@ -118,6 +121,7 @@ func (n *Node) TCP_TLSListener() {
 		}
 	}
 
+	// Start handling cluster connections
 	for {
 		conn, err := n.Listener.Accept()
 		if err != nil {
@@ -140,6 +144,7 @@ func (n *Node) CurrentMemoryUsage() uint64 {
 	return m.Alloc / 1024 / 1024
 }
 
+// encrypt encrypts a temporary serialized .cdat serialized file with chacha
 func (n *Node) encrypt(key, plaintext []byte) ([]byte, error) {
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
@@ -155,6 +160,7 @@ func (n *Node) encrypt(key, plaintext []byte) ([]byte, error) {
 	return aead.Seal(nonce, nonce, plaintext, nil), nil
 }
 
+// decrypt decrypts .cdat file to temporary serialized data file to be read
 func (n *Node) decrypt(key, ciphertext []byte) ([]byte, error) {
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {

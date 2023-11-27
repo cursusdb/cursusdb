@@ -62,7 +62,8 @@ type Cluster struct {
 
 // Config is the cluster config type
 type Config struct {
-	Nodes   []string `yaml:"nodes"` // Node host/ips
+	Nodes   []string `yaml:"nodes"`                    // Node host/ips
+	TLSNode bool     `default:"false" yaml:"tls-node"` // Connects to nodes with tls.  Nodes MUST be using tls in-order to set this to true.
 	TLSCert string   `yaml:"tls-cert"`
 	TLSKey  string   `yaml:"tls-key"`
 	TLS     bool     `default:"false" yaml:"tls"`
@@ -73,8 +74,9 @@ type Config struct {
 
 // NodeConnection is the cluster connected to a node as a client.
 type NodeConnection struct {
-	Conn *net.TCPConn    // Net connection
-	Text *textproto.Conn // For writing and reading
+	Conn       *net.TCPConn // Net connection
+	SecureConn *tls.Conn
+	Text       *textproto.Conn // For writing and reading
 }
 
 // Connection is a TCP Client connection
@@ -1067,6 +1069,10 @@ func (cluster *Cluster) SignalListener() {
 			for _, c := range cluster.NodeConnections {
 				c.Text.Close()
 				c.Conn.Close()
+
+				if c.SecureConn != nil {
+					c.SecureConn.Close()
+				}
 			}
 
 			if cluster.Listener != nil {
@@ -1081,41 +1087,86 @@ func (cluster *Cluster) SignalListener() {
 
 // ConnectToNodes connects to configured nodes
 func (cluster *Cluster) ConnectToNodes() {
-	for _, n := range cluster.Config.Nodes {
-		tcpAddr, err := net.ResolveTCPAddr("tcp", n)
-		if err != nil {
-			log.Println("ConnectToNodes():", err.Error())
-			cluster.SignalChannel <- os.Interrupt
-			return
+
+	if cluster.Config.TLSNode {
+		for _, n := range cluster.Config.Nodes {
+			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
+			if err != nil {
+				log.Println("ConnectToNodes():", err.Error())
+				cluster.SignalChannel <- os.Interrupt
+				return
+			}
+
+			conn, err := net.DialTCP("tcp", nil, tcpAddr)
+			if err != nil {
+				log.Println("ConnectToNodes():", err.Error())
+				cluster.SignalChannel <- os.Interrupt
+				return
+			}
+
+			conn.SetKeepAlive(true) // forever
+			config := tls.Config{InsecureSkipVerify: false}
+			secureConn := tls.Client(conn, &config)
+
+			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cluster.Config.Key)))
+
+			authBuf := make([]byte, 1024)
+
+			r, _ := conn.Read(authBuf[:])
+
+			if strings.HasPrefix(string(authBuf[:r]), "0") {
+
+				cluster.NodeConnections = append(cluster.NodeConnections, NodeConnection{
+					Conn:       conn,
+					SecureConn: secureConn,
+					Text:       textproto.NewConn(secureConn),
+				})
+
+				log.Println("Node connection established to", conn.RemoteAddr().String())
+			} else {
+				log.Println("ConnectToNodes():", "Invalid key.")
+				cluster.SignalChannel <- os.Interrupt
+				return
+			}
 		}
+	} else {
+		for _, n := range cluster.Config.Nodes {
+			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
+			if err != nil {
+				log.Println("ConnectToNodes():", err.Error())
+				cluster.SignalChannel <- os.Interrupt
+				return
+			}
 
-		conn, err := net.DialTCP("tcp", nil, tcpAddr)
-		if err != nil {
-			log.Println("ConnectToNodes():", err.Error())
-			cluster.SignalChannel <- os.Interrupt
-			return
-		}
+			conn, err := net.DialTCP("tcp", nil, tcpAddr)
+			if err != nil {
+				log.Println("ConnectToNodes():", err.Error())
+				cluster.SignalChannel <- os.Interrupt
+				return
+			}
 
-		conn.SetKeepAlive(true) // forever
+			conn.SetKeepAlive(true) // forever
 
-		conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cluster.Config.Key)))
+			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cluster.Config.Key)))
 
-		authBuf := make([]byte, 1024)
+			authBuf := make([]byte, 1024)
 
-		r, _ := conn.Read(authBuf[:])
+			r, _ := conn.Read(authBuf[:])
 
-		if strings.HasPrefix(string(authBuf[:r]), "0") {
+			if strings.HasPrefix(string(authBuf[:r]), "0") {
 
-			cluster.NodeConnections = append(cluster.NodeConnections, NodeConnection{
-				Conn: conn,
-				Text: textproto.NewConn(conn),
-			})
+				cluster.NodeConnections = append(cluster.NodeConnections, NodeConnection{
+					Conn: conn,
+					Text: textproto.NewConn(conn),
+				})
 
-			log.Println("Node connection established to", conn.RemoteAddr().String())
-		} else {
-			log.Println("ConnectToNodes():", "Invalid key.")
-			cluster.SignalChannel <- os.Interrupt
-			return
+				log.Println("Node connection established to", conn.RemoteAddr().String())
+			} else {
+				log.Println("ConnectToNodes():", "Invalid key.")
+				cluster.SignalChannel <- os.Interrupt
+				return
+			}
+
 		}
 
 	}
