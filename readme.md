@@ -14,6 +14,95 @@ The idea is if you have 10 million documents stored on 100 nodes the cluster wil
 - Unique values across all nodes based on key using "key!" on insert.
 - SQL like query language
 
+## Cluster setup
+Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
+
+You must make sure you have GO installed minimum version 1.21.3, once installed follow below.
+``` 
+git clone git@github.com:cursusdb/cursus.git
+cd cluster
+go build .
+cd ..
+cd node 
+go build .
+```
+
+Now you should have a curode and a cursus binary.
+![img.png](images/img.png)
+
+![img_1.png](images/img_1.png)
+
+Now with both we first start cursus to setup a database user, .cursusconfig and a shared key which will be used for your node as well.  This key is used to authenticate your cluster and nodes also encrypt your data at rest with ChaCha!
+
+![img_2.png](images/img_2.png)
+
+So now that we have our credentials setup we have to setup our first node!
+
+We can run a node on the same instance as a cluster for this example.  After completion of cluster setup through the initial run you'll get a .cursusconfig which has a few configurations.
+``` 
+nodes: []
+tls-node: false
+tls-cert: ""
+tls-key: ""
+tls: false
+port: 7681
+key: n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=
+users:
+    - DX8EAQL/gAABDAEQAABM/4AAAwh1c2VybmFtZQZzdHJpbmcMBgAEdGVzdAhwYXNzd29yZAZzdHJpbmcMBgAEdGVzdApwZXJtaXNzaW9uBnN0cmluZwwEAAJSVw==
+
+```
+- nodes - database cluster nodes.  i.e an ip/fqdn + port combination (cluster1.example.com:7682)
+- tls-node - whether the cluster will connect to nodes via tls
+- tls-cert - path to your tls cert for cluster
+- tls-key - path to your tls key for cluster
+- tls - enable or disable tls 
+- port - cluster port
+- key - encoded shared key
+- users - array of database users serialized, and encoded.
+
+
+Let's put in under nodes a local node we will start shortly.
+``` 
+nodes: 
+    - 0.0.0.0:7682
+tls-node: false
+tls-cert: ""
+tls-key: ""
+tls: false
+port: 7681
+key: n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=
+users:
+    - DX8EAQL/gAABDAEQAABM/4AAAwh1c2VybmFtZQZzdHJpbmcMBgAEdGVzdAhwYXNzd29yZAZzdHJpbmcMBgAEdGVzdApwZXJtaXNzaW9uBnN0cmluZwwEAAJSVw==
+
+```
+
+Now with your .cursusconfig setup let's start our node for the first time.
+![img_3.png](images/img_3.png)
+
+You'll see that I've added the same key as I did for the cluster and the node is now started! 
+
+Let's start our cluster now.
+![img_4.png](images/img_4.png)
+
+Look at that!  We are all set to start inserting data.  Let's insert a user document into a users collection with a unique email key value using the curush(CursusDB Shell)
+![img_5.png](images/img_5.png)
+We can use curush with flag ``--host`` which will use the default port for a cluster 7681.  If we wanted to specify a different port we can used the ``--port ``flag.  If your cluster is using TLS make sure when using curush to also enable tls using flag ``--tls=true``.
+
+
+![img_6.png](images/img_6.png)
+
+curush will ask for a database user username and password to connect to cluster.  Once authorized you can start running queries!
+``` 
+insert into users({"name": "Alex", "lastName": "Padula", "age": 28, "email!": "apadula@cursusdb.com"});
+```
+![img_7.png](images/img_7.png)
+
+![img_8.png](images/img_8.png)
+
+If we try and insert the same document we will get an error stating an existing document already exists.  This is because we set ``email`` with and ``!`` 
+![img_9.png](images/img_9.png)
+
+
 
 ## Query Language
 ### Inserts
