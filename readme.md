@@ -1,11 +1,12 @@
 ## Cursus Database System
-JSON based, unstructured distributed database.  Capable of extremely fast parallel search.
-The idea is if you have 10 million documents stored on 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million.  This is the power of parallel search.  The Cursus system is searching say in the users collection in multiple sections of the collection simultaneously. 
+CursusDB is a blazing fast open source in-memory unstructured object type distributed database management system with an SQL like query language. Capable of extremely fast parallel search, JSON inserts, and more!
+
+The idea behind CursusDB was to create something unlimitedly scalable whilst never really slowing down.  Say you have 10 million documents stored on 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million.  This is the power of parallel search.  The Cursus system is searching say in the users collection in multiple sections of the collection simultaneously. 
 
 ### Features
 - Secured cluster and node(s) communication with shared key and TLS.
 - Encrypted data at rest by default with chacha20poly1305.
-- In-Memory data during runtime
+- In-memory data during runtime
 - Very fast parallel search
 - Database Users with basic (R, RW) permissions
 - Cluster and node authentication.

@@ -85,14 +85,17 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 		return
 	}
 
+	// Cluster is configured for TLS
 	if cursus.Config.TLS {
 
-		if cursus.Config.TLSCert == "" && cursus.Config.TLSKey == "" {
+		// Check if TLS cert and key is provided within config
+		if cursus.Config.TLSCert == "" || cursus.Config.TLSKey == "" {
 			log.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
 			cursus.SignalChannel <- os.Interrupt                           // Send interrupt to signal channel
 			return
 		}
 
+		// Load cert
 		cer, err := tls.LoadX509KeyPair(cursus.Config.TLSCert, cursus.Config.TLSKey)
 		if err != nil {
 			log.Println("TCP_TLSListener():", err.Error()) // Log an error
@@ -109,6 +112,7 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 		}
 		config := &tls.Config{Certificates: []tls.Certificate{cer}}
 
+		// Create new tls listener from tcp listener
 		cursus.TCPListener = tls.NewListener(tcpListener, config).(*net.TCPListener)
 		if err != nil {
 			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
@@ -1233,7 +1237,7 @@ func (cursus *Cursus) ConnectionEventLoop(i int) {
 // ConnectToNodes connects to configured nodes
 func (cursus *Cursus) ConnectToNodes() {
 
-	// Is the cluster set for TLS?
+	// Is the cluster connecting to nodes via TLS?
 	if cursus.Config.TLSNode {
 
 		// Iterate over configured nodes and connect
@@ -1498,6 +1502,8 @@ func main() {
 	flag.Parse()
 
 	signal.Notify(cursus.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
+
+	cursus.ConnectToNodes() // Connect to all nodes
 
 	cursus.Wg.Add(1)
 	go cursus.StartTCP_TLSListener()
