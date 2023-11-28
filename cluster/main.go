@@ -1494,6 +1494,12 @@ func main() {
 
 	}
 
+	// If cluster configured cluster nodes == 0, inform user to add a node
+	if len(cursus.Config.Nodes) == 0 {
+		fmt.Println("You must setup nodes for the Cursus to read from in your .cursusconfig file.")
+		os.Exit(0)
+	}
+
 	cursus.NodesMu = &sync.Mutex{} // Cluster nodes mutex
 
 	// If port provided as flag use it instead of whats on config file

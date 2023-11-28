@@ -50,8 +50,8 @@ import (
 	"unicode/utf8"
 )
 
-// Node is the main Node struct
-type Node struct {
+// Curode is the CursusDB cluster nodestruct
+type Curode struct {
 	TCPAddr           *net.TCPAddr           // Cluster TCPAddr
 	TCPListener       *net.TCPListener       // Cluster TCPListener
 	Wg                *sync.WaitGroup        // Main node wait group
@@ -65,11 +65,11 @@ type Node struct {
 
 // Config is the cluster config struct
 type Config struct {
-	TLSCert                string `yaml:"tls-cert"` // TLS cert path
-	TLSKey                 string `yaml:"tls-key"`  // TLS cert key
-	Host                   string `yaml:"host"`
-	TLS                    bool   `default:"false" yaml:"tls"` // Use TLS?
-	Port                   int    `yaml:"port"`
+	TLSCert                string `yaml:"tls-cert"`                 // TLS cert path
+	TLSKey                 string `yaml:"tls-key"`                  // TLS cert key
+	Host                   string `yaml:"host"`                     // Node host i.e 0.0.0.0 usually
+	TLS                    bool   `default:"false" yaml:"tls"`      // Use TLS?
+	Port                   int    `yaml:"port"`                     // Node port
 	Key                    string `yaml:"key"`                      // Key for a cluster to communicate with the node and also used to resting data.
 	MaxMemory              uint64 `yaml:"max-memory"`               // Default 10240MB = 10 GB (1024 * 10)
 	ConnectionQueueWorkers int    `yaml:"connection-queue-workers"` // Amount of go routines to listen to events.  The worker distributes connections iteratively
@@ -83,87 +83,101 @@ type Data struct {
 
 // Connection is a node tcp connection struct
 type Connection struct {
-	Conn net.Conn
+	Conn net.Conn        // net Conn pointer
 	Text *textproto.Conn // Connection writer and reader
 }
 
 // StartTCP_TLSListener start listening on TCP or TLS on provided port
-func (n *Node) StartTCP_TLSListener() {
+func (curode *Curode) StartTCP_TLSListener() {
 	var err error
-	defer n.Wg.Done()
+	defer curode.Wg.Done() // defer go routine wait group done
+
 	// Resolve the string address to a TCP address
-	n.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Config.Host, n.Config.Port))
+	curode.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", curode.Config.Host, curode.Config.Port))
 
 	if err != nil {
 		fmt.Println("StartTCP_TLSListener():", err)
-		n.SignalChannel <- os.Interrupt
+		curode.SignalChannel <- os.Interrupt
 		return
 	}
 
-	if n.Config.TLS {
+	// If node is configured for TLS
+	if curode.Config.TLS {
 
-		if n.Config.TLSCert == "" && n.Config.TLSKey == "" {
+		if curode.Config.TLSCert == "" || curode.Config.TLSKey == "" {
 			fmt.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
-			n.SignalChannel <- os.Interrupt                                // Send interrupt to signal channel
+			curode.SignalChannel <- os.Interrupt                           // Send interrupt to signal channel
 			return
 		}
 
-		cer, err := tls.LoadX509KeyPair(n.Config.TLSCert, n.Config.TLSKey)
+		// Load provided key and cert
+		cer, err := tls.LoadX509KeyPair(curode.Config.TLSCert, curode.Config.TLSKey)
 		if err != nil {
 			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
-			n.SignalChannel <- os.Interrupt                // Send interrupt to signal channel
+			curode.SignalChannel <- os.Interrupt           // Send interrupt to signal channel
 			return                                         // close up go routine
 		}
 
-		//Start listening for TCP connections on the given address
-		tcpListener, err := net.ListenTCP("tcp", n.TCPAddr)
+		// Start listening for TCP connections on the given address
+		tcpListener, err := net.ListenTCP("tcp", curode.TCPAddr)
 		if err != nil {
 			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
-			n.SignalChannel <- os.Interrupt                // Send interrupt to signal channel
+			curode.SignalChannel <- os.Interrupt           // Send interrupt to signal channel
 			return                                         // close up go routine
 		}
+
+		// TLS config
 		config := &tls.Config{Certificates: []tls.Certificate{cer}}
 
-		n.TCPListener = tls.NewListener(tcpListener, config).(*net.TCPListener)
+		// Create new TLS listener from TCP listener
+		curode.TCPListener = tls.NewListener(tcpListener, config).(*net.TCPListener)
 		if err != nil {
 			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
-			n.SignalChannel <- os.Interrupt                // Send interrupt to signal channel
+			curode.SignalChannel <- os.Interrupt           // Send interrupt to signal channel
 			return                                         // close up go routine
 		}
 	} else {
 
-		//Start listening for TCP connections on the given address
-		n.TCPListener, err = net.ListenTCP("tcp", n.TCPAddr)
+		// Start listening for TCP connections on the given address
+		curode.TCPListener, err = net.ListenTCP("tcp", curode.TCPAddr)
 		if err != nil {
 			fmt.Println("StartTCP_TLSListener():", err)
-			n.SignalChannel <- os.Interrupt
+			curode.SignalChannel <- os.Interrupt
 			return
 		}
 	}
 
 	for {
 		select {
-		case sig := <-n.SignalChannel:
+		// Case for signal
+		case sig := <-curode.SignalChannel:
+			// Start graceful shutdown
 			fmt.Println("StartTCP_TLSListener(): received", sig)
-			n.TCPListener.Close()
-			close(n.ConnectionChannel)
-			n.WriteToFile()
 
-			for _, c := range n.ConnectionQueue {
+			curode.TCPListener.Close()
+
+			// Writing in memory data to file, encrypting data as well.
+			curode.WriteToFile()
+
+			// Close all connections on queue
+			for _, c := range curode.ConnectionQueue {
 				c.Conn.Close()
 			}
 
+			close(curode.ConnectionChannel)
+
 			os.Exit(0)
+			//os.Exit(0) // end
 		default:
-			n.TCPListener.SetDeadline(time.Now().Add(time.Millisecond * 1))
-			conn, err := n.TCPListener.Accept()
+			curode.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000))
+			conn, err := curode.TCPListener.Accept()
 			if errors.Is(err, os.ErrDeadlineExceeded) {
 				continue
 			}
 
 			connection := &Connection{Conn: conn, Text: textproto.NewConn(conn)}
 
-			//Expect Authentication: username\0password b64 encoded
+			// Expect Authentication: username\0password b64 encoded
 			auth, err := connection.Text.ReadLine()
 			if err != nil {
 				connection.Text.PrintfLine("%d %s", 3, "Unable to read authentication header.")
@@ -182,16 +196,17 @@ func (n *Node) StartTCP_TLSListener() {
 					continue
 				}
 
-				if n.Config.Key != strings.TrimSpace(authSpl[1]) {
+				if curode.Config.Key != strings.TrimSpace(authSpl[1]) {
 					connection.Text.PrintfLine("Invalid key.")
 					continue
 				}
 
 				connection.Text.PrintfLine("0 Authentication successful.")
 
-				n.ConnectionQueueMu.Lock()
-				n.ConnectionQueue[conn.RemoteAddr().String()] = connection
-				n.ConnectionQueueMu.Unlock()
+				// Authentication was a success, now we add connection to queue and start listening to events!
+				curode.ConnectionQueueMu.Lock()
+				curode.ConnectionQueue[conn.RemoteAddr().String()] = connection
+				curode.ConnectionQueueMu.Unlock()
 
 			}
 
@@ -200,15 +215,15 @@ func (n *Node) StartTCP_TLSListener() {
 }
 
 // CurrentMemoryUsage returns current memory usage in mb
-func (n *Node) CurrentMemoryUsage() uint64 {
+func (curode *Curode) CurrentMemoryUsage() uint64 {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
 	return m.Alloc / 1024 / 1024
 }
 
-// encrypt encrypts a temporary serialized .cdat serialized file with chacha
-func (n *Node) encrypt(key, plaintext []byte) ([]byte, error) {
+// Encrypt encrypts a temporary serialized .cdat serialized file with chacha
+func (curode *Curode) Encrypt(key, plaintext []byte) ([]byte, error) {
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err
@@ -223,8 +238,8 @@ func (n *Node) encrypt(key, plaintext []byte) ([]byte, error) {
 	return aead.Seal(nonce, nonce, plaintext, nil), nil
 }
 
-// decrypt decrypts .cdat file to temporary serialized data file to be read
-func (n *Node) decrypt(key, ciphertext []byte) ([]byte, error) {
+// Decrypt decrypts .cdat file to temporary serialized data file to be read
+func (curode *Curode) Decrypt(key, ciphertext []byte) ([]byte, error) {
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err
@@ -240,24 +255,22 @@ func (n *Node) decrypt(key, ciphertext []byte) ([]byte, error) {
 }
 
 // WriteToFile will write the current node data to a .cdat file encrypted with your node key.
-func (n *Node) WriteToFile() {
+func (curode *Curode) WriteToFile() {
 
 	// Create temporary .cdat which is all serialized data.  An encryption is performed after the fact to not consume memory.
 	fTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
 	if err != nil {
 		fmt.Println("WriteToFile():", err.Error())
-		n.SignalChannel <- os.Interrupt
-		return
+		os.Exit(1)
 	}
 
 	e := gob.NewEncoder(fTmp)
 
 	// Encoding the map
-	err = e.Encode(n.Data.Map)
+	err = e.Encode(curode.Data.Map)
 	if err != nil {
 		fmt.Println("WriteToFile():", err.Error())
-		n.SignalChannel <- os.Interrupt
-		return
+		os.Exit(1)
 	}
 
 	fTmp.Close()
@@ -266,8 +279,7 @@ func (n *Node) WriteToFile() {
 	fTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
 	if err != nil {
 		fmt.Println("WriteToFile():", err.Error())
-		n.SignalChannel <- os.Interrupt
-		return
+		os.Exit(1)
 	}
 
 	//
@@ -276,8 +288,7 @@ func (n *Node) WriteToFile() {
 	f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
 	if err != nil {
 		fmt.Println("WriteToFile():", err.Error())
-		n.SignalChannel <- os.Interrupt
-		return
+		os.Exit(1)
 	}
 	defer f.Close()
 
@@ -287,28 +298,25 @@ func (n *Node) WriteToFile() {
 		if err != nil {
 			if err != io.EOF {
 				fmt.Println("WriteToFile():", err.Error())
-				n.SignalChannel <- os.Interrupt
-				return
+				os.Exit(1)
 			}
 			break
 		}
 
 		if read > 0 {
-			decodedKey, err := base64.StdEncoding.DecodeString(n.Config.Key)
+			decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
 			if err != nil {
 				fmt.Println("WriteToFile():", err.Error())
-				n.SignalChannel <- os.Interrupt
-				return
+				os.Exit(1)
 			}
 
-			ciphertext, err := n.encrypt(decodedKey[:], buf[:read])
+			cipherblock, err := curode.Encrypt(decodedKey[:], buf[:read])
 			if err != nil {
 				fmt.Println("WriteToFile():", err.Error())
-				n.SignalChannel <- os.Interrupt
-				return
+				os.Exit(1)
 			}
 
-			f.Write(ciphertext)
+			f.Write(cipherblock)
 		}
 	}
 
@@ -317,8 +325,8 @@ func (n *Node) WriteToFile() {
 	fmt.Println("WriteToFile(): Completed.")
 }
 
-// update is a function to update the nodes data map
-func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks []interface{}, nvs []interface{}, vol int, skip int, oprs []interface{}, conditions []interface{}) []interface{} {
+// Update is a function to update the nodes data map
+func (curode *Curode) Update(collection string, ks []interface{}, vs []interface{}, uks []interface{}, nvs []interface{}, vol int, skip int, oprs []interface{}, conditions []interface{}) []interface{} {
 
 	var objects []*map[string]interface{}
 
@@ -326,7 +334,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 	//The && operator updates documents if all the conditions are TRUE.
 	//The || operator updates documents if any of the conditions are TRUE.
 
-	for i, d := range n.Data.Map[collection] {
+	for i, d := range curode.Data.Map[collection] {
 		if ks == nil && vs == nil && oprs == nil {
 			if skip != 0 {
 				skip = skip - 1
@@ -339,7 +347,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 				}
 			}
 
-			objects = append(objects, &n.Data.Map[collection][i])
+			objects = append(objects, &curode.Data.Map[collection][i])
 			continue
 		} else {
 
@@ -367,7 +375,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 				if ok {
 
 					if d[k.(string)] == nil {
-						objects = append(objects, &n.Data.Map[collection][i])
+						objects = append(objects, &curode.Data.Map[collection][i])
 						continue
 					}
 
@@ -392,7 +400,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 														goto exists
 													}
 												}
-												objects = append(objects, &n.Data.Map[collection][i])
+												objects = append(objects, &curode.Data.Map[collection][i])
 											exists:
 											})()
 										}
@@ -405,7 +413,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 														goto exists
 													}
 												}
-												objects = append(objects, &n.Data.Map[collection][i])
+												objects = append(objects, &curode.Data.Map[collection][i])
 											exists:
 											})()
 										}
@@ -419,7 +427,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 															goto exists
 														}
 													}
-													objects = append(objects, &n.Data.Map[collection][i])
+													objects = append(objects, &curode.Data.Map[collection][i])
 												exists:
 												})()
 											}
@@ -434,7 +442,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 															goto exists
 														}
 													}
-													objects = append(objects, &n.Data.Map[collection][i])
+													objects = append(objects, &curode.Data.Map[collection][i])
 												exists:
 												})()
 											}
@@ -449,7 +457,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 															goto exists
 														}
 													}
-													objects = append(objects, &n.Data.Map[collection][i])
+													objects = append(objects, &curode.Data.Map[collection][i])
 												exists:
 												})()
 											}
@@ -464,7 +472,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 															goto exists
 														}
 													}
-													objects = append(objects, &n.Data.Map[collection][i])
+													objects = append(objects, &curode.Data.Map[collection][i])
 												exists:
 												})()
 											}
@@ -484,7 +492,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 														goto exists
 													}
 												}
-												objects = append(objects, &n.Data.Map[collection][i])
+												objects = append(objects, &curode.Data.Map[collection][i])
 											exists:
 											})()
 										}
@@ -510,7 +518,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 														goto exists
 													}
 												}
-												objects = append(objects, &n.Data.Map[collection][i])
+												objects = append(objects, &curode.Data.Map[collection][i])
 											exists:
 											})()
 										}
@@ -524,7 +532,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 														goto exists
 													}
 												}
-												objects = append(objects, &n.Data.Map[collection][i])
+												objects = append(objects, &curode.Data.Map[collection][i])
 											exists:
 											})()
 										}
@@ -539,7 +547,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 														goto exists
 													}
 												}
-												objects = append(objects, &n.Data.Map[collection][i])
+												objects = append(objects, &curode.Data.Map[collection][i])
 											exists:
 											})()
 										}
@@ -553,7 +561,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 														goto exists
 													}
 												}
-												objects = append(objects, &n.Data.Map[collection][i])
+												objects = append(objects, &curode.Data.Map[collection][i])
 											exists:
 											})()
 										}
@@ -574,7 +582,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 													goto exists
 												}
 											}
-											objects = append(objects, &n.Data.Map[collection][i])
+											objects = append(objects, &curode.Data.Map[collection][i])
 										exists:
 										})()
 									}
@@ -587,7 +595,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 													goto exists
 												}
 											}
-											objects = append(objects, &n.Data.Map[collection][i])
+											objects = append(objects, &curode.Data.Map[collection][i])
 										exists:
 										})()
 									}
@@ -607,7 +615,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											goto exists
 										}
 									}
-									objects = append(objects, &n.Data.Map[collection][i])
+									objects = append(objects, &curode.Data.Map[collection][i])
 								exists:
 								})()
 							}
@@ -620,7 +628,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											goto exists
 										}
 									}
-									objects = append(objects, &n.Data.Map[collection][i])
+									objects = append(objects, &curode.Data.Map[collection][i])
 								exists:
 								})()
 							}
@@ -634,7 +642,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 												goto exists
 											}
 										}
-										objects = append(objects, &n.Data.Map[collection][i])
+										objects = append(objects, &curode.Data.Map[collection][i])
 									exists:
 									})()
 								}
@@ -649,7 +657,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 												goto exists
 											}
 										}
-										objects = append(objects, &n.Data.Map[collection][i])
+										objects = append(objects, &curode.Data.Map[collection][i])
 									exists:
 									})()
 								}
@@ -664,7 +672,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 												goto exists
 											}
 										}
-										objects = append(objects, &n.Data.Map[collection][i])
+										objects = append(objects, &curode.Data.Map[collection][i])
 									exists:
 									})()
 								}
@@ -679,7 +687,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 												goto exists
 											}
 										}
-										objects = append(objects, &n.Data.Map[collection][i])
+										objects = append(objects, &curode.Data.Map[collection][i])
 									exists:
 									})()
 								}
@@ -700,7 +708,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											goto exists
 										}
 									}
-									objects = append(objects, &n.Data.Map[collection][i])
+									objects = append(objects, &curode.Data.Map[collection][i])
 								exists:
 								})()
 							}
@@ -713,7 +721,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											goto exists
 										}
 									}
-									objects = append(objects, &n.Data.Map[collection][i])
+									objects = append(objects, &curode.Data.Map[collection][i])
 								exists:
 								})()
 							}
@@ -726,7 +734,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											goto exists
 										}
 									}
-									objects = append(objects, &n.Data.Map[collection][i])
+									objects = append(objects, &curode.Data.Map[collection][i])
 								exists:
 								})()
 							}
@@ -740,7 +748,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											goto exists
 										}
 									}
-									objects = append(objects, &n.Data.Map[collection][i])
+									objects = append(objects, &curode.Data.Map[collection][i])
 								exists:
 								})()
 							}
@@ -755,7 +763,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											goto exists
 										}
 									}
-									objects = append(objects, &n.Data.Map[collection][i])
+									objects = append(objects, &curode.Data.Map[collection][i])
 								exists:
 								})()
 							}
@@ -769,7 +777,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											goto exists
 										}
 									}
-									objects = append(objects, &n.Data.Map[collection][i])
+									objects = append(objects, &curode.Data.Map[collection][i])
 								exists:
 								})()
 							}
@@ -786,7 +794,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											goto exists
 										}
 									}
-									objects = append(objects, &n.Data.Map[collection][i])
+									objects = append(objects, &curode.Data.Map[collection][i])
 								exists:
 								})()
 
@@ -801,7 +809,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 											goto exists
 										}
 									}
-									objects = append(objects, &n.Data.Map[collection][i])
+									objects = append(objects, &curode.Data.Map[collection][i])
 								exists:
 								})()
 							}
@@ -827,7 +835,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 				for _, d := range objects {
 					for m, _ := range uks {
 
-						n.Data.Writers[collection].Lock()
+						curode.Data.Writers[collection].Lock()
 						ne := make(map[string]interface{})
 
 						for kk, vv := range *d {
@@ -838,7 +846,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 
 						*d = ne
 						updated = append(updated, *d)
-						n.Data.Writers[collection].Unlock()
+						curode.Data.Writers[collection].Unlock()
 
 					}
 
@@ -850,7 +858,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 		for _, d := range objects {
 			for m, _ := range uks {
 
-				n.Data.Writers[collection].Lock()
+				curode.Data.Writers[collection].Lock()
 				ne := make(map[string]interface{})
 
 				for kk, vv := range *d {
@@ -861,7 +869,7 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 
 				*d = ne
 				updated = append(updated, *d)
-				n.Data.Writers[collection].Unlock()
+				curode.Data.Writers[collection].Unlock()
 
 			}
 
@@ -871,14 +879,14 @@ func (n *Node) update(collection string, ks []interface{}, vs []interface{}, uks
 	return updated
 }
 
-// del delete from node map
-func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
+// Delete delete from node map
+func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
 
 	var objects []uint64
 
 	var conditionsMet uint64
 
-	for i, d := range n.Data.Map[collection] {
+	for i, d := range curode.Data.Map[collection] {
 		if ks == nil && vs == nil && oprs == nil {
 			if skip != 0 {
 				skip = skip - 1
@@ -1402,13 +1410,13 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 				return nullObjects
 			} else if conditionsMet > 0 {
 				for _, i := range objects {
-					if i < uint64(len(n.Data.Map[collection])) {
-						deleted = append(deleted, n.Data.Map[collection][i])
-						n.Data.Writers[collection].Lock()
-						n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-						n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-						n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1]
-						n.Data.Writers[collection].Unlock()
+					if i < uint64(len(curode.Data.Map[collection])) {
+						deleted = append(deleted, curode.Data.Map[collection][i])
+						curode.Data.Writers[collection].Lock()
+						curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
+						curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
+						curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
+						curode.Data.Writers[collection].Unlock()
 					}
 				}
 			}
@@ -1416,13 +1424,13 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 
 	} else if conditionsMet > 0 {
 		for _, i := range objects {
-			if i < uint64(len(n.Data.Map[collection])) {
-				deleted = append(deleted, n.Data.Map[collection][i])
-				n.Data.Writers[collection].Lock()
-				n.Data.Map[collection][i] = n.Data.Map[collection][len(n.Data.Map[collection])-1]
-				n.Data.Map[collection][len(n.Data.Map[collection])-1] = nil
-				n.Data.Map[collection] = n.Data.Map[collection][:len(n.Data.Map[collection])-1]
-				n.Data.Writers[collection].Unlock()
+			if i < uint64(len(curode.Data.Map[collection])) {
+				deleted = append(deleted, curode.Data.Map[collection][i])
+				curode.Data.Writers[collection].Lock()
+				curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
+				curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
+				curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
+				curode.Data.Writers[collection].Unlock()
 			}
 		}
 	}
@@ -1430,9 +1438,10 @@ func (n *Node) del(collection string, ks interface{}, vs interface{}, vol int, s
 	return deleted
 }
 
-func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
+// Select selects documents based on provided keys, values and operations such as select * from COLL where KEY == VALUE && KEY > VALUE
+func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
 	if lock {
-		l, ok := n.Data.Writers[collection]
+		l, ok := curode.Data.Writers[collection]
 		if ok {
 			l.Lock()
 		}
@@ -1441,7 +1450,7 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 
 	defer func() {
 		if lock {
-			l, ok := n.Data.Writers[collection]
+			l, ok := curode.Data.Writers[collection]
 			if ok {
 				l.Unlock()
 			}
@@ -1454,7 +1463,7 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 	//The && operator displays a document if all the conditions are TRUE.
 	//The || operator displays a record if any of the conditions are TRUE.
 
-	for i, d := range n.Data.Map[collection] {
+	for i, d := range curode.Data.Map[collection] {
 		if ks == nil && vs == nil && oprs == nil {
 			if skip != 0 {
 				skip = skip - 1
@@ -1954,9 +1963,9 @@ func (n *Node) sel(collection string, ks interface{}, vs interface{}, vol int, s
 	return objects
 }
 
-// insert into node map
-func (n *Node) insert(collection string, jsonMap map[string]interface{}, connection *Connection) error {
-	if n.CurrentMemoryUsage() >= n.Config.MaxMemory {
+// Insert into node collection
+func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, connection *Connection) error {
+	if curode.CurrentMemoryUsage() >= curode.Config.MaxMemory {
 		return errors.New(fmt.Sprintf("%d node is at peak allocation", 100))
 	}
 
@@ -1978,15 +1987,15 @@ func (n *Node) insert(collection string, jsonMap map[string]interface{}, connect
 	if err != nil {
 		return err
 	}
-	writeMu, ok := n.Data.Writers[collection]
+	writeMu, ok := curode.Data.Writers[collection]
 	if ok {
 		writeMu.Lock()
 		defer writeMu.Unlock()
 
-		n.Data.Map[collection] = append(n.Data.Map[collection], doc)
+		curode.Data.Map[collection] = append(curode.Data.Map[collection], doc)
 	} else {
-		n.Data.Writers[collection] = &sync.RWMutex{}
-		n.Data.Map[collection] = append(n.Data.Map[collection], doc)
+		curode.Data.Writers[collection] = &sync.RWMutex{}
+		curode.Data.Map[collection] = append(curode.Data.Map[collection], doc)
 	}
 
 	response := make(map[string]interface{})
@@ -2006,13 +2015,14 @@ func (n *Node) insert(collection string, jsonMap map[string]interface{}, connect
 }
 
 // ConnectionEventWorker distributes connections to goroutines listening for connection events.
-func (n *Node) ConnectionEventWorker() {
-	defer n.Wg.Done()
+func (curode *Curode) ConnectionEventWorker() {
+	defer curode.Wg.Done()
 	for {
 
-		if len(n.ConnectionQueue) > 0 {
-			for _, c := range n.ConnectionQueue {
-				n.ConnectionChannel <- c
+		if len(curode.ConnectionQueue) > 0 {
+			for _, c := range curode.ConnectionQueue {
+				curode.ConnectionChannel <- c
+				recover()
 				time.Sleep(time.Nanosecond * 100)
 			}
 		}
@@ -2022,11 +2032,11 @@ func (n *Node) ConnectionEventWorker() {
 }
 
 // ConnectionEventLoop listens to currently connected client events
-func (n *Node) ConnectionEventLoop(i int) {
-	defer n.Wg.Done()
+func (curode *Curode) ConnectionEventLoop(i int) {
+	defer curode.Wg.Done()
 	for {
 		select {
-		case c := <-n.ConnectionChannel:
+		case c := <-curode.ConnectionChannel:
 			if c != nil {
 				err := c.Conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 250))
 				if err != nil {
@@ -2046,9 +2056,9 @@ func (n *Node) ConnectionEventLoop(i int) {
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						continue
 					} else if err == io.EOF {
-						n.ConnectionQueueMu.Lock()
-						delete(n.ConnectionQueue, c.Conn.RemoteAddr().String())
-						n.ConnectionQueueMu.Unlock()
+						curode.ConnectionQueueMu.Lock()
+						delete(curode.ConnectionQueue, c.Conn.RemoteAddr().String())
+						curode.ConnectionQueueMu.Unlock()
 						continue
 					} else {
 
@@ -2107,7 +2117,7 @@ func (n *Node) ConnectionEventLoop(i int) {
 									}
 								}
 
-								results := n.del(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
+								results := curode.Delete(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
 								r, _ := json.Marshal(results)
 								result["statusCode"] = 2000
 
@@ -2175,7 +2185,7 @@ func (n *Node) ConnectionEventLoop(i int) {
 									}
 								}
 
-								results := n.sel(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
+								results := curode.Select(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
 								r, _ := json.Marshal(results)
 								c.Text.PrintfLine(string(r))
 								continue
@@ -2216,7 +2226,7 @@ func (n *Node) ConnectionEventLoop(i int) {
 									}
 								}
 
-								results := n.update(result["collection"].(string), result["keys"].([]interface{}), result["values"].([]interface{}), result["update-keys"].([]interface{}), result["new-values"].([]interface{}), result["limit"].(int), result["skip"].(int), result["oprs"].([]interface{}), result["conditions"].([]interface{}))
+								results := curode.Update(result["collection"].(string), result["keys"].([]interface{}), result["values"].([]interface{}), result["update-keys"].([]interface{}), result["new-values"].([]interface{}), result["limit"].(int), result["skip"].(int), result["oprs"].([]interface{}), result["conditions"].([]interface{}))
 								r, _ := json.Marshal(results)
 
 								delete(result, "document")
@@ -2257,7 +2267,7 @@ func (n *Node) ConnectionEventLoop(i int) {
 								delete(result, "action")
 								delete(result, "skip")
 
-								err := n.insert(collection.(string), doc.(map[string]interface{}), c)
+								err := curode.Insert(collection.(string), doc.(map[string]interface{}), c)
 								if err != nil {
 									// Only error returned is a 4003 which means cannot insert nested object
 									result["statusCode"] = 4003
@@ -2295,11 +2305,14 @@ func (n *Node) ConnectionEventLoop(i int) {
 
 // main is the starting point for the CursusDB node software
 func main() {
-	var node Node // Node type variable
+	var curode Curode // Node type variable
 
-	node.Data.Map = make(map[string][]map[string]interface{}) // Main hashmap
-	node.Data.Writers = make(map[string]*sync.RWMutex)        // Read/Write mutexes per collection
-	node.ConnectionChannel = make(chan *Connection)
+	curode.Data.Map = make(map[string][]map[string]interface{}) // Main hashmap
+	curode.Data.Writers = make(map[string]*sync.RWMutex)        // Read/Write mutexes per collection
+
+	curode.ConnectionQueue = make(map[string]*Connection) // Make connection queue [remote_addr_str]*Connection
+	curode.ConnectionQueueMu = &sync.RWMutex{}            // Cluster connection queue mutex
+	curode.ConnectionChannel = make(chan *Connection)
 
 	// Check if .curodeconfig exists
 	if _, err := os.Stat("./.curodeconfig"); errors.Is(err, os.ErrNotExist) {
@@ -2314,10 +2327,10 @@ func main() {
 		// Defer close node config
 		defer nodeConfigFile.Close()
 
-		node.Config.Port = 7682       // Set default CursusDB node port
-		node.Config.MaxMemory = 10240 // Max memory 10GB default
-		node.Config.ConnectionQueueWorkers = 4
-		node.Config.Host = "0.0.0.0"
+		curode.Config.Port = 7682       // Set default CursusDB node port
+		curode.Config.MaxMemory = 10240 // Max memory 10GB default
+		curode.Config.ConnectionQueueWorkers = 4
+		curode.Config.Host = "0.0.0.0"
 
 		fmt.Println("Node key is required.  A node key is shared with your cluster and will encrypt all your data at rest and allow for only connections that contain a correct Key: header value matching the hashed key you provide.")
 		fmt.Print("key> ")
@@ -2333,10 +2346,10 @@ func main() {
 
 		// Hash and encode key
 		hashedKey := sha256.Sum256(key)
-		node.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...))
+		curode.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...))
 
 		// Marshal node config into yaml
-		yamlData, err := yaml.Marshal(&node.Config)
+		yamlData, err := yaml.Marshal(&curode.Config)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
@@ -2353,7 +2366,7 @@ func main() {
 		}
 
 		// Unmarshal node config yaml
-		err = yaml.Unmarshal(nodeConfigFile, &node.Config)
+		err = yaml.Unmarshal(nodeConfigFile, &curode.Config)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
@@ -2393,14 +2406,14 @@ func main() {
 			}
 
 			if read > 0 {
-				decodedKey, err := base64.StdEncoding.DecodeString(node.Config.Key)
+				decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
 				if err != nil {
 					fmt.Println(err.Error())
 					os.Exit(1)
 					return
 				}
 
-				serialized, err := node.decrypt(decodedKey[:], buf[:read])
+				serialized, err := curode.Decrypt(decodedKey[:], buf[:read])
 				if err != nil {
 					fmt.Println(err.Error())
 					os.Exit(1)
@@ -2421,7 +2434,7 @@ func main() {
 		d := gob.NewDecoder(fDFTmp)
 
 		// Now with all serialized data we encode into data hashmap
-		err = d.Decode(&node.Data.Map)
+		err = d.Decode(&curode.Data.Map)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
@@ -2433,26 +2446,26 @@ func main() {
 	}
 
 	// Parse flags
-	flag.IntVar(&node.Config.Port, "port", node.Config.Port, "port for node")
+	flag.IntVar(&curode.Config.Port, "port", curode.Config.Port, "port for node")
 	flag.Parse()
 
-	node.SignalChannel = make(chan os.Signal, 1) // Create signal channel
+	curode.SignalChannel = make(chan os.Signal, 1) // Create signal channel
 
-	signal.Notify(node.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
-	node.Wg = &sync.WaitGroup{} // Create wait group
+	signal.Notify(curode.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
+	curode.Wg = &sync.WaitGroup{} // Create wait group
 
-	node.Wg.Add(1)
-	go node.StartTCP_TLSListener() // Listen to tcp or tls cluster connections
+	curode.Wg.Add(1)
+	go curode.StartTCP_TLSListener() // Listen to tcp or tls cluster connections
 
-	node.Wg.Add(1)
-	go node.ConnectionEventWorker()
+	curode.Wg.Add(1)
+	go curode.ConnectionEventWorker()
 
 	// Start up connection queue goroutines in which listen for events.
-	for i := node.Config.ConnectionQueueWorkers; i > 0; i-- { // Get amount of workers based on config
-		node.Wg.Add(1)
-		go node.ConnectionEventLoop(i + 1)
+	for i := curode.Config.ConnectionQueueWorkers; i > 0; i-- { // Get amount of workers based on config
+		curode.Wg.Add(1)
+		go curode.ConnectionEventLoop(i + 1)
 	}
 
-	node.Wg.Wait() // Wait for all go routines
+	curode.Wg.Wait() // Wait for all go routines
 
 }
