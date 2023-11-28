@@ -13,7 +13,6 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
-	"log"
 	"math/rand"
 	"net"
 	"net/textproto"
@@ -77,7 +76,7 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 	var err error
 	defer cursus.Wg.Done()
 	// Resolve the string address to a TCP address
-	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf(":%d", cursus.Config.Host, cursus.Config.Port))
+	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", cursus.Config.Host, cursus.Config.Port))
 
 	if err != nil {
 		fmt.Println("StartTCP_TLSListener():", err)
@@ -90,7 +89,7 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 
 		// Check if TLS cert and key is provided within config
 		if cursus.Config.TLSCert == "" || cursus.Config.TLSKey == "" {
-			log.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
+			fmt.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
 			cursus.SignalChannel <- os.Interrupt                           // Send interrupt to signal channel
 			return
 		}
@@ -98,7 +97,7 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 		// Load cert
 		cer, err := tls.LoadX509KeyPair(cursus.Config.TLSCert, cursus.Config.TLSKey)
 		if err != nil {
-			log.Println("TCP_TLSListener():", err.Error()) // Log an error
+			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
 			cursus.SignalChannel <- os.Interrupt           // Send interrupt to signal channel
 			return                                         // close up go routine
 		}
@@ -304,8 +303,8 @@ query:
 		// Node was at peak allocation.
 		// Picking another node and trying again
 		if nodeRetries > 0 {
-			goto query
 			nodeRetries -= 1
+			goto query
 		} else {
 			connection.Text.PrintfLine("%d No node was available for insert.", 104)
 			return
@@ -440,7 +439,7 @@ func (cursus *Cursus) ConnectionEventLoop(i int) {
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						continue
 					} else {
-						log.Println(err.Error())
+						fmt.Println(err.Error())
 						return
 					}
 				}
@@ -465,7 +464,7 @@ func (cursus *Cursus) ConnectionEventLoop(i int) {
 						if strings.HasPrefix(scanner.Text(), "quit") {
 							break
 						} else if strings.HasSuffix(query, ";") {
-							log.Println("QUERY:", query) // Log
+							fmt.Println("QUERY:", query) // Log
 
 							wg := &sync.WaitGroup{}
 							mu := &sync.Mutex{}

@@ -35,7 +35,6 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
-	"log"
 	"net"
 	"net/textproto"
 	"os"
@@ -104,14 +103,14 @@ func (n *Node) StartTCP_TLSListener() {
 	if n.Config.TLS {
 
 		if n.Config.TLSCert == "" && n.Config.TLSKey == "" {
-			log.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
+			fmt.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
 			n.SignalChannel <- os.Interrupt                                // Send interrupt to signal channel
 			return
 		}
 
 		cer, err := tls.LoadX509KeyPair(n.Config.TLSCert, n.Config.TLSKey)
 		if err != nil {
-			log.Println("TCP_TLSListener():", err.Error()) // Log an error
+			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
 			n.SignalChannel <- os.Interrupt                // Send interrupt to signal channel
 			return                                         // close up go routine
 		}
@@ -246,7 +245,7 @@ func (n *Node) WriteToFile() {
 	// Create temporary .cdat which is all serialized data.  An encryption is performed after the fact to not consume memory.
 	fTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
 	if err != nil {
-		log.Println("WriteToFile():", err.Error())
+		fmt.Println("WriteToFile():", err.Error())
 		n.SignalChannel <- os.Interrupt
 		return
 	}
@@ -256,7 +255,7 @@ func (n *Node) WriteToFile() {
 	// Encoding the map
 	err = e.Encode(n.Data.Map)
 	if err != nil {
-		log.Println("WriteToFile():", err.Error())
+		fmt.Println("WriteToFile():", err.Error())
 		n.SignalChannel <- os.Interrupt
 		return
 	}
@@ -266,7 +265,7 @@ func (n *Node) WriteToFile() {
 	// After serialization encrypt temp data file
 	fTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
 	if err != nil {
-		log.Println("WriteToFile():", err.Error())
+		fmt.Println("WriteToFile():", err.Error())
 		n.SignalChannel <- os.Interrupt
 		return
 	}
@@ -276,7 +275,7 @@ func (n *Node) WriteToFile() {
 	buf := make([]byte, 1024)
 	f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
 	if err != nil {
-		log.Println("WriteToFile():", err.Error())
+		fmt.Println("WriteToFile():", err.Error())
 		n.SignalChannel <- os.Interrupt
 		return
 	}
@@ -287,7 +286,7 @@ func (n *Node) WriteToFile() {
 
 		if err != nil {
 			if err != io.EOF {
-				log.Println("WriteToFile():", err.Error())
+				fmt.Println("WriteToFile():", err.Error())
 				n.SignalChannel <- os.Interrupt
 				return
 			}
@@ -297,14 +296,14 @@ func (n *Node) WriteToFile() {
 		if read > 0 {
 			decodedKey, err := base64.StdEncoding.DecodeString(n.Config.Key)
 			if err != nil {
-				log.Println("WriteToFile():", err.Error())
+				fmt.Println("WriteToFile():", err.Error())
 				n.SignalChannel <- os.Interrupt
 				return
 			}
 
 			ciphertext, err := n.encrypt(decodedKey[:], buf[:read])
 			if err != nil {
-				log.Println("WriteToFile():", err.Error())
+				fmt.Println("WriteToFile():", err.Error())
 				n.SignalChannel <- os.Interrupt
 				return
 			}
@@ -315,7 +314,7 @@ func (n *Node) WriteToFile() {
 
 	os.Remove(".cdat.tmp")
 
-	log.Println("WriteToFile(): Completed.")
+	fmt.Println("WriteToFile(): Completed.")
 }
 
 // update is a function to update the nodes data map
@@ -2034,7 +2033,7 @@ func (n *Node) ConnectionEventLoop(i int) {
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						continue
 					} else {
-						log.Println(err.Error())
+						fmt.Println(err.Error())
 						return
 					}
 				}
