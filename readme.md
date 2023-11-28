@@ -206,6 +206,7 @@ delete user USERNAME;
 - ``102`` - User does not exist.
 - ``103`` - Database user already exists.
 - ``104`` - No node was available for insert.
+- ``105`` - Node unavailable
 - ``200`` - New database user created successfully.
 - ``201`` - Database user removed successfully.
 

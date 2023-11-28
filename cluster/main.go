@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
@@ -13,6 +14,7 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
+	"log"
 	"math/rand"
 	"net"
 	"net/textproto"
@@ -40,6 +42,8 @@ type Cursus struct {
 	ConnectionChannel chan *Connection       // Connection channel for ConnectionEventWorker
 	NodesMu           *sync.Mutex            // Global cluster nodes mutex
 	Config            Config                 // Cluster config
+	ContextCancel     context.CancelFunc     // For gracefully shutting down
+	Context           context.Context        // Main looped go routine context.  This is for listeners, event loops and so forth
 }
 
 // Config is the CursusDB cluster config struct
@@ -74,7 +78,9 @@ type NodeConnection struct {
 // StartTCP_TLSListener start listening on TCP or TLS on provided port
 func (cursus *Cursus) StartTCP_TLSListener() {
 	var err error
+
 	defer cursus.Wg.Done()
+
 	// Resolve the string address to a TCP address
 	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", cursus.Config.Host, cursus.Config.Port))
 
@@ -130,9 +136,8 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 	}
 
 	for {
-		select {
-		case sig := <-cursus.SignalChannel:
-			fmt.Println("StartTCP_TLSListener(): received", sig)
+
+		if cursus.Context.Err() != nil {
 			cursus.TCPListener.Close()
 			close(cursus.ConnectionChannel)
 
@@ -140,54 +145,64 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 				c.Conn.Close()
 			}
 
-			os.Exit(0)
-		default:
-			cursus.TCPListener.SetDeadline(time.Now().Add(time.Millisecond * 1))
-			conn, err := cursus.TCPListener.Accept()
-			if errors.Is(err, os.ErrDeadlineExceeded) {
-				continue
-			}
-
-			connection := &Connection{Conn: conn, Text: textproto.NewConn(conn)}
-
-			//Expect Authentication: username\0password b64 encoded
-			auth, err := connection.Text.ReadLine()
-			if err != nil {
-				connection.Text.PrintfLine("%d %s", 3, "Unable to read authentication header.")
-				continue
-			}
-
-			authSpl := strings.Split(auth, "Authentication:")
-			if len(authSpl) != 2 {
-				connection.Text.PrintfLine("%d %s", 1, "Missing authentication header.")
-				continue
-			}
-
-			authValues, err := base64.StdEncoding.DecodeString(strings.TrimSpace(authSpl[1]))
-			if err != nil {
-				connection.Text.PrintfLine("%d %s", 2, "Invalid authentication value.")
-				continue
-			}
-
-			authValuesSpl := strings.Split(string(authValues), "\\0")
-			if len(authValuesSpl) != 2 {
-				connection.Text.PrintfLine("%d %s", 2, "Invalid authentication value.")
-				continue
-			}
-
-			_, connection.User, err = cursus.AuthenticateUser(authValuesSpl[0], authValuesSpl[1])
-			if err != nil {
-				connection.Text.PrintfLine("%d %s", 4, err.Error()) // no user exists
-				continue
-			}
-
-			connection.Text.PrintfLine("%d %s", 0, "Authentication successful.")
-
-			// Add to connection queue
-			cursus.ConnectionQueueMu.Lock()
-			cursus.ConnectionQueue[conn.RemoteAddr().String()] = connection
-			cursus.ConnectionQueueMu.Unlock()
+			return
 		}
+
+		cursus.TCPListener.SetDeadline(time.Now().Add(time.Millisecond * 1))
+		conn, err := cursus.TCPListener.Accept()
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			continue
+		}
+
+		connection := &Connection{Conn: conn, Text: textproto.NewConn(conn)}
+
+		//Expect Authentication: username\0password b64 encoded
+		auth, err := connection.Text.ReadLine()
+		if err != nil {
+			connection.Text.PrintfLine("%d %s", 3, "Unable to read authentication header.")
+			connection.Text.Close()
+			connection.Conn.Close()
+			continue
+		}
+
+		authSpl := strings.Split(auth, "Authentication:")
+		if len(authSpl) != 2 {
+			connection.Text.PrintfLine("%d %s", 1, "Missing authentication header.")
+			connection.Text.Close()
+			connection.Conn.Close()
+			continue
+		}
+
+		authValues, err := base64.StdEncoding.DecodeString(strings.TrimSpace(authSpl[1]))
+		if err != nil {
+			connection.Text.PrintfLine("%d %s", 2, "Invalid authentication value.")
+			connection.Text.Close()
+			connection.Conn.Close()
+			continue
+		}
+
+		authValuesSpl := strings.Split(string(authValues), "\\0")
+		if len(authValuesSpl) != 2 {
+			connection.Text.PrintfLine("%d %s", 2, "Invalid authentication value.")
+			connection.Text.Close()
+			connection.Conn.Close()
+			continue
+		}
+
+		_, connection.User, err = cursus.AuthenticateUser(authValuesSpl[0], authValuesSpl[1])
+		if err != nil {
+			connection.Text.PrintfLine("%d %s", 4, err.Error()) // no user exists
+			connection.Text.Close()
+			connection.Conn.Close()
+			continue
+		}
+
+		connection.Text.PrintfLine("%d %s", 0, "Authentication successful.")
+
+		// Add to connection queue
+		cursus.ConnectionQueueMu.Lock()
+		cursus.ConnectionQueue[conn.RemoteAddr().String()] = connection
+		cursus.ConnectionQueueMu.Unlock()
 	}
 
 }
@@ -320,12 +335,20 @@ func (cursus *Cursus) QueryNode(wg *sync.WaitGroup, n NodeConnection, body []byt
 	defer wg.Done()
 
 	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cursus.Config.NodeReaderSize)
-
+	err := n.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if err != nil {
+		fmt.Println("QueryNode(): ", err.Error())
+		return
+	}
 	n.Text.PrintfLine("%s", string(body))
 
 	line, err := n.Text.ReadLine()
 	if err != nil {
-		fmt.Println("QueryNode(): ", err.Error())
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			goto unavailable
+		} else if errors.Is(err, io.EOF) {
+			goto unavailable
+		}
 		return
 	}
 
@@ -333,6 +356,8 @@ func (cursus *Cursus) QueryNode(wg *sync.WaitGroup, n NodeConnection, body []byt
 	defer mu.Unlock()
 	responses[n.Conn.RemoteAddr().String()] = line
 
+unavailable:
+	responses[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
 }
 
 // IsString is a provided string a string literal?  "hello world"  OR 'hello world'
@@ -415,6 +440,9 @@ func (cursus *Cursus) QueryNodesRet(connection *Connection, body map[string]inte
 func (cursus *Cursus) ConnectionEventWorker() {
 	defer cursus.Wg.Done()
 	for {
+		if cursus.Context.Err() != nil {
+			return
+		}
 
 		if len(cursus.ConnectionQueue) > 0 {
 			for _, c := range cursus.ConnectionQueue {
@@ -423,8 +451,8 @@ func (cursus *Cursus) ConnectionEventWorker() {
 			}
 		}
 		time.Sleep(time.Nanosecond * 100)
-
 	}
+
 }
 
 // ConnectionEventLoop listens to currently connected client events
@@ -433,6 +461,10 @@ func (cursus *Cursus) ConnectionEventLoop(i int) {
 	for {
 		select {
 		case c := <-cursus.ConnectionChannel:
+			if cursus.Context.Err() != nil {
+				return
+			}
+
 			if c != nil {
 				err := c.Conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 250))
 				if err != nil {
@@ -1399,6 +1431,23 @@ func (cursus *Cursus) ValidatePermission(perm string) bool {
 	}
 }
 
+// SignalListener listeners for system signals are does a graceful shutdown
+func (cursus *Cursus) SignalListener() {
+	defer cursus.Wg.Done()
+	for {
+		select {
+		case sig := <-cursus.SignalChannel:
+			log.Println("received", sig)
+			cursus.ContextCancel()
+
+			return
+
+		default:
+			time.Sleep(time.Millisecond * 1)
+		}
+	}
+}
+
 // main CursusDB Cluster starts here
 func main() {
 	var cursus Cursus                                     // Main CursusDB Cluster variable
@@ -1407,6 +1456,7 @@ func main() {
 	cursus.ConnectionQueue = make(map[string]*Connection) // Make connection queue [remote_addr_str]*Connection
 	cursus.ConnectionQueueMu = &sync.RWMutex{}            // Cluster connection queue mutex
 	cursus.ConnectionChannel = make(chan *Connection)
+	cursus.Context, cursus.ContextCancel = context.WithCancel(context.Background())
 
 	cursus.ConfigMu = &sync.RWMutex{} // Cluster config mutex
 
@@ -1509,6 +1559,9 @@ func main() {
 	signal.Notify(cursus.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
 
 	cursus.ConnectToNodes() // Connect to all nodes
+
+	cursus.Wg.Add(1)
+	go cursus.SignalListener()
 
 	cursus.Wg.Add(1)
 	go cursus.StartTCP_TLSListener()

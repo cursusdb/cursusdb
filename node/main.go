@@ -22,6 +22,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
@@ -35,6 +36,7 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
+	"log"
 	"net"
 	"net/textproto"
 	"os"
@@ -61,6 +63,8 @@ type Curode struct {
 	ConnectionChannel chan *Connection       // Connection channel for ConnectionEventWorker
 	Data              Data                   // Node data
 	Config            Config                 // Node config
+	ContextCancel     context.CancelFunc     // For gracefully shutting down
+	Context           context.Context        // Main looped go routine context.  This is for listeners, event loops and so forth
 }
 
 // Config is the cluster config struct
@@ -148,69 +152,61 @@ func (curode *Curode) StartTCP_TLSListener() {
 	}
 
 	for {
-		select {
-		// Case for signal
-		case sig := <-curode.SignalChannel:
-			// Start graceful shutdown
-			fmt.Println("StartTCP_TLSListener(): received", sig)
-
+		if curode.Context.Err() != nil {
 			curode.TCPListener.Close()
 
 			// Writing in memory data to file, encrypting data as well.
 			curode.WriteToFile()
 
-			// Close all connections on queue
+			close(curode.ConnectionChannel)
+
 			for _, c := range curode.ConnectionQueue {
 				c.Conn.Close()
 			}
 
-			close(curode.ConnectionChannel)
+			return
+		}
+		curode.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000))
+		conn, err := curode.TCPListener.Accept()
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			continue
+		}
 
-			os.Exit(0)
-			//os.Exit(0) // end
-		default:
-			curode.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000))
-			conn, err := curode.TCPListener.Accept()
-			if errors.Is(err, os.ErrDeadlineExceeded) {
-				continue
-			}
+		connection := &Connection{Conn: conn, Text: textproto.NewConn(conn)}
 
-			connection := &Connection{Conn: conn, Text: textproto.NewConn(conn)}
+		// Expect Authentication: username\0password b64 encoded
+		auth, err := connection.Text.ReadLine()
+		if err != nil {
+			connection.Text.PrintfLine("%d %s", 3, "Unable to read authentication header.")
+			continue
+		}
 
-			// Expect Authentication: username\0password b64 encoded
-			auth, err := connection.Text.ReadLine()
-			if err != nil {
-				connection.Text.PrintfLine("%d %s", 3, "Unable to read authentication header.")
-				continue
-			}
+		if !strings.HasPrefix(auth, "Key:") {
+			connection.Text.PrintfLine("Invalid key.  Node expecting cluster key.")
+			continue
+		} else {
 
-			if !strings.HasPrefix(auth, "Key:") {
+			authSpl := strings.Split(auth, "Key:")
+
+			if len(authSpl) != 2 {
 				connection.Text.PrintfLine("Invalid key.  Node expecting cluster key.")
 				continue
-			} else {
-
-				authSpl := strings.Split(auth, "Key:")
-
-				if len(authSpl) != 2 {
-					connection.Text.PrintfLine("Invalid key.  Node expecting cluster key.")
-					continue
-				}
-
-				if curode.Config.Key != strings.TrimSpace(authSpl[1]) {
-					connection.Text.PrintfLine("Invalid key.")
-					continue
-				}
-
-				connection.Text.PrintfLine("0 Authentication successful.")
-
-				// Authentication was a success, now we add connection to queue and start listening to events!
-				curode.ConnectionQueueMu.Lock()
-				curode.ConnectionQueue[conn.RemoteAddr().String()] = connection
-				curode.ConnectionQueueMu.Unlock()
-
 			}
 
+			if curode.Config.Key != strings.TrimSpace(authSpl[1]) {
+				connection.Text.PrintfLine("Invalid key.")
+				continue
+			}
+
+			connection.Text.PrintfLine("0 Authentication successful.")
+
+			// Authentication was a success, now we add connection to queue and start listening to events!
+			curode.ConnectionQueueMu.Lock()
+			curode.ConnectionQueue[conn.RemoteAddr().String()] = connection
+			curode.ConnectionQueueMu.Unlock()
+
 		}
+
 	}
 }
 
@@ -2018,6 +2014,9 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 func (curode *Curode) ConnectionEventWorker() {
 	defer curode.Wg.Done()
 	for {
+		if curode.Context.Err() != nil {
+			return
+		}
 
 		if len(curode.ConnectionQueue) > 0 {
 			for _, c := range curode.ConnectionQueue {
@@ -2037,6 +2036,10 @@ func (curode *Curode) ConnectionEventLoop(i int) {
 	for {
 		select {
 		case c := <-curode.ConnectionChannel:
+			if curode.Context.Err() != nil {
+				return
+			}
+
 			if c != nil {
 				err := c.Conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 250))
 				if err != nil {
@@ -2303,6 +2306,23 @@ func (curode *Curode) ConnectionEventLoop(i int) {
 	}
 }
 
+// SignalListener listeners for system signals are does a graceful shutdown
+func (curode *Curode) SignalListener() {
+	defer curode.Wg.Done()
+	for {
+		select {
+		case sig := <-curode.SignalChannel:
+			log.Println("received", sig)
+			curode.ContextCancel()
+
+			return
+
+		default:
+			time.Sleep(time.Millisecond * 1)
+		}
+	}
+}
+
 // main is the starting point for the CursusDB node software
 func main() {
 	var curode Curode // Node type variable
@@ -2313,6 +2333,7 @@ func main() {
 	curode.ConnectionQueue = make(map[string]*Connection) // Make connection queue [remote_addr_str]*Connection
 	curode.ConnectionQueueMu = &sync.RWMutex{}            // Cluster connection queue mutex
 	curode.ConnectionChannel = make(chan *Connection)
+	curode.Context, curode.ContextCancel = context.WithCancel(context.Background())
 
 	// Check if .curodeconfig exists
 	if _, err := os.Stat("./.curodeconfig"); errors.Is(err, os.ErrNotExist) {
@@ -2453,6 +2474,9 @@ func main() {
 
 	signal.Notify(curode.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
 	curode.Wg = &sync.WaitGroup{} // Create wait group
+
+	curode.Wg.Add(1)
+	go curode.SignalListener()
 
 	curode.Wg.Add(1)
 	go curode.StartTCP_TLSListener() // Listen to tcp or tls cluster connections
