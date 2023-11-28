@@ -55,8 +55,6 @@ type Cluster struct {
 	SignalChannel   chan os.Signal   // OS Signal channel
 	Config          Config           // Cluster config (read from yaml .cursusconfig)
 	NodeConnections []NodeConnection // Configured and forever connected node connections.
-	Connections     []*Connection    // Client connections
-	ConnectionsMu   *sync.Mutex
 	ConfigMu        *sync.Mutex
 	NodesMu         *sync.Mutex // Global node mutex for writing unique documents.
 }
@@ -184,29 +182,13 @@ func (cluster *Cluster) IsBool(str string) bool {
 // HandleConnection handles client connections
 func (cluster *Cluster) HandleConnection(connection *Connection) {
 	defer cluster.Wg.Done() // close go routine on return
-	cluster.ConnectionsMu.Lock()
-	cluster.Connections = append(cluster.Connections, connection) // Add connection to connections slice.
-	cluster.ConnectionsMu.Unlock()
 
 	connection.Text = textproto.NewConn(connection.Conn) // Setup writer and reader for connection
 
-	defer connection.Text.Close() // close writer and reader on return
 	defer connection.Conn.Close() // close connection on return
-
-	defer func(conn *Connection) { // remove connection from connections slice on return
-
-		for i, c := range cluster.Connections {
-			if c == conn {
-				cluster.ConnectionsMu.Lock()
-				cluster.Connections = append(cluster.Connections[:i], cluster.Connections[i+1:]...)
-				cluster.ConnectionsMu.Unlock()
-			}
-		}
-
-	}(connection)
+	defer connection.Text.Close() // close writer and reader on return
 
 	// Expect Authentication: username\0password b64 encoded
-
 	auth, err := connection.Text.ReadLine()
 	if err != nil {
 		connection.Text.PrintfLine("%d %s", 3, "Unable to read authentication header.")
@@ -1113,20 +1095,6 @@ func (cluster *Cluster) SignalListener() {
 		select {
 		case sig := <-cluster.SignalChannel:
 			log.Println("received", sig)
-			log.Println("closing", len(cluster.Connections), "connections")
-			for _, c := range cluster.Connections {
-				c.Text.Close()
-				c.Conn.Close()
-			}
-
-			for _, c := range cluster.NodeConnections {
-				c.Text.Close()
-				c.Conn.Close()
-
-				if c.SecureConn != nil {
-					c.SecureConn.Close()
-				}
-			}
 
 			if cluster.Listener != nil {
 				cluster.Listener.Close()
@@ -1248,12 +1216,17 @@ func (cluster *Cluster) NewUser(username, password, permission string) (string, 
 	user := make(map[string]interface{}) // Create map with username, password, and permission
 	user["username"] = username
 	user["password"] = password
-	encodeUsername := base64.StdEncoding.EncodeToString([]byte(username))
+	var encodeUsername string
 
-	for _, u := range cluster.Config.Users {
-		if strings.Split(u, ":")[0] == encodeUsername {
-			return "", user, errors.New(fmt.Sprintf("%d Database user already exists.", 103))
+	for i := 0; i < 10; i++ { // encode 10 times as each strings may differ
+		encodeUsername = base64.StdEncoding.EncodeToString([]byte(username))
+
+		for _, u := range cluster.Config.Users {
+			if strings.Split(u, ":")[0] == encodeUsername {
+				return "", user, errors.New(fmt.Sprintf("%d Database user already exists.", 103))
+			}
 		}
+
 	}
 
 	if cluster.ValidatePermission(permission) {
@@ -1278,16 +1251,18 @@ func (cluster *Cluster) NewUser(username, password, permission string) (string, 
 
 // RemoveUser removes a user by username
 func (cluster *Cluster) RemoveUser(username string) error {
-	encodeUsername := base64.StdEncoding.EncodeToString([]byte(username))
 
-	for i, user := range cluster.Config.Users {
-		if strings.Split(user, ":")[0] == encodeUsername {
-			cluster.ConfigMu.Lock()
-			cluster.Config.Users[i] = cluster.Config.Users[len(cluster.Config.Users)-1]
-			cluster.Config.Users[len(cluster.Config.Users)-1] = ""
-			cluster.Config.Users = cluster.Config.Users[:len(cluster.Config.Users)-1]
-			cluster.ConfigMu.Unlock()
-			return nil
+	for j := 0; j < 10; j++ { // encode 10 times as each strings may differ
+		encodeUsername := base64.StdEncoding.EncodeToString([]byte(username))
+		for i, user := range cluster.Config.Users {
+			if strings.Split(user, ":")[0] == encodeUsername {
+				cluster.ConfigMu.Lock()
+				cluster.Config.Users[i] = cluster.Config.Users[len(cluster.Config.Users)-1]
+				cluster.Config.Users[len(cluster.Config.Users)-1] = ""
+				cluster.Config.Users = cluster.Config.Users[:len(cluster.Config.Users)-1]
+				cluster.ConfigMu.Unlock()
+				return nil
+			}
 		}
 	}
 
@@ -1297,7 +1272,7 @@ func (cluster *Cluster) RemoveUser(username string) error {
 // AuthenticateUser checks if a user exists and returns the user
 func (cluster *Cluster) AuthenticateUser(username string, password string) (string, map[string]interface{}, error) {
 
-	for i := 0; i < 5; i++ { // retry as gob will sometimes provide wrong serialization
+	for i := 0; i < 12; i++ { // retry as encoded strings may differ
 		userR := make(map[string]interface{}) // Create map with username, password, and permission
 		userR["username"] = username
 		userR["password"] = password
@@ -1435,8 +1410,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	cluster.ConnectionsMu = &sync.Mutex{} // Get connections mu
-	cluster.NodesMu = &sync.Mutex{}       // Cluster nodes mutex
+	//cluster.ConnectionsMu = &sync.Mutex{} // Get connections mu
+	cluster.NodesMu = &sync.Mutex{} // Cluster nodes mutex
 
 	// If port provided as flag use it instead of whats on config file
 	flag.IntVar(&cluster.Config.Port, "port", cluster.Config.Port, "port for cluster")

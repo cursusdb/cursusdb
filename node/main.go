@@ -56,7 +56,6 @@ type Node struct {
 	Listener      net.Listener    // Tcp listener
 	Wg            *sync.WaitGroup // Main node wait group
 	SignalChannel chan os.Signal  // Signal channel
-	Connections   []*Connection   // TCP connections struct slice
 	Data          Data            // Node data
 	Config        Config          // Node config
 }
@@ -1945,19 +1944,10 @@ func (n *Node) insert(collection string, jsonMap map[string]interface{}, connect
 // HandleConnection handle an incoming tcp connection from a cluster
 func (n *Node) HandleConnection(connection *Connection) {
 	defer n.Wg.Done()
-	n.Connections = append(n.Connections, connection)
+
 	connection.Text = textproto.NewConn(connection.Conn)
 	defer connection.Text.Close()
 	defer connection.Conn.Close()
-
-	defer func(conn *Connection) {
-		for i, c := range n.Connections {
-			if c == conn {
-				n.Connections = append(n.Connections[:i], n.Connections[i+1:]...)
-			}
-		}
-
-	}(connection)
 
 	// Node expects an encoded base64 header Key: v the v being the shared cluster and node key
 
@@ -2235,12 +2225,6 @@ func (n *Node) SignalListener() {
 		select {
 		case sig := <-n.SignalChannel: // signal received, gracefully shutdown
 			log.Println("received", sig)
-			log.Println("closing", len(n.Connections), "connections")
-			// Close all connections
-			for _, c := range n.Connections {
-				c.Text.Close()
-				c.Conn.Close()
-			}
 
 			// Close listener
 			if n.Listener != nil {
