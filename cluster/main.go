@@ -63,14 +63,15 @@ type Cluster struct {
 
 // Config is the cluster config type
 type Config struct {
-	Nodes   []string `yaml:"nodes"`                    // Node host/ips
-	TLSNode bool     `default:"false" yaml:"tls-node"` // Connects to nodes with tls.  Nodes MUST be using tls in-order to set this to true.
-	TLSCert string   `yaml:"tls-cert"`
-	TLSKey  string   `yaml:"tls-key"`
-	TLS     bool     `default:"false" yaml:"tls"`
-	Port    int      `yaml:"port"`
-	Key     string   `yaml:"key"`   // Cluster key - this key is used to encrypt data on all nodes and to authenticate with a node.
-	Users   []string `yaml:"users"` // Array of encoded users
+	Nodes          []string `yaml:"nodes"`                    // Node host/ips
+	TLSNode        bool     `default:"false" yaml:"tls-node"` // Connects to nodes with tls.  Nodes MUST be using tls in-order to set this to true.
+	TLSCert        string   `yaml:"tls-cert"`
+	TLSKey         string   `yaml:"tls-key"`
+	TLS            bool     `default:"false" yaml:"tls"`
+	Port           int      `yaml:"port"`
+	Key            string   `yaml:"key"`   // Cluster key - this key is used to encrypt data on all nodes and to authenticate with a node.
+	Users          []string `yaml:"users"` // Array of encoded users
+	NodeReaderSize int      `yaml:"node-reader-size"`
 }
 
 // NodeConnection is the cluster connected to a node as a client.
@@ -1089,6 +1090,8 @@ func (cluster *Cluster) InsertIntoNode(connection *Connection, insert string, co
 func (cluster *Cluster) QueryNode(wg *sync.WaitGroup, n NodeConnection, body []byte, responses map[string]string, mu *sync.Mutex) {
 	defer wg.Done()
 
+	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cluster.Config.NodeReaderSize)
+
 	n.Text.PrintfLine("%s", string(body))
 
 	line, err := n.Text.ReadLine()
@@ -1354,6 +1357,7 @@ func main() {
 		// .cursusconfig does not exist..
 
 		cluster.Config.Port = 7681 // Default CursusDB cluster port
+		cluster.Config.NodeReaderSize = 10240
 
 		// Get initial database user credentials
 		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
