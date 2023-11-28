@@ -148,7 +148,7 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 			return
 		}
 
-		cursus.TCPListener.SetDeadline(time.Now().Add(time.Millisecond * 1))
+		cursus.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000000))
 		conn, err := cursus.TCPListener.Accept()
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			continue
@@ -335,12 +335,13 @@ func (cursus *Cursus) QueryNode(wg *sync.WaitGroup, n NodeConnection, body []byt
 	defer wg.Done()
 
 	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cursus.Config.NodeReaderSize)
+
+	n.Text.PrintfLine("%s", string(body))
 	err := n.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	if err != nil {
 		fmt.Println("QueryNode(): ", err.Error())
 		return
 	}
-	n.Text.PrintfLine("%s", string(body))
 
 	line, err := n.Text.ReadLine()
 	if err != nil {
@@ -355,7 +356,7 @@ func (cursus *Cursus) QueryNode(wg *sync.WaitGroup, n NodeConnection, body []byt
 	mu.Lock()
 	defer mu.Unlock()
 	responses[n.Conn.RemoteAddr().String()] = line
-
+	return
 unavailable:
 	responses[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
 }
@@ -447,10 +448,10 @@ func (cursus *Cursus) ConnectionEventWorker() {
 		if len(cursus.ConnectionQueue) > 0 {
 			for _, c := range cursus.ConnectionQueue {
 				cursus.ConnectionChannel <- c
-				time.Sleep(time.Nanosecond * 100)
+				time.Sleep(time.Nanosecond * 1000000)
 			}
 		}
-		time.Sleep(time.Nanosecond * 100)
+		time.Sleep(time.Nanosecond * 1000000)
 	}
 
 }
@@ -466,7 +467,7 @@ func (cursus *Cursus) ConnectionEventLoop(i int) {
 			}
 
 			if c != nil {
-				err := c.Conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 250))
+				err := c.Conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 1000000))
 				if err != nil {
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						continue
@@ -1258,9 +1259,8 @@ func (cursus *Cursus) ConnectionEventLoop(i int) {
 				}
 			}
 		default:
-			time.Sleep(time.Nanosecond * 100)
+			time.Sleep(time.Nanosecond * 1000000)
 		}
-		time.Sleep(time.Nanosecond * 100)
 	}
 
 }

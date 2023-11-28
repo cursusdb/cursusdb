@@ -166,7 +166,7 @@ func (curode *Curode) StartTCP_TLSListener() {
 
 			return
 		}
-		curode.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000))
+		curode.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000000)) // 2000 connections a second
 		conn, err := curode.TCPListener.Accept()
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			continue
@@ -2022,10 +2022,10 @@ func (curode *Curode) ConnectionEventWorker() {
 			for _, c := range curode.ConnectionQueue {
 				curode.ConnectionChannel <- c
 				recover()
-				time.Sleep(time.Nanosecond * 100)
+				time.Sleep(time.Nanosecond * 1000000)
 			}
 		}
-		time.Sleep(time.Nanosecond * 100)
+		time.Sleep(time.Nanosecond * 1000000)
 
 	}
 }
@@ -2041,7 +2041,7 @@ func (curode *Curode) ConnectionEventLoop(i int) {
 			}
 
 			if c != nil {
-				err := c.Conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 250))
+				err := c.Conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 1000000))
 				if err != nil {
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						continue
