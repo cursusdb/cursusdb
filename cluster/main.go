@@ -1218,7 +1218,7 @@ func (cluster *Cluster) NewUser(username, password, permission string) (string, 
 	user["password"] = password
 	var encodeUsername string
 
-	for i := 0; i < 10; i++ { // encode 10 times as each strings may differ
+	for i := 0; i < 50; i++ { // retry as gorm will serialize the bytes a bit different sometimes
 		encodeUsername = base64.StdEncoding.EncodeToString([]byte(username))
 
 		for _, u := range cluster.Config.Users {
@@ -1252,7 +1252,7 @@ func (cluster *Cluster) NewUser(username, password, permission string) (string, 
 // RemoveUser removes a user by username
 func (cluster *Cluster) RemoveUser(username string) error {
 
-	for j := 0; j < 10; j++ { // encode 10 times as each strings may differ
+	for j := 0; j < 50; j++ { // retry as gorm will serialize the bytes a bit different sometimes
 		encodeUsername := base64.StdEncoding.EncodeToString([]byte(username))
 		for i, user := range cluster.Config.Users {
 			if strings.Split(user, ":")[0] == encodeUsername {
@@ -1272,7 +1272,7 @@ func (cluster *Cluster) RemoveUser(username string) error {
 // AuthenticateUser checks if a user exists and returns the user
 func (cluster *Cluster) AuthenticateUser(username string, password string) (string, map[string]interface{}, error) {
 
-	for i := 0; i < 12; i++ { // retry as encoded strings may differ
+	for i := 0; i < 50; i++ { // retry as gorm will serialize the bytes a bit different sometimes
 		userR := make(map[string]interface{}) // Create map with username, password, and permission
 		userR["username"] = username
 		userR["password"] = password
