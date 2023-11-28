@@ -46,6 +46,7 @@ type Cursus struct {
 // Config is the CursusDB cluster config struct
 type Config struct {
 	Nodes                  []string `yaml:"nodes"`                    // Node host/ips
+	Host                   string   `yaml:"host"`                     // Cluster host
 	TLSNode                bool     `default:"false" yaml:"tls-node"` // Connects to nodes with tls.  Nodes MUST be using tls in-order to set this to true.
 	TLSCert                string   `yaml:"tls-cert"`                 // Location to TLS cert
 	TLSKey                 string   `yaml:"tls-key"`                  // Location to TLS key
@@ -76,7 +77,7 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 	var err error
 	defer cursus.Wg.Done()
 	// Resolve the string address to a TCP address
-	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", "0.0.0.0:7681")
+	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf(":%d", cursus.Config.Host, cursus.Config.Port))
 
 	if err != nil {
 		fmt.Println("StartTCP_TLSListener():", err)
@@ -131,6 +132,11 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 			fmt.Println("StartTCP_TLSListener(): received", sig)
 			cursus.TCPListener.Close()
 			close(cursus.ConnectionChannel)
+
+			for _, c := range cursus.ConnectionQueue {
+				c.Conn.Close()
+			}
+
 			os.Exit(0)
 		default:
 			cursus.TCPListener.SetDeadline(time.Now().Add(time.Millisecond * 1))
@@ -147,6 +153,7 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 				connection.Text.PrintfLine("%d %s", 3, "Unable to read authentication header.")
 				continue
 			}
+
 			authSpl := strings.Split(auth, "Authentication:")
 			if len(authSpl) != 2 {
 				connection.Text.PrintfLine("%d %s", 1, "Missing authentication header.")
@@ -418,7 +425,7 @@ func (cursus *Cursus) ConnectionEventWorker() {
 }
 
 // ConnectionEventLoop listens to currently connected client events
-func (cursus Cursus) ConnectionEventLoop(i int) {
+func (cursus *Cursus) ConnectionEventLoop(i int) {
 	defer cursus.Wg.Done()
 	for {
 		select {
@@ -1407,6 +1414,7 @@ func main() {
 		cursus.Config.Port = 7681            // Default CursusDB cluster port
 		cursus.Config.NodeReaderSize = 10240 // Default node reader size of 10240 bytes.. Pretty large json response
 		cursus.Config.ConnectionQueueWorkers = 4
+		cursus.Config.Host = "0.0.0.0"
 
 		// Get initial database user credentials
 		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")

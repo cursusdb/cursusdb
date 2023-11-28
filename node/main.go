@@ -53,21 +53,27 @@ import (
 
 // Node is the main Node struct
 type Node struct {
-	Listener      net.Listener    // Tcp listener
-	Wg            *sync.WaitGroup // Main node wait group
-	SignalChannel chan os.Signal  // Signal channel
-	Data          Data            // Node data
-	Config        Config          // Node config
+	TCPAddr           *net.TCPAddr           // Cluster TCPAddr
+	TCPListener       *net.TCPListener       // Cluster TCPListener
+	Wg                *sync.WaitGroup        // Main node wait group
+	SignalChannel     chan os.Signal         // Signal channel
+	ConnectionQueue   map[string]*Connection // Hashmap of current connections
+	ConnectionQueueMu *sync.RWMutex          // Connection queue mutex
+	ConnectionChannel chan *Connection       // Connection channel for ConnectionEventWorker
+	Data              Data                   // Node data
+	Config            Config                 // Node config
 }
 
 // Config is the cluster config struct
 type Config struct {
-	TLSCert   string `yaml:"tls-cert"`            // TLS cert path
-	TLSKey    string `yaml:"tls-key"`             // TLS cert key
-	TLS       bool   `default:"false" yaml:"tls"` // Use TLS?
-	Port      int    `yaml:"port"`
-	Key       string `yaml:"key"`        // Key for a cluster to communicate with the node and also used to resting data.
-	MaxMemory uint64 `yaml:"max-memory"` // Default 10240MB = 10 GB (1024 * 10)
+	TLSCert                string `yaml:"tls-cert"` // TLS cert path
+	TLSKey                 string `yaml:"tls-key"`  // TLS cert key
+	Host                   string `yaml:"host"`
+	TLS                    bool   `default:"false" yaml:"tls"` // Use TLS?
+	Port                   int    `yaml:"port"`
+	Key                    string `yaml:"key"`                      // Key for a cluster to communicate with the node and also used to resting data.
+	MaxMemory              uint64 `yaml:"max-memory"`               // Default 10240MB = 10 GB (1024 * 10)
+	ConnectionQueueWorkers int    `yaml:"connection-queue-workers"` // Amount of go routines to listen to events.  The worker distributes connections iteratively
 }
 
 // Data is the node data struct
@@ -82,57 +88,116 @@ type Connection struct {
 	Text *textproto.Conn // Connection writer and reader
 }
 
-// TCP_TLSListener start listening on provided port on tls or regular tcp
-func (n *Node) TCP_TLSListener() {
-	defer n.Wg.Done() // defer go routine complete
-	var err error     // local to function error variable
+// StartTCP_TLSListener start listening on TCP or TLS on provided port
+func (n *Node) StartTCP_TLSListener() {
+	var err error
+	defer n.Wg.Done()
+	// Resolve the string address to a TCP address
+	n.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Config.Host, n.Config.Port))
 
-	if n.Config.TLS { // if node is set to use TLS
+	if err != nil {
+		fmt.Println("StartTCP_TLSListener():", err)
+		n.SignalChannel <- os.Interrupt
+		return
+	}
 
-		if n.Config.TLSCert == "" || n.Config.TLSKey == "" { // Check if TLS cert or key is missing
+	if n.Config.TLS {
+
+		if n.Config.TLSCert == "" && n.Config.TLSKey == "" {
 			log.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
 			n.SignalChannel <- os.Interrupt                                // Send interrupt to signal channel
 			return
 		}
 
-		// Load key pair
 		cer, err := tls.LoadX509KeyPair(n.Config.TLSCert, n.Config.TLSKey)
 		if err != nil {
-			log.Println(err.Error())
-			n.SignalChannel <- os.Interrupt
-			return
+			log.Println("TCP_TLSListener():", err.Error()) // Log an error
+			n.SignalChannel <- os.Interrupt                // Send interrupt to signal channel
+			return                                         // close up go routine
 		}
 
-		config := &tls.Config{Certificates: []tls.Certificate{cer}} // Set config for tls listener
-
-		n.Listener, err = tls.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", n.Config.Port), config)
+		//Start listening for TCP connections on the given address
+		tcpListener, err := net.ListenTCP("tcp", n.TCPAddr)
 		if err != nil {
-			log.Println(err.Error())
-			n.SignalChannel <- os.Interrupt
-			return
+			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
+			n.SignalChannel <- os.Interrupt                // Send interrupt to signal channel
+			return                                         // close up go routine
+		}
+		config := &tls.Config{Certificates: []tls.Certificate{cer}}
+
+		n.TCPListener = tls.NewListener(tcpListener, config).(*net.TCPListener)
+		if err != nil {
+			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
+			n.SignalChannel <- os.Interrupt                // Send interrupt to signal channel
+			return                                         // close up go routine
 		}
 	} else {
-		n.Listener, err = net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", n.Config.Port))
+
+		//Start listening for TCP connections on the given address
+		n.TCPListener, err = net.ListenTCP("tcp", n.TCPAddr)
 		if err != nil {
-			log.Println(err.Error())
+			fmt.Println("StartTCP_TLSListener():", err)
 			n.SignalChannel <- os.Interrupt
 			return
 		}
 	}
 
-	// Start handling cluster connections
 	for {
-		conn, err := n.Listener.Accept()
-		if err != nil {
-			return
+		select {
+		case sig := <-n.SignalChannel:
+			fmt.Println("StartTCP_TLSListener(): received", sig)
+			n.TCPListener.Close()
+			close(n.ConnectionChannel)
+			n.WriteToFile()
+
+			for _, c := range n.ConnectionQueue {
+				c.Conn.Close()
+			}
+
+			os.Exit(0)
+		default:
+			n.TCPListener.SetDeadline(time.Now().Add(time.Millisecond * 1))
+			conn, err := n.TCPListener.Accept()
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				continue
+			}
+
+			connection := &Connection{Conn: conn, Text: textproto.NewConn(conn)}
+
+			//Expect Authentication: username\0password b64 encoded
+			auth, err := connection.Text.ReadLine()
+			if err != nil {
+				connection.Text.PrintfLine("%d %s", 3, "Unable to read authentication header.")
+				continue
+			}
+
+			if !strings.HasPrefix(auth, "Key:") {
+				connection.Text.PrintfLine("Invalid key.  Node expecting cluster key.")
+				continue
+			} else {
+
+				authSpl := strings.Split(auth, "Key:")
+
+				if len(authSpl) != 2 {
+					connection.Text.PrintfLine("Invalid key.  Node expecting cluster key.")
+					continue
+				}
+
+				if n.Config.Key != strings.TrimSpace(authSpl[1]) {
+					connection.Text.PrintfLine("Invalid key.")
+					continue
+				}
+
+				connection.Text.PrintfLine("0 Authentication successful.")
+
+				n.ConnectionQueueMu.Lock()
+				n.ConnectionQueue[conn.RemoteAddr().String()] = connection
+				n.ConnectionQueueMu.Unlock()
+
+			}
+
 		}
-
-		n.Wg.Add(1)
-		go n.HandleConnection(&Connection{
-			Conn: conn,
-		})
 	}
-
 }
 
 // CurrentMemoryUsage returns current memory usage in mb
@@ -1941,301 +2006,290 @@ func (n *Node) insert(collection string, jsonMap map[string]interface{}, connect
 	return nil
 }
 
-// HandleConnection handle an incoming tcp connection from a cluster
-func (n *Node) HandleConnection(connection *Connection) {
+// ConnectionEventWorker distributes connections to goroutines listening for connection events.
+func (n *Node) ConnectionEventWorker() {
 	defer n.Wg.Done()
+	for {
 
-	connection.Text = textproto.NewConn(connection.Conn)
-	defer connection.Text.Close()
-	defer connection.Conn.Close()
-
-	// Node expects an encoded base64 header Key: v the v being the shared cluster and node key
-
-	read, err := connection.Text.ReadLine()
-	if err != nil {
-		return
-	}
-
-	if !strings.HasPrefix(read, "Key:") {
-		connection.Text.PrintfLine("Invalid key.  Node expecting cluster key.")
-		return
-	} else {
-
-		authSpl := strings.Split(read, "Key:")
-
-		if len(authSpl) != 2 {
-			connection.Text.PrintfLine("Invalid key.  Node expecting cluster key.")
-			return
-		}
-
-		if n.Config.Key != strings.TrimSpace(authSpl[1]) {
-			connection.Text.PrintfLine("Invalid key.")
-			return
-		}
-
-		connection.Text.PrintfLine("0 Authentication successful.")
-
-		scanner := bufio.NewScanner(connection.Conn)
-
-		for scanner.Scan() {
-			query := scanner.Text()
-
-			result := make(map[string]interface{})
-
-			err := json.Unmarshal([]byte(query), &result)
-			if err != nil {
-				result["statusCode"] = 4000
-				result["message"] = "Unmarshalable JSON"
-				r, _ := json.Marshal(result)
-				connection.Text.PrintfLine(string(r))
-				continue
-			}
-
-			result["skip"] = 0
-
-			action, ok := result["action"]
-			if ok {
-				switch {
-				case strings.EqualFold(action.(string), "delete"):
-
-					if result["limit"].(string) == "*" {
-						result["limit"] = -1
-					} else if strings.Contains(result["limit"].(string), ",") {
-						if len(strings.Split(result["limit"].(string), ",")) == 2 {
-							result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
-							if err != nil {
-								connection.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
-								query = ""
-								continue
-							}
-
-							if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
-								result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
-								if err != nil {
-									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-									query = ""
-									continue
-								}
-							} else {
-								result["limit"] = -1
-							}
-						} else {
-							connection.Text.PrintfLine("Invalid limiting value.")
-							query = ""
-							continue
-						}
-					} else {
-						result["limit"], err = strconv.Atoi(result["limit"].(string))
-						if err != nil {
-							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-							query = ""
-							continue
-						}
-					}
-
-					results := n.del(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
-					r, _ := json.Marshal(results)
-					result["statusCode"] = 2000
-
-					if reflect.DeepEqual(results, nil) || len(results) == 0 {
-						result["message"] = "No documents deleted."
-					} else {
-						result["message"] = fmt.Sprintf("%d Document(s) deleted successfully.", len(results))
-					}
-
-					delete(result, "document")
-					delete(result, "collection")
-					delete(result, "action")
-					delete(result, "key")
-					delete(result, "limit")
-					delete(result, "opr")
-					delete(result, "value")
-					delete(result, "lock")
-					delete(result, "new-values")
-					delete(result, "update-keys")
-					delete(result, "conditions")
-					delete(result, "keys")
-					delete(result, "oprs")
-					delete(result, "values")
-					delete(result, "skip")
-
-					result["deleted"] = results
-
-					r, _ = json.Marshal(result)
-					connection.Text.PrintfLine(string(r))
-					continue
-				case strings.EqualFold(action.(string), "select"):
-
-					if result["limit"].(string) == "*" {
-						result["limit"] = -1
-					} else if strings.Contains(result["limit"].(string), ",") {
-						if len(strings.Split(result["limit"].(string), ",")) == 2 {
-							result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
-							if err != nil {
-								connection.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
-								query = ""
-								continue
-							}
-
-							if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
-								result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
-								if err != nil {
-									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-									query = ""
-									continue
-								}
-							} else {
-								result["limit"] = -1
-							}
-						} else {
-							connection.Text.PrintfLine("Invalid limiting value.")
-							query = ""
-							continue
-						}
-					} else {
-						result["limit"], err = strconv.Atoi(result["limit"].(string))
-						if err != nil {
-							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-							query = ""
-							continue
-						}
-					}
-
-					results := n.sel(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
-					r, _ := json.Marshal(results)
-					connection.Text.PrintfLine(string(r))
-					continue
-				case strings.EqualFold(action.(string), "update"):
-
-					if result["limit"].(string) == "*" {
-						result["limit"] = -1
-					} else if strings.Contains(result["limit"].(string), ",") {
-						if len(strings.Split(result["limit"].(string), ",")) == 2 {
-							result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
-							if err != nil {
-								connection.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
-								query = ""
-								continue
-							}
-
-							if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
-								result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
-								if err != nil {
-									connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-									query = ""
-									continue
-								}
-							} else {
-								result["limit"] = -1
-							}
-						} else {
-							connection.Text.PrintfLine("Invalid limiting value.")
-							query = ""
-							continue
-						}
-					} else {
-						result["limit"], err = strconv.Atoi(result["limit"].(string))
-						if err != nil {
-							connection.Text.PrintfLine("Something went wrong. %s", err.Error())
-							query = ""
-							continue
-						}
-					}
-
-					results := n.update(result["collection"].(string), result["keys"].([]interface{}), result["values"].([]interface{}), result["update-keys"].([]interface{}), result["new-values"].([]interface{}), result["limit"].(int), result["skip"].(int), result["oprs"].([]interface{}), result["conditions"].([]interface{}))
-					r, _ := json.Marshal(results)
-
-					delete(result, "document")
-					delete(result, "collection")
-					delete(result, "action")
-					delete(result, "key")
-					delete(result, "limit")
-					delete(result, "opr")
-					delete(result, "value")
-					delete(result, "lock")
-					delete(result, "new-values")
-					delete(result, "update-keys")
-					delete(result, "conditions")
-					delete(result, "keys")
-					delete(result, "oprs")
-					delete(result, "values")
-					delete(result, "skip")
-
-					result["statusCode"] = 2000
-
-					if reflect.DeepEqual(results, nil) || len(results) == 0 {
-						result["message"] = "No documents updated."
-					} else {
-						result["message"] = fmt.Sprintf("%d Document(s) updated successfully.", len(results))
-					}
-
-					result["updated"] = results
-					r, _ = json.Marshal(result)
-
-					connection.Text.PrintfLine(string(r))
-					continue
-				case strings.EqualFold(action.(string), "insert"):
-
-					collection := result["collection"]
-					doc := result["document"]
-					delete(result, "document")
-					delete(result, "collection")
-					delete(result, "action")
-					delete(result, "skip")
-
-					err := n.insert(collection.(string), doc.(map[string]interface{}), connection)
-					if err != nil {
-						// Only error returned is a 4003 which means cannot insert nested object
-						result["statusCode"] = 4003
-						result["message"] = err.Error()
-						r, _ := json.Marshal(result)
-						connection.Text.PrintfLine(string(r))
-						continue
-					}
-
-					continue
-				default:
-
-					result["statusCode"] = 4002
-					result["message"] = "Invalid/Non-existent action"
-					r, _ := json.Marshal(result)
-
-					connection.Text.PrintfLine(string(r))
-					continue
-				}
-			} else {
-				result["statusCode"] = 4001
-				result["message"] = "Missing action"
-				r, _ := json.Marshal(result)
-
-				connection.Text.PrintfLine(string(r))
-				continue
+		if len(n.ConnectionQueue) > 0 {
+			for _, c := range n.ConnectionQueue {
+				n.ConnectionChannel <- c
+				time.Sleep(time.Nanosecond * 100)
 			}
 		}
-	}
+		time.Sleep(time.Nanosecond * 100)
 
+	}
 }
 
-// SignalListener listen for system signal
-func (n *Node) SignalListener() {
+// ConnectionEventLoop listens to currently connected client events
+func (n *Node) ConnectionEventLoop(i int) {
 	defer n.Wg.Done()
-
-	// Wait for signal
 	for {
 		select {
-		case sig := <-n.SignalChannel: // signal received, gracefully shutdown
-			log.Println("received", sig)
+		case c := <-n.ConnectionChannel:
+			if c != nil {
+				err := c.Conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 250))
+				if err != nil {
+					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						continue
+					} else {
+						log.Println(err.Error())
+						return
+					}
+				}
 
-			// Close listener
-			if n.Listener != nil {
-				n.Listener.Close()
+				scanner := bufio.NewScanner(c.Conn) // Start a new scanner
+
+				// Read until ; or a single 'quit'
+				for scanner.Scan() {
+					err := scanner.Err()
+					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						continue
+					} else if err == io.EOF {
+						n.ConnectionQueueMu.Lock()
+						delete(n.ConnectionQueue, c.Conn.RemoteAddr().String())
+						n.ConnectionQueueMu.Unlock()
+						continue
+					} else {
+
+						query := scanner.Text()
+
+						result := make(map[string]interface{})
+
+						err := json.Unmarshal([]byte(query), &result)
+						if err != nil {
+							result["statusCode"] = 4000
+							result["message"] = "Unmarshalable JSON"
+							r, _ := json.Marshal(result)
+							c.Text.PrintfLine(string(r))
+							continue
+						}
+
+						result["skip"] = 0
+
+						action, ok := result["action"]
+						if ok {
+							switch {
+							case strings.EqualFold(action.(string), "delete"):
+
+								if result["limit"].(string) == "*" {
+									result["limit"] = -1
+								} else if strings.Contains(result["limit"].(string), ",") {
+									if len(strings.Split(result["limit"].(string), ",")) == 2 {
+										result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
+										if err != nil {
+											c.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
+											query = ""
+											continue
+										}
+
+										if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
+											result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+											if err != nil {
+												c.Text.PrintfLine("Something went wrong. %s", err.Error())
+												query = ""
+												continue
+											}
+										} else {
+											result["limit"] = -1
+										}
+									} else {
+										c.Text.PrintfLine("Invalid limiting value.")
+										query = ""
+										continue
+									}
+								} else {
+									result["limit"], err = strconv.Atoi(result["limit"].(string))
+									if err != nil {
+										c.Text.PrintfLine("Something went wrong. %s", err.Error())
+										query = ""
+										continue
+									}
+								}
+
+								results := n.del(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
+								r, _ := json.Marshal(results)
+								result["statusCode"] = 2000
+
+								if reflect.DeepEqual(results, nil) || len(results) == 0 {
+									result["message"] = "No documents deleted."
+								} else {
+									result["message"] = fmt.Sprintf("%d Document(s) deleted successfully.", len(results))
+								}
+
+								delete(result, "document")
+								delete(result, "collection")
+								delete(result, "action")
+								delete(result, "key")
+								delete(result, "limit")
+								delete(result, "opr")
+								delete(result, "value")
+								delete(result, "lock")
+								delete(result, "new-values")
+								delete(result, "update-keys")
+								delete(result, "conditions")
+								delete(result, "keys")
+								delete(result, "oprs")
+								delete(result, "values")
+								delete(result, "skip")
+
+								result["deleted"] = results
+
+								r, _ = json.Marshal(result)
+								c.Text.PrintfLine(string(r))
+								continue
+							case strings.EqualFold(action.(string), "select"):
+
+								if result["limit"].(string) == "*" {
+									result["limit"] = -1
+								} else if strings.Contains(result["limit"].(string), ",") {
+									if len(strings.Split(result["limit"].(string), ",")) == 2 {
+										result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
+										if err != nil {
+											c.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
+											query = ""
+											continue
+										}
+
+										if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
+											result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+											if err != nil {
+												c.Text.PrintfLine("Something went wrong. %s", err.Error())
+												query = ""
+												continue
+											}
+										} else {
+											result["limit"] = -1
+										}
+									} else {
+										c.Text.PrintfLine("Invalid limiting value.")
+										query = ""
+										continue
+									}
+								} else {
+									result["limit"], err = strconv.Atoi(result["limit"].(string))
+									if err != nil {
+										c.Text.PrintfLine("Something went wrong. %s", err.Error())
+										query = ""
+										continue
+									}
+								}
+
+								results := n.sel(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
+								r, _ := json.Marshal(results)
+								c.Text.PrintfLine(string(r))
+								continue
+							case strings.EqualFold(action.(string), "update"):
+
+								if result["limit"].(string) == "*" {
+									result["limit"] = -1
+								} else if strings.Contains(result["limit"].(string), ",") {
+									if len(strings.Split(result["limit"].(string), ",")) == 2 {
+										result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
+										if err != nil {
+											c.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
+											query = ""
+											continue
+										}
+
+										if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
+											result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+											if err != nil {
+												c.Text.PrintfLine("Something went wrong. %s", err.Error())
+												query = ""
+												continue
+											}
+										} else {
+											result["limit"] = -1
+										}
+									} else {
+										c.Text.PrintfLine("Invalid limiting value.")
+										query = ""
+										continue
+									}
+								} else {
+									result["limit"], err = strconv.Atoi(result["limit"].(string))
+									if err != nil {
+										c.Text.PrintfLine("Something went wrong. %s", err.Error())
+										query = ""
+										continue
+									}
+								}
+
+								results := n.update(result["collection"].(string), result["keys"].([]interface{}), result["values"].([]interface{}), result["update-keys"].([]interface{}), result["new-values"].([]interface{}), result["limit"].(int), result["skip"].(int), result["oprs"].([]interface{}), result["conditions"].([]interface{}))
+								r, _ := json.Marshal(results)
+
+								delete(result, "document")
+								delete(result, "collection")
+								delete(result, "action")
+								delete(result, "key")
+								delete(result, "limit")
+								delete(result, "opr")
+								delete(result, "value")
+								delete(result, "lock")
+								delete(result, "new-values")
+								delete(result, "update-keys")
+								delete(result, "conditions")
+								delete(result, "keys")
+								delete(result, "oprs")
+								delete(result, "values")
+								delete(result, "skip")
+
+								result["statusCode"] = 2000
+
+								if reflect.DeepEqual(results, nil) || len(results) == 0 {
+									result["message"] = "No documents updated."
+								} else {
+									result["message"] = fmt.Sprintf("%d Document(s) updated successfully.", len(results))
+								}
+
+								result["updated"] = results
+								r, _ = json.Marshal(result)
+
+								c.Text.PrintfLine(string(r))
+								continue
+							case strings.EqualFold(action.(string), "insert"):
+
+								collection := result["collection"]
+								doc := result["document"]
+								delete(result, "document")
+								delete(result, "collection")
+								delete(result, "action")
+								delete(result, "skip")
+
+								err := n.insert(collection.(string), doc.(map[string]interface{}), c)
+								if err != nil {
+									// Only error returned is a 4003 which means cannot insert nested object
+									result["statusCode"] = 4003
+									result["message"] = err.Error()
+									r, _ := json.Marshal(result)
+									c.Text.PrintfLine(string(r))
+									continue
+								}
+
+								continue
+							default:
+
+								result["statusCode"] = 4002
+								result["message"] = "Invalid/Non-existent action"
+								r, _ := json.Marshal(result)
+
+								c.Text.PrintfLine(string(r))
+								continue
+							}
+						} else {
+							result["statusCode"] = 4001
+							result["message"] = "Missing action"
+							r, _ := json.Marshal(result)
+
+							c.Text.PrintfLine(string(r))
+							continue
+						}
+					}
+				}
+
 			}
-
-			// Write node data to file using serialization and encryption
-			n.WriteToFile()
-			return
-		default:
-			time.Sleep(time.Millisecond * 125)
 		}
 	}
 }
@@ -2246,6 +2300,7 @@ func main() {
 
 	node.Data.Map = make(map[string][]map[string]interface{}) // Main hashmap
 	node.Data.Writers = make(map[string]*sync.RWMutex)        // Read/Write mutexes per collection
+	node.ConnectionChannel = make(chan *Connection)
 
 	// Check if .curodeconfig exists
 	if _, err := os.Stat("./.curodeconfig"); errors.Is(err, os.ErrNotExist) {
@@ -2262,6 +2317,8 @@ func main() {
 
 		node.Config.Port = 7682       // Set default CursusDB node port
 		node.Config.MaxMemory = 10240 // Max memory 10GB default
+		node.Config.ConnectionQueueWorkers = 4
+		node.Config.Host = "0.0.0.0"
 
 		fmt.Println("Node key is required.  A node key is shared with your cluster and will encrypt all your data at rest and allow for only connections that contain a correct Key: header value matching the hashed key you provide.")
 		fmt.Print("key> ")
@@ -2386,10 +2443,16 @@ func main() {
 	node.Wg = &sync.WaitGroup{} // Create wait group
 
 	node.Wg.Add(1)
-	go node.SignalListener() // Listen for signals to gracefully shutdown
+	go node.StartTCP_TLSListener() // Listen to tcp or tls cluster connections
 
 	node.Wg.Add(1)
-	go node.TCP_TLSListener() // Listen to tcp or tls cluster connections
+	go node.ConnectionEventWorker()
+
+	// Start up connection queue goroutines in which listen for events.
+	for i := node.Config.ConnectionQueueWorkers; i > 0; i-- { // Get amount of workers based on config
+		node.Wg.Add(1)
+		go node.ConnectionEventLoop(i + 1)
+	}
 
 	node.Wg.Wait() // Wait for all go routines
 
