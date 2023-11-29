@@ -211,15 +211,11 @@ delete user USERNAME;
 - ``201`` - Database user removed successfully.
 
 ## Todo
-- Comments
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
-- Fix TLS connect on node and cluster.  This is because of new event network implementation.
-
 
 ### Ports
-Default cluster port: 7681
-
-Default node port: 7682
+Default cluster port: ``7681``
+Default node port: ``7682``
 
 
 ### Notes
