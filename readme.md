@@ -4,7 +4,7 @@ CursusDB is a blazing fast open source in-memory unstructured object type distri
 The idea behind CursusDB was to create something unlimitedly scalable whilst never really slowing down.  Say you have 10 million documents stored on 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million.  This is the power of parallel search.  The Cursus system is searching say in the users collection in multiple sections of the collection simultaneously. 
 
 ### Features
-- Secured cluster and node(s) communication with shared key and TLS.
+- Secured cluster and node(s) communication with shared key and OR TLS.
 - Encrypted data at rest by default with chacha20poly1305.
 - In-memory data during runtime
 - Very fast parallel search
@@ -19,6 +19,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Unique k:v across all nodes using exclamation at end of key name ``email!``
 - Secure by default with shared key and users
 - Highly configurable
+- User permissions ``RW`` ``R``
 
 ## Cluster & Node Building & Initial Setup
 Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
