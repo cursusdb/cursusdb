@@ -2080,7 +2080,7 @@ func (curode *Curode) ConnectionEventLoop(i int) {
 
 						result["skip"] = 0
 
-						action, ok := result["action"]
+						action, ok := result["action"] // An action is insert, select, delete, ect..
 						if ok {
 							switch {
 							case strings.EqualFold(action.(string), "delete"):
@@ -2292,7 +2292,7 @@ func (curode *Curode) ConnectionEventLoop(i int) {
 							}
 						} else {
 							result["statusCode"] = 4001
-							result["message"] = "Missing action"
+							result["message"] = "Missing action" // Missing select, insert
 							r, _ := json.Marshal(result)
 
 							c.Text.PrintfLine(string(r))
