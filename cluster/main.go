@@ -44,6 +44,7 @@ type Cursus struct {
 	Config            Config                 // Cluster config
 	ContextCancel     context.CancelFunc     // For gracefully shutting down
 	Context           context.Context        // Main looped go routine context.  This is for listeners, event loops and so forth
+	TLSConfig         *tls.Config            // Cluster TLS config if TLS is true
 }
 
 // Config is the CursusDB cluster config struct
@@ -108,31 +109,16 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 			return                                         // close up go routine
 		}
 
-		//Start listening for TCP connections on the given address
-		tcpListener, err := net.ListenTCP("tcp", cursus.TCPAddr)
-		if err != nil {
-			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
-			cursus.SignalChannel <- os.Interrupt           // Send interrupt to signal channel
-			return                                         // close up go routine
-		}
-		config := &tls.Config{Certificates: []tls.Certificate{cer}}
+		cursus.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
 
-		// Create new tls listener from tcp listener
-		cursus.TCPListener = tls.NewListener(tcpListener, config).(*net.TCPListener)
-		if err != nil {
-			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
-			cursus.SignalChannel <- os.Interrupt           // Send interrupt to signal channel
-			return                                         // close up go routine
-		}
-	} else {
+	}
 
-		//Start listening for TCP connections on the given address
-		cursus.TCPListener, err = net.ListenTCP("tcp", cursus.TCPAddr)
-		if err != nil {
-			fmt.Println("StartTCP_TLSListener():", err)
-			cursus.SignalChannel <- os.Interrupt
-			return
-		}
+	// Start listening for TCP connections on the given address
+	cursus.TCPListener, err = net.ListenTCP("tcp", cursus.TCPAddr)
+	if err != nil {
+		fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
+		cursus.SignalChannel <- os.Interrupt           // Send interrupt to signal channel
+		return                                         // close up go routine
 	}
 
 	for {
@@ -152,6 +138,11 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 		conn, err := cursus.TCPListener.Accept()
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			continue
+		}
+
+		// If TLS is set to true within config let's make the connection secure
+		if cursus.Config.TLS {
+			conn = tls.Server(conn, cursus.TLSConfig)
 		}
 
 		connection := &Connection{Conn: conn, Text: textproto.NewConn(conn)}

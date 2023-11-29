@@ -65,6 +65,7 @@ type Curode struct {
 	Config            Config                 // Node config
 	ContextCancel     context.CancelFunc     // For gracefully shutting down
 	Context           context.Context        // Main looped go routine context.  This is for listeners, event loops and so forth
+	TLSConfig         *tls.Config            // Node TLS config if TLS is true
 }
 
 // Config is the cluster config struct
@@ -122,33 +123,17 @@ func (curode *Curode) StartTCP_TLSListener() {
 			return                                         // close up go routine
 		}
 
-		// Start listening for TCP connections on the given address
-		tcpListener, err := net.ListenTCP("tcp", curode.TCPAddr)
-		if err != nil {
-			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
-			curode.SignalChannel <- os.Interrupt           // Send interrupt to signal channel
-			return                                         // close up go routine
-		}
+		// Set curode TLS config
+		curode.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
 
-		// TLS config
-		config := &tls.Config{Certificates: []tls.Certificate{cer}}
+	}
 
-		// Create new TLS listener from TCP listener
-		curode.TCPListener = tls.NewListener(tcpListener, config).(*net.TCPListener)
-		if err != nil {
-			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
-			curode.SignalChannel <- os.Interrupt           // Send interrupt to signal channel
-			return                                         // close up go routine
-		}
-	} else {
-
-		// Start listening for TCP connections on the given address
-		curode.TCPListener, err = net.ListenTCP("tcp", curode.TCPAddr)
-		if err != nil {
-			fmt.Println("StartTCP_TLSListener():", err)
-			curode.SignalChannel <- os.Interrupt
-			return
-		}
+	// Start listening for TCP connections on the given address
+	curode.TCPListener, err = net.ListenTCP("tcp", curode.TCPAddr)
+	if err != nil {
+		fmt.Println("StartTCP_TLSListener():", err)
+		curode.SignalChannel <- os.Interrupt
+		return
 	}
 
 	for {
@@ -170,6 +155,11 @@ func (curode *Curode) StartTCP_TLSListener() {
 		conn, err := curode.TCPListener.Accept()
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			continue
+		}
+
+		// If TLS is set to true within config let's make the connection secure
+		if curode.Config.TLS {
+			conn = tls.Server(conn, curode.TLSConfig)
 		}
 
 		connection := &Connection{Conn: conn, Text: textproto.NewConn(conn)}
