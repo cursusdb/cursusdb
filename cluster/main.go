@@ -77,9 +77,9 @@ type NodeConnection struct {
 
 // StartTCP_TLSListener start listening on TCP or TLS on provided port
 func (cursus *Cursus) StartTCP_TLSListener() {
-	var err error
+	var err error // Local to function error variable
 
-	defer cursus.Wg.Done()
+	defer cursus.Wg.Done() // defer finishing up go routine
 
 	// Resolve the string address to a TCP address
 	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", cursus.Config.Host, cursus.Config.Port))
@@ -148,7 +148,7 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 			return
 		}
 
-		cursus.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000000))
+		cursus.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000000)) // 2000 connections a second
 		conn, err := cursus.TCPListener.Accept()
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			continue
