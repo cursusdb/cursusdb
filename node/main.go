@@ -2325,6 +2325,8 @@ func main() {
 	curode.ConnectionChannel = make(chan *Connection)
 	curode.Context, curode.ContextCancel = context.WithCancel(context.Background())
 
+	gob.Register([]interface{}(nil)) // Fixes {"k": []}
+
 	// Check if .curodeconfig exists
 	if _, err := os.Stat("./.curodeconfig"); errors.Is(err, os.ErrNotExist) {
 

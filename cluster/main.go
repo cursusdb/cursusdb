@@ -40,7 +40,7 @@ type Cursus struct {
 	ConnectionQueueMu *sync.RWMutex          // Connection queue mutex
 	ConfigMu          *sync.RWMutex          // Cluster config mutex
 	ConnectionChannel chan *Connection       // Connection channel for ConnectionEventWorker
-	NodesMu           *sync.Mutex            // Global cluster nodes mutex
+	NodesMu           *sync.RWMutex          // Global cluster nodes mutex
 	Config            Config                 // Cluster config
 	ContextCancel     context.CancelFunc     // For gracefully shutting down
 	Context           context.Context        // Main looped go routine context.  This is for listeners, event loops and so forth
@@ -146,6 +146,8 @@ func (cursus *Cursus) StartTCP_TLSListener() {
 		}
 
 		connection := &Connection{Conn: conn, Text: textproto.NewConn(conn)}
+
+		log.Println(cursus.ConnectionQueue)
 
 		//Expect Authentication: username\0password b64 encoded
 		auth, err := connection.Text.ReadLine()
@@ -474,12 +476,13 @@ func (cursus *Cursus) ConnectionEventLoop(i int) {
 				// Read until ; or a single 'quit'
 				for scanner.Scan() {
 					err := scanner.Err()
-					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-						continue
-					} else if err == io.EOF {
-						cursus.ConnectionQueueMu.Lock()
+					if err == io.EOF {
+						//cursus.ConnectionQueueMu.Lock()
+						log.Println("closed?")
 						delete(cursus.ConnectionQueue, c.Conn.RemoteAddr().String())
-						cursus.ConnectionQueueMu.Unlock()
+						//cursus.ConnectionQueueMu.Unlock()
+						goto cont6
+					} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						continue
 					} else {
 						query += scanner.Text()
@@ -1252,6 +1255,9 @@ func (cursus *Cursus) ConnectionEventLoop(i int) {
 		default:
 			time.Sleep(time.Nanosecond * 1000000)
 		}
+
+	cont6:
+		continue
 	}
 
 }
@@ -1541,7 +1547,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	cursus.NodesMu = &sync.Mutex{} // Cluster nodes mutex
+	cursus.NodesMu = &sync.RWMutex{} // Cluster nodes mutex
 
 	// If port provided as flag use it instead of whats on config file
 	flag.IntVar(&cursus.Config.Port, "port", cursus.Config.Port, "port for cluster")
