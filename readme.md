@@ -13,7 +13,12 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - JSON object insert.
 - Cluster and client authentication.
 - Unique values across all nodes based on key using "key!" on insert.
-- SQL like query language
+- SQL like query language (CDQL - Cursus Document Query Language)
+- Super low-latency
+- Custom event based connection logic
+- Unique k:v across all nodes using exclamation at end of key name ``email!``
+- Secure by default with shared key and users
+- Highly configurable
 
 ## Cluster & Node Building & Initial Setup
 Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
