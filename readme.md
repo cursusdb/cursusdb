@@ -217,7 +217,7 @@ delete user USERNAME;
 - ``201`` - Database user removed successfully.
 
 ## Todo
-- [CRITICAL] Catch EOF and remove from connections queue on cluster and node.
+- Get insertions on nodes up to par with select.
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
 
 ### Ports

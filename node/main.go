@@ -52,23 +52,30 @@ import (
 	"unicode/utf8"
 )
 
-// Curode is the CursusDB cluster nodestruct
+// Curode is the CursusDB Cluster Node struct
 type Curode struct {
-	TCPAddr           *net.TCPAddr           // Cluster TCPAddr
-	TCPListener       *net.TCPListener       // Cluster TCPListener
-	Wg                *sync.WaitGroup        // Main node wait group
-	SignalChannel     chan os.Signal         // Signal channel
-	ConnectionQueue   map[string]*Connection // Hashmap of current connections
-	ConnectionQueueMu *sync.RWMutex          // Connection queue mutex
-	ConnectionChannel chan *Connection       // Connection channel for ConnectionEventWorker
-	Data              Data                   // Node data
-	Config            Config                 // Node config
-	ContextCancel     context.CancelFunc     // For gracefully shutting down
-	Context           context.Context        // Main looped go routine context.  This is for listeners, event loops and so forth
+	TCPAddr           *net.TCPAddr           // TCPAddr represents the address of the nodes TCP end point
+	TCPListener       *net.TCPListener       // TCPListener is the node TCP network listener.
+	Wg                *sync.WaitGroup        // Node WaitGroup waits for all goroutines to finish up
+	SignalChannel     chan os.Signal         // Catch operating system signal
+	ConnectionQueue   map[string]*Connection // ConnectionQueue is a queue of connections the node is listening events from
+	ConnectionChannel chan *Connection       // Channel in which the worker sends a connection to event loops from
+	ConnectionQueueMu *sync.RWMutex          // Mutex on the hash map of connections(ConnectionQueue)
+	Config            Config                 // Node  config
 	TLSConfig         *tls.Config            // Node TLS config if TLS is true
+	ContextCancel     context.CancelFunc     // For gracefully shutting down
+	ConfigMu          *sync.RWMutex          // Node config mutex
+	Data              Data                   // Node data
+	Context           context.Context        // Main looped go routine context.  This is for listeners, event loops and so forth
 }
 
-// Config is the cluster config struct
+// Connection is the main TCP connection struct for node
+type Connection struct {
+	Text *textproto.Conn // Text is used for reading and writing
+	Conn net.Conn        // net.Conn is a generic stream-oriented network connection.
+}
+
+// Config is the CursusDB cluster config struct
 type Config struct {
 	TLSCert                string `yaml:"tls-cert"`                 // TLS cert path
 	TLSKey                 string `yaml:"tls-key"`                  // TLS cert key
@@ -86,36 +93,29 @@ type Data struct {
 	Writers map[string]*sync.RWMutex            // Collection writers
 }
 
-// Connection is a node tcp connection struct
-type Connection struct {
-	Conn net.Conn        // net Conn pointer
-	Text *textproto.Conn // Connection writer and reader
-}
-
-// StartTCP_TLSListener start listening on TCP or TLS on provided port
-func (curode *Curode) StartTCP_TLSListener() {
-	var err error
-	defer curode.Wg.Done() // defer go routine wait group done
+// StartTCPListener starts the node's TCP/TLS listener based on configurations
+func (curode Curode) StartTCPListener() {
+	var err error          // Local to go routine error variable
+	defer curode.Wg.Done() // Defer go routine completion
 
 	// Resolve the string address to a TCP address
-	curode.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", curode.Config.Host, curode.Config.Port))
-
+	curode.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", curode.Config.Host, curode.Config.Port)) // Setting configured host and port
 	if err != nil {
-		fmt.Println("StartTCP_TLSListener():", err)
-		curode.SignalChannel <- os.Interrupt
+		fmt.Println("StartTCPListener()", err.Error())
+		curode.SignalChannel <- os.Interrupt // Send signal
 		return
 	}
 
-	// If node is configured for TLS
 	if curode.Config.TLS {
 
+		// Check if TLS cert and key is provided within config
 		if curode.Config.TLSCert == "" || curode.Config.TLSKey == "" {
 			fmt.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
 			curode.SignalChannel <- os.Interrupt                           // Send interrupt to signal channel
 			return
 		}
 
-		// Load provided key and cert
+		// Load cert
 		cer, err := tls.LoadX509KeyPair(curode.Config.TLSCert, curode.Config.TLSKey)
 		if err != nil {
 			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
@@ -123,7 +123,6 @@ func (curode *Curode) StartTCP_TLSListener() {
 			return                                         // close up go routine
 		}
 
-		// Set curode TLS config
 		curode.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
 
 	}
@@ -131,27 +130,20 @@ func (curode *Curode) StartTCP_TLSListener() {
 	// Start listening for TCP connections on the given address
 	curode.TCPListener, err = net.ListenTCP("tcp", curode.TCPAddr)
 	if err != nil {
-		fmt.Println("StartTCP_TLSListener():", err)
-		curode.SignalChannel <- os.Interrupt
+		fmt.Println("StartTCPListener()", err.Error())
+		curode.SignalChannel <- os.Interrupt // Send signal
 		return
 	}
 
 	for {
 		if curode.Context.Err() != nil {
 			curode.TCPListener.Close()
-
 			// Writing in memory data to file, encrypting data as well.
 			curode.WriteToFile()
-
-			close(curode.ConnectionChannel)
-
-			for _, c := range curode.ConnectionQueue {
-				c.Conn.Close()
-			}
-
 			return
 		}
-		curode.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000000)) // 2000 connections a second
+
+		curode.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 100000))
 		conn, err := curode.TCPListener.Accept()
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			continue
@@ -162,153 +154,28 @@ func (curode *Curode) StartTCP_TLSListener() {
 			conn = tls.Server(conn, curode.TLSConfig)
 		}
 
-		connection := &Connection{Conn: conn, Text: textproto.NewConn(conn)}
-
-		// Expect Authentication: username\0password b64 encoded
-		auth, err := connection.Text.ReadLine()
-		if err != nil {
-			connection.Text.PrintfLine("%d %s", 3, "Unable to read authentication header.")
-			continue
-		}
-
-		if !strings.HasPrefix(auth, "Key:") {
-			connection.Text.PrintfLine("Invalid key.  Node expecting cluster key.")
-			continue
-		} else {
-
-			authSpl := strings.Split(auth, "Key:")
-
-			if len(authSpl) != 2 {
-				connection.Text.PrintfLine("Invalid key.  Node expecting cluster key.")
-				continue
-			}
-
-			if curode.Config.Key != strings.TrimSpace(authSpl[1]) {
-				connection.Text.PrintfLine("Invalid key.")
-				continue
-			}
-
-			connection.Text.PrintfLine("0 Authentication successful.")
-
-			// Authentication was a success, now we add connection to queue and start listening to events!
-			curode.ConnectionQueueMu.Lock()
-			curode.ConnectionQueue[conn.RemoteAddr().String()] = connection
-			curode.ConnectionQueueMu.Unlock()
-
-		}
+		curode.ConnectionQueueMu.Lock()
+		curode.ConnectionQueue[conn.RemoteAddr().String()] = &Connection{Conn: conn, Text: textproto.NewConn(conn)}
+		curode.ConnectionQueueMu.Unlock()
 
 	}
 }
 
-// CurrentMemoryUsage returns current memory usage in mb
-func (curode *Curode) CurrentMemoryUsage() uint64 {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-
-	return m.Alloc / 1024 / 1024
-}
-
-// Encrypt encrypts a temporary serialized .cdat serialized file with chacha
-func (curode *Curode) Encrypt(key, plaintext []byte) ([]byte, error) {
-	aead, err := chacha20poly1305.New(key)
-	if err != nil {
-		return nil, err
-	}
-
-	totalLen := aead.NonceSize() + len(plaintext) + aead.Overhead()
-	nonce := make([]byte, aead.NonceSize(), totalLen)
-	if _, err := rand.Read(nonce); err != nil {
-		return nil, err
-	}
-
-	return aead.Seal(nonce, nonce, plaintext, nil), nil
-}
-
-// Decrypt decrypts .cdat file to temporary serialized data file to be read
-func (curode *Curode) Decrypt(key, ciphertext []byte) ([]byte, error) {
-	aead, err := chacha20poly1305.New(key)
-	if err != nil {
-		return nil, err
-	}
-	if len(ciphertext) < aead.NonceSize() {
-		return nil, errors.New("ciphertext too short")
-	}
-
-	// Split nonce and ciphertext.
-	nonce, ciphertext := ciphertext[:aead.NonceSize()], ciphertext[aead.NonceSize():]
-
-	return aead.Open(nil, nonce, ciphertext, nil)
-}
-
-// WriteToFile will write the current node data to a .cdat file encrypted with your node key.
-func (curode *Curode) WriteToFile() {
-
-	// Create temporary .cdat which is all serialized data.  An encryption is performed after the fact to not consume memory.
-	fTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
-	if err != nil {
-		fmt.Println("WriteToFile():", err.Error())
-		os.Exit(1)
-	}
-
-	e := gob.NewEncoder(fTmp)
-
-	// Encoding the map
-	err = e.Encode(curode.Data.Map)
-	if err != nil {
-		fmt.Println("WriteToFile():", err.Error())
-		os.Exit(1)
-	}
-
-	fTmp.Close()
-
-	// After serialization encrypt temp data file
-	fTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
-	if err != nil {
-		fmt.Println("WriteToFile():", err.Error())
-		os.Exit(1)
-	}
-
-	//
-	reader := bufio.NewReader(fTmp)
-	buf := make([]byte, 1024)
-	f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
-	if err != nil {
-		fmt.Println("WriteToFile():", err.Error())
-		os.Exit(1)
-	}
-	defer f.Close()
-
+func (curode Curode) ConnectionEventWorker() {
+	defer curode.Wg.Done()
 	for {
-		read, err := reader.Read(buf)
-
-		if err != nil {
-			if err != io.EOF {
-				fmt.Println("WriteToFile():", err.Error())
-				os.Exit(1)
-			}
-			break
+		if curode.Context.Err() != nil {
+			return
 		}
-
-		if read > 0 {
-			decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
-			if err != nil {
-				fmt.Println("WriteToFile():", err.Error())
-				os.Exit(1)
+		if len(curode.ConnectionQueue) > 0 {
+			for _, c := range curode.ConnectionQueue {
+				curode.ConnectionChannel <- c
+				time.Sleep(time.Nanosecond * 100000)
 			}
-
-			cipherblock, err := curode.Encrypt(decodedKey[:], buf[:read])
-			if err != nil {
-				fmt.Println("WriteToFile():", err.Error())
-				os.Exit(1)
-			}
-
-			f.Write(cipherblock)
 		}
+		time.Sleep(time.Nanosecond * 100000)
+
 	}
-
-	os.Remove(".cdat.tmp")
-
-	fmt.Println("WriteToFile(): Completed.")
 }
 
 // Update is a function to update the nodes data map
@@ -1949,6 +1816,14 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	return objects
 }
 
+// CurrentMemoryUsage returns current memory usage in mb
+func (curode *Curode) CurrentMemoryUsage() uint64 {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	return m.Alloc / 1024 / 1024
+}
+
 // Insert into node collection
 func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, connection *Connection) error {
 	if curode.CurrentMemoryUsage() >= curode.Config.MaxMemory {
@@ -1976,9 +1851,9 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 	writeMu, ok := curode.Data.Writers[collection]
 	if ok {
 		writeMu.Lock()
-		defer writeMu.Unlock()
 
 		curode.Data.Map[collection] = append(curode.Data.Map[collection], doc)
+		writeMu.Unlock()
 	} else {
 		curode.Data.Writers[collection] = &sync.RWMutex{}
 		curode.Data.Map[collection] = append(curode.Data.Map[collection], doc)
@@ -2000,300 +1875,259 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 	return nil
 }
 
-// ConnectionEventWorker distributes connections to goroutines listening for connection events.
-func (curode *Curode) ConnectionEventWorker() {
-	defer curode.Wg.Done()
-	for {
-		if curode.Context.Err() != nil {
-			return
-		}
-
-		if len(curode.ConnectionQueue) > 0 {
-			for _, c := range curode.ConnectionQueue {
-				curode.ConnectionChannel <- c
-				recover()
-				time.Sleep(time.Nanosecond * 1000000)
-			}
-		}
-		time.Sleep(time.Nanosecond * 1000000)
-
-	}
-}
-
-// ConnectionEventLoop listens to currently connected client events
-func (curode *Curode) ConnectionEventLoop(i int) {
+func (curode Curode) ConnectionEventLoop(i int) {
 	defer curode.Wg.Done()
 	for {
 		select {
 		case c := <-curode.ConnectionChannel:
-			if curode.Context.Err() != nil {
-				return
-			}
-
 			if c != nil {
-				err := c.Conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 1000000))
+				err := c.Conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 100000))
+
+				query, err := bufio.NewReader(c.Conn).ReadBytes('\n')
 				if err != nil {
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						continue
 					} else {
-						fmt.Println(err.Error())
-						return
+						curode.ConnectionQueueMu.Lock()
+						if len(curode.ConnectionQueue) > 0 {
+							delete(curode.ConnectionQueue, c.Conn.RemoteAddr().String())
+						}
+						curode.ConnectionQueueMu.Unlock()
+						continue
 					}
 				}
 
-				scanner := bufio.NewScanner(c.Conn) // Start a new scanner
+				result := make(map[string]interface{})
 
-				// Read until ; or a single 'quit'
-				for scanner.Scan() {
-					err := scanner.Err()
-					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-						continue
-					} else if err == io.EOF {
-						curode.ConnectionQueueMu.Lock()
-						delete(curode.ConnectionQueue, c.Conn.RemoteAddr().String())
-						curode.ConnectionQueueMu.Unlock()
-						continue
-					} else {
+				err = json.Unmarshal([]byte(strings.TrimSpace(string(query))), &result)
+				if err != nil {
+					result["statusCode"] = 4000
+					result["message"] = "Unmarshalable JSON"
+					r, _ := json.Marshal(result)
+					c.Text.PrintfLine(string(r))
+					continue
+				}
 
-						query := scanner.Text()
+				result["skip"] = 0
 
-						result := make(map[string]interface{})
+				action, ok := result["action"] // An action is insert, select, delete, ect..
+				if ok {
+					switch {
+					case strings.EqualFold(action.(string), "delete"):
 
-						err := json.Unmarshal([]byte(query), &result)
-						if err != nil {
-							result["statusCode"] = 4000
-							result["message"] = "Unmarshalable JSON"
-							r, _ := json.Marshal(result)
-							c.Text.PrintfLine(string(r))
-							continue
-						}
-
-						result["skip"] = 0
-
-						action, ok := result["action"] // An action is insert, select, delete, ect..
-						if ok {
-							switch {
-							case strings.EqualFold(action.(string), "delete"):
-
-								if result["limit"].(string) == "*" {
-									result["limit"] = -1
-								} else if strings.Contains(result["limit"].(string), ",") {
-									if len(strings.Split(result["limit"].(string), ",")) == 2 {
-										result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
-										if err != nil {
-											c.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
-											query = ""
-											continue
-										}
-
-										if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
-											result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
-											if err != nil {
-												c.Text.PrintfLine("Something went wrong. %s", err.Error())
-												query = ""
-												continue
-											}
-										} else {
-											result["limit"] = -1
-										}
-									} else {
-										c.Text.PrintfLine("Invalid limiting value.")
-										query = ""
-										continue
-									}
-								} else {
-									result["limit"], err = strconv.Atoi(result["limit"].(string))
-									if err != nil {
-										c.Text.PrintfLine("Something went wrong. %s", err.Error())
-										query = ""
-										continue
-									}
-								}
-
-								results := curode.Delete(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
-								r, _ := json.Marshal(results)
-								result["statusCode"] = 2000
-
-								if reflect.DeepEqual(results, nil) || len(results) == 0 {
-									result["message"] = "No documents deleted."
-								} else {
-									result["message"] = fmt.Sprintf("%d Document(s) deleted successfully.", len(results))
-								}
-
-								delete(result, "document")
-								delete(result, "collection")
-								delete(result, "action")
-								delete(result, "key")
-								delete(result, "limit")
-								delete(result, "opr")
-								delete(result, "value")
-								delete(result, "lock")
-								delete(result, "new-values")
-								delete(result, "update-keys")
-								delete(result, "conditions")
-								delete(result, "keys")
-								delete(result, "oprs")
-								delete(result, "values")
-								delete(result, "skip")
-
-								result["deleted"] = results
-
-								r, _ = json.Marshal(result)
-								c.Text.PrintfLine(string(r))
-								continue
-							case strings.EqualFold(action.(string), "select"):
-
-								if result["limit"].(string) == "*" {
-									result["limit"] = -1
-								} else if strings.Contains(result["limit"].(string), ",") {
-									if len(strings.Split(result["limit"].(string), ",")) == 2 {
-										result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
-										if err != nil {
-											c.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
-											query = ""
-											continue
-										}
-
-										if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
-											result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
-											if err != nil {
-												c.Text.PrintfLine("Something went wrong. %s", err.Error())
-												query = ""
-												continue
-											}
-										} else {
-											result["limit"] = -1
-										}
-									} else {
-										c.Text.PrintfLine("Invalid limiting value.")
-										query = ""
-										continue
-									}
-								} else {
-									result["limit"], err = strconv.Atoi(result["limit"].(string))
-									if err != nil {
-										c.Text.PrintfLine("Something went wrong. %s", err.Error())
-										query = ""
-										continue
-									}
-								}
-
-								results := curode.Select(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
-								r, _ := json.Marshal(results)
-								c.Text.PrintfLine(string(r))
-								continue
-							case strings.EqualFold(action.(string), "update"):
-
-								if result["limit"].(string) == "*" {
-									result["limit"] = -1
-								} else if strings.Contains(result["limit"].(string), ",") {
-									if len(strings.Split(result["limit"].(string), ",")) == 2 {
-										result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
-										if err != nil {
-											c.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
-											query = ""
-											continue
-										}
-
-										if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
-											result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
-											if err != nil {
-												c.Text.PrintfLine("Something went wrong. %s", err.Error())
-												query = ""
-												continue
-											}
-										} else {
-											result["limit"] = -1
-										}
-									} else {
-										c.Text.PrintfLine("Invalid limiting value.")
-										query = ""
-										continue
-									}
-								} else {
-									result["limit"], err = strconv.Atoi(result["limit"].(string))
-									if err != nil {
-										c.Text.PrintfLine("Something went wrong. %s", err.Error())
-										query = ""
-										continue
-									}
-								}
-
-								results := curode.Update(result["collection"].(string), result["keys"].([]interface{}), result["values"].([]interface{}), result["update-keys"].([]interface{}), result["new-values"].([]interface{}), result["limit"].(int), result["skip"].(int), result["oprs"].([]interface{}), result["conditions"].([]interface{}))
-								r, _ := json.Marshal(results)
-
-								delete(result, "document")
-								delete(result, "collection")
-								delete(result, "action")
-								delete(result, "key")
-								delete(result, "limit")
-								delete(result, "opr")
-								delete(result, "value")
-								delete(result, "lock")
-								delete(result, "new-values")
-								delete(result, "update-keys")
-								delete(result, "conditions")
-								delete(result, "keys")
-								delete(result, "oprs")
-								delete(result, "values")
-								delete(result, "skip")
-
-								result["statusCode"] = 2000
-
-								if reflect.DeepEqual(results, nil) || len(results) == 0 {
-									result["message"] = "No documents updated."
-								} else {
-									result["message"] = fmt.Sprintf("%d Document(s) updated successfully.", len(results))
-								}
-
-								result["updated"] = results
-								r, _ = json.Marshal(result)
-
-								c.Text.PrintfLine(string(r))
-								continue
-							case strings.EqualFold(action.(string), "insert"):
-
-								collection := result["collection"]
-								doc := result["document"]
-								delete(result, "document")
-								delete(result, "collection")
-								delete(result, "action")
-								delete(result, "skip")
-
-								err := curode.Insert(collection.(string), doc.(map[string]interface{}), c)
+						if result["limit"].(string) == "*" {
+							result["limit"] = -1
+						} else if strings.Contains(result["limit"].(string), ",") {
+							if len(strings.Split(result["limit"].(string), ",")) == 2 {
+								result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
 								if err != nil {
-									// Only error returned is a 4003 which means cannot insert nested object
-									result["statusCode"] = 4003
-									result["message"] = err.Error()
-									r, _ := json.Marshal(result)
-									c.Text.PrintfLine(string(r))
+									c.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
 									continue
 								}
 
-								continue
-							default:
-
-								result["statusCode"] = 4002
-								result["message"] = "Invalid/Non-existent action"
-								r, _ := json.Marshal(result)
-
-								c.Text.PrintfLine(string(r))
+								if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
+									result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+									if err != nil {
+										c.Text.PrintfLine("Something went wrong. %s", err.Error())
+										continue
+									}
+								} else {
+									result["limit"] = -1
+								}
+							} else {
+								c.Text.PrintfLine("Invalid limiting value.")
 								continue
 							}
 						} else {
-							result["statusCode"] = 4001
-							result["message"] = "Missing action" // Missing select, insert
-							r, _ := json.Marshal(result)
+							result["limit"], err = strconv.Atoi(result["limit"].(string))
+							if err != nil {
+								c.Text.PrintfLine("Something went wrong. %s", err.Error())
+								continue
+							}
+						}
 
+						results := curode.Delete(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
+						r, _ := json.Marshal(results)
+						result["statusCode"] = 2000
+
+						if reflect.DeepEqual(results, nil) || len(results) == 0 {
+							result["message"] = "No documents deleted."
+						} else {
+							result["message"] = fmt.Sprintf("%d Document(s) deleted successfully.", len(results))
+						}
+
+						delete(result, "document")
+						delete(result, "collection")
+						delete(result, "action")
+						delete(result, "key")
+						delete(result, "limit")
+						delete(result, "opr")
+						delete(result, "value")
+						delete(result, "lock")
+						delete(result, "new-values")
+						delete(result, "update-keys")
+						delete(result, "conditions")
+						delete(result, "keys")
+						delete(result, "oprs")
+						delete(result, "values")
+						delete(result, "skip")
+
+						result["deleted"] = results
+
+						r, _ = json.Marshal(result)
+						c.Text.PrintfLine(string(r))
+						continue
+					case strings.EqualFold(action.(string), "select"):
+
+						if result["limit"].(string) == "*" {
+							result["limit"] = -1
+						} else if strings.Contains(result["limit"].(string), ",") {
+							if len(strings.Split(result["limit"].(string), ",")) == 2 {
+								result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
+								if err != nil {
+									c.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
+									continue
+								}
+
+								if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
+									result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+									if err != nil {
+										c.Text.PrintfLine("Something went wrong. %s", err.Error())
+										continue
+									}
+								} else {
+									result["limit"] = -1
+								}
+							} else {
+								c.Text.PrintfLine("Invalid limiting value.")
+								continue
+							}
+						} else {
+							result["limit"], err = strconv.Atoi(result["limit"].(string))
+							if err != nil {
+								c.Text.PrintfLine("Something went wrong. %s", err.Error())
+								continue
+							}
+						}
+
+						results := curode.Select(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
+						r, _ := json.Marshal(results)
+						c.Text.PrintfLine(string(r))
+						continue
+					case strings.EqualFold(action.(string), "update"):
+
+						if result["limit"].(string) == "*" {
+							result["limit"] = -1
+						} else if strings.Contains(result["limit"].(string), ",") {
+							if len(strings.Split(result["limit"].(string), ",")) == 2 {
+								result["skip"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[0])
+								if err != nil {
+									c.Text.PrintfLine("Limit skip must be an integer. %s", err.Error())
+									continue
+								}
+
+								if !strings.EqualFold(strings.Split(result["limit"].(string), ",")[1], "*") {
+									result["limit"], err = strconv.Atoi(strings.Split(result["limit"].(string), ",")[1])
+									if err != nil {
+										c.Text.PrintfLine("Something went wrong. %s", err.Error())
+										continue
+									}
+								} else {
+									result["limit"] = -1
+								}
+							} else {
+								c.Text.PrintfLine("Invalid limiting value.")
+								continue
+							}
+						} else {
+							result["limit"], err = strconv.Atoi(result["limit"].(string))
+							if err != nil {
+								c.Text.PrintfLine("Something went wrong. %s", err.Error())
+								continue
+							}
+						}
+
+						results := curode.Update(result["collection"].(string), result["keys"].([]interface{}), result["values"].([]interface{}), result["update-keys"].([]interface{}), result["new-values"].([]interface{}), result["limit"].(int), result["skip"].(int), result["oprs"].([]interface{}), result["conditions"].([]interface{}))
+						r, _ := json.Marshal(results)
+
+						delete(result, "document")
+						delete(result, "collection")
+						delete(result, "action")
+						delete(result, "key")
+						delete(result, "limit")
+						delete(result, "opr")
+						delete(result, "value")
+						delete(result, "lock")
+						delete(result, "new-values")
+						delete(result, "update-keys")
+						delete(result, "conditions")
+						delete(result, "keys")
+						delete(result, "oprs")
+						delete(result, "values")
+						delete(result, "skip")
+
+						result["statusCode"] = 2000
+
+						if reflect.DeepEqual(results, nil) || len(results) == 0 {
+							result["message"] = "No documents updated."
+						} else {
+							result["message"] = fmt.Sprintf("%d Document(s) updated successfully.", len(results))
+						}
+
+						result["updated"] = results
+						r, _ = json.Marshal(result)
+
+						c.Text.PrintfLine(string(r))
+						continue
+					case strings.EqualFold(action.(string), "insert"):
+
+						collection := result["collection"]
+						doc := result["document"]
+						delete(result, "document")
+						delete(result, "collection")
+						delete(result, "action")
+						delete(result, "skip")
+
+						err := curode.Insert(collection.(string), doc.(map[string]interface{}), c)
+						if err != nil {
+							// Only error returned is a 4003 which means cannot insert nested object
+							result["statusCode"] = 4003
+							result["message"] = err.Error()
+							r, _ := json.Marshal(result)
 							c.Text.PrintfLine(string(r))
 							continue
 						}
-					}
-				}
 
+						continue
+					default:
+
+						result["statusCode"] = 4002
+						result["message"] = "Invalid/Non-existent action"
+						r, _ := json.Marshal(result)
+
+						c.Text.PrintfLine(string(r))
+						continue
+					}
+				} else {
+					result["statusCode"] = 4001
+					result["message"] = "Missing action" // Missing select, insert
+					r, _ := json.Marshal(result)
+
+					c.Text.PrintfLine(string(r))
+					continue
+				}
 			}
+
+		default:
+			time.Sleep(time.Nanosecond * 100000)
 		}
+
+		if curode.Context.Err() != nil {
+			return
+		}
+		time.Sleep(time.Nanosecond * 100000)
 	}
+
 }
 
 // SignalListener listeners for system signals are does a graceful shutdown
@@ -2308,22 +2142,127 @@ func (curode *Curode) SignalListener() {
 			return
 
 		default:
-			time.Sleep(time.Millisecond * 1)
+			time.Sleep(time.Nanosecond * 1000000)
 		}
 	}
 }
 
-// main is the starting point for the CursusDB node software
+// Decrypt decrypts .cdat file to temporary serialized data file to be read
+func (curode *Curode) Decrypt(key, ciphertext []byte) ([]byte, error) {
+	aead, err := chacha20poly1305.New(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(ciphertext) < aead.NonceSize() {
+		return nil, errors.New("ciphertext too short")
+	}
+
+	// Split nonce and ciphertext.
+	nonce, ciphertext := ciphertext[:aead.NonceSize()], ciphertext[aead.NonceSize():]
+
+	return aead.Open(nil, nonce, ciphertext, nil)
+}
+
+// Encrypt encrypts a temporary serialized .cdat serialized file with chacha
+func (curode *Curode) Encrypt(key, plaintext []byte) ([]byte, error) {
+	aead, err := chacha20poly1305.New(key)
+	if err != nil {
+		return nil, err
+	}
+
+	totalLen := aead.NonceSize() + len(plaintext) + aead.Overhead()
+	nonce := make([]byte, aead.NonceSize(), totalLen)
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, err
+	}
+
+	return aead.Seal(nonce, nonce, plaintext, nil), nil
+}
+
+// WriteToFile will write the current node data to a .cdat file encrypted with your node key.
+func (curode *Curode) WriteToFile() {
+
+	// Create temporary .cdat which is all serialized data.  An encryption is performed after the fact to not consume memory.
+	fTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
+	if err != nil {
+		fmt.Println("WriteToFile():", err.Error())
+		os.Exit(1)
+	}
+
+	e := gob.NewEncoder(fTmp)
+
+	// Encoding the map
+	err = e.Encode(curode.Data.Map)
+	if err != nil {
+		fmt.Println("WriteToFile():", err.Error())
+		os.Exit(1)
+	}
+
+	fTmp.Close()
+
+	// After serialization encrypt temp data file
+	fTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
+	if err != nil {
+		fmt.Println("WriteToFile():", err.Error())
+		os.Exit(1)
+	}
+
+	//
+	reader := bufio.NewReader(fTmp)
+	buf := make([]byte, 1024)
+	f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
+	if err != nil {
+		fmt.Println("WriteToFile():", err.Error())
+		os.Exit(1)
+	}
+	defer f.Close()
+
+	for {
+		read, err := reader.Read(buf)
+
+		if err != nil {
+			if err != io.EOF {
+				fmt.Println("WriteToFile():", err.Error())
+				os.Exit(1)
+			}
+			break
+		}
+
+		if read > 0 {
+			decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
+			if err != nil {
+				fmt.Println("WriteToFile():", err.Error())
+				os.Exit(1)
+			}
+
+			cipherblock, err := curode.Encrypt(decodedKey[:], buf[:read])
+			if err != nil {
+				fmt.Println("WriteToFile():", err.Error())
+				os.Exit(1)
+			}
+
+			f.Write(cipherblock)
+		}
+	}
+
+	os.Remove(".cdat.tmp")
+
+	fmt.Println("WriteToFile(): Completed.")
+}
+
 func main() {
-	var curode Curode // Node type variable
+	var curode Curode
+	curode.SignalChannel = make(chan os.Signal, 1)
+	curode.Wg = &sync.WaitGroup{}
+	curode.ConnectionQueue = make(map[string]*Connection)
+	curode.ConnectionQueueMu = &sync.RWMutex{}
+	curode.ConnectionChannel = make(chan *Connection)
+	curode.Context, curode.ContextCancel = context.WithCancel(context.Background())
+
+	curode.ConfigMu = &sync.RWMutex{} // Node config mutex
 
 	curode.Data.Map = make(map[string][]map[string]interface{}) // Main hashmap
 	curode.Data.Writers = make(map[string]*sync.RWMutex)        // Read/Write mutexes per collection
-
-	curode.ConnectionQueue = make(map[string]*Connection) // Make connection queue [remote_addr_str]*Connection
-	curode.ConnectionQueueMu = &sync.RWMutex{}            // Cluster connection queue mutex
-	curode.ConnectionChannel = make(chan *Connection)
-	curode.Context, curode.ContextCancel = context.WithCancel(context.Background())
 
 	gob.Register([]interface{}(nil)) // Fixes {"k": []}
 
@@ -2471,17 +2410,19 @@ func main() {
 	go curode.SignalListener()
 
 	curode.Wg.Add(1)
-	go curode.StartTCP_TLSListener() // Listen to tcp or tls cluster connections
+	go curode.StartTCPListener()
 
 	curode.Wg.Add(1)
 	go curode.ConnectionEventWorker()
 
-	// Start up connection queue goroutines in which listen for events.
-	for i := curode.Config.ConnectionQueueWorkers; i > 0; i-- { // Get amount of workers based on config
-		curode.Wg.Add(1)
-		go curode.ConnectionEventLoop(i + 1)
-	}
+	curode.Wg.Add(1)
+	go curode.ConnectionEventLoop(1)
 
-	curode.Wg.Wait() // Wait for all go routines
+	curode.Wg.Add(1)
+	go curode.ConnectionEventLoop(2)
+
+	curode.Wg.Wait()
+
+	os.Exit(0)
 
 }
