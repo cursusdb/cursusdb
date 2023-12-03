@@ -154,9 +154,31 @@ func (curode Curode) StartTCPListener() {
 			conn = tls.Server(conn, curode.TLSConfig)
 		}
 
-		curode.ConnectionQueueMu.Lock()
-		curode.ConnectionQueue[conn.RemoteAddr().String()] = &Connection{Conn: conn, Text: textproto.NewConn(conn)}
-		curode.ConnectionQueueMu.Unlock()
+		auth, err := bufio.NewReader(conn).ReadString('\n')
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		authSpl := strings.Split(strings.TrimSpace(auth), "Key:")
+		if len(authSpl) != 2 {
+			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 1, "Missing authentication header.")))
+			conn.Close()
+			continue
+		}
+
+		if curode.Config.Key == strings.TrimSpace(authSpl[1]) {
+
+			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 0, "Authentication successful.")))
+
+			curode.ConnectionQueueMu.Lock()
+			curode.ConnectionQueue[conn.RemoteAddr().String()] = &Connection{Conn: conn, Text: textproto.NewConn(conn)}
+			curode.ConnectionQueueMu.Unlock()
+		} else {
+			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 2, "Invalid authentication value.")))
+			conn.Close()
+			continue
+		}
 
 	}
 }

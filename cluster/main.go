@@ -243,6 +243,7 @@ func (cursus Cursus) StartTCPListener() {
 		conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 0, "Authentication successful.")))
 
 		cursus.ConnectionQueueMu.Lock()
+		log.Println("ADDING", conn.RemoteAddr().String())
 		cursus.ConnectionQueue[conn.RemoteAddr().String()] = &Connection{Conn: conn, Text: textproto.NewConn(conn), User: u}
 		cursus.ConnectionQueueMu.Unlock()
 
