@@ -217,7 +217,6 @@ delete user USERNAME;
 - ``201`` - Database user removed successfully.
 
 ## Todo
-- There seems to be a glitch when using multiples of the same client.  I am testing and will fix this bit.  When connected through say the use of the native go client it works well using one client but when you spin up 2 concurrent clients the cluster and node break.  This isnt very good.  It shouldnt be too complicated of a fix.
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
 
 ### Ports

@@ -30,16 +30,17 @@ import (
 	"flag"
 	"fmt"
 	"github.com/google/uuid"
+	"io"
+	"regexp"
+
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
-	"io"
 	"log"
 	"math/rand"
 	"net"
 	"net/textproto"
 	"os"
 	"os/signal"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,19 +51,16 @@ import (
 
 // Cursus is the CursusDB Cluster struct
 type Cursus struct {
-	TCPAddr           *net.TCPAddr           // TCPAddr represents the address of the clusters TCP end point
-	TCPListener       *net.TCPListener       // TCPListener is the cluster TCP network listener.
-	Wg                *sync.WaitGroup        // Cluster WaitGroup waits for all goroutines to finish up
-	NodeConnections   []*NodeConnection      // Configured and forever connected node connections until shutdown.
-	SignalChannel     chan os.Signal         // Catch operating system signal
-	ConnectionQueue   map[string]*Connection // ConnectionQueue is a queue of connections the cluster is listening events from
-	ConnectionChannel chan *Connection       // Channel in which the worker sends a connection to event loops from
-	ConnectionQueueMu *sync.RWMutex          // Mutex on the hash map of connections(ConnectionQueue)
-	Config            Config                 // Cluster config
-	TLSConfig         *tls.Config            // Cluster TLS config if TLS is true
-	ContextCancel     context.CancelFunc     // For gracefully shutting down
-	ConfigMu          *sync.RWMutex          // Cluster config mutex
-	Context           context.Context        // Main looped go routine context.  This is for listeners, event loops and so forth
+	TCPAddr         *net.TCPAddr       // TCPAddr represents the address of the clusters TCP end point
+	TCPListener     *net.TCPListener   // TCPListener is the cluster TCP network listener.
+	Wg              *sync.WaitGroup    // Cluster WaitGroup waits for all goroutines to finish up
+	NodeConnections []*NodeConnection  // Configured and forever connected node connections until shutdown.
+	SignalChannel   chan os.Signal     // Catch operating system signal
+	Config          Config             // Cluster config
+	TLSConfig       *tls.Config        // Cluster TLS config if TLS is true
+	ContextCancel   context.CancelFunc // For gracefully shutting down
+	ConfigMu        *sync.RWMutex      // Cluster config mutex
+	Context         context.Context    // Main looped go routine context.  This is for listeners, event loops and so forth
 }
 
 // NodeConnection is the cluster connected to a node as a client.
@@ -70,29 +68,28 @@ type NodeConnection struct {
 	Conn       *net.TCPConn    // Net connection
 	SecureConn *tls.Conn       // Secure connection with TLS
 	Text       *textproto.Conn // For writing and reading
+	Mu         *sync.Mutex
 }
 
 // Connection is the main TCP connection struct for cluster
 type Connection struct {
-	Text  *textproto.Conn        // Text is used for reading and writing
-	Conn  net.Conn               // net.Conn is a generic stream-oriented network connection.
-	Query string                 // Current query being read.  Cluster reads until ;
-	User  map[string]interface{} // Authenticated user
+	Text *textproto.Conn        // Text is used for reading and writing
+	Conn net.Conn               // net.Conn is a generic stream-oriented network connection.
+	User map[string]interface{} // Authenticated user
 }
 
 // Config is the CursusDB cluster config struct
 type Config struct {
-	Nodes                  []string `yaml:"nodes"`                    // Node host/ips
-	Host                   string   `yaml:"host"`                     // Cluster host
-	TLSNode                bool     `default:"false" yaml:"tls-node"` // Connects to nodes with tls.  Nodes MUST be using tls in-order to set this to true.
-	TLSCert                string   `yaml:"tls-cert"`                 // Location to TLS cert
-	TLSKey                 string   `yaml:"tls-key"`                  // Location to TLS key
-	TLS                    bool     `default:"false" yaml:"tls"`      // TLS on or off ?
-	Port                   int      `yaml:"port"`                     // Cluster port
-	Key                    string   `yaml:"key"`                      // Shared key - this key is used to encrypt data on all nodes and to authenticate with a node.
-	Users                  []string `yaml:"users"`                    // Array of encoded users
-	NodeReaderSize         int      `yaml:"node-reader-size"`         // How large of a response buffer can the cluster handle
-	ConnectionQueueWorkers int      `yaml:"connection-queue-workers"` // Amount of go routines to listen to events.  The worker distributes connections iteratively
+	Nodes          []string `yaml:"nodes"`                    // Node host/ips
+	Host           string   `yaml:"host"`                     // Cluster host
+	TLSNode        bool     `default:"false" yaml:"tls-node"` // Connects to nodes with tls.  Nodes MUST be using tls in-order to set this to true.
+	TLSCert        string   `yaml:"tls-cert"`                 // Location to TLS cert
+	TLSKey         string   `yaml:"tls-key"`                  // Location to TLS key
+	TLS            bool     `default:"false" yaml:"tls"`      // TLS on or off ?
+	Port           int      `yaml:"port"`                     // Cluster port
+	Key            string   `yaml:"key"`                      // Shared key - this key is used to encrypt data on all nodes and to authenticate with a node.
+	Users          []string `yaml:"users"`                    // Array of encoded users
+	NodeReaderSize int      `yaml:"node-reader-size"`         // How large of a response buffer can the cluster handle
 }
 
 // ValidatePermission validates cluster permissions aka R or RW
@@ -235,17 +232,15 @@ func (cursus Cursus) StartTCPListener() {
 
 		_, u, err := cursus.AuthenticateUser(authValuesSpl[0], authValuesSpl[1])
 		if err != nil {
-			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 4, err.Error()))) // no user exists
+			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 4, err.Error()))) // no user match
 			conn.Close()
 			continue
 		}
 
 		conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 0, "Authentication successful.")))
 
-		cursus.ConnectionQueueMu.Lock()
-		log.Println("ADDING", conn.RemoteAddr().String())
-		cursus.ConnectionQueue[conn.RemoteAddr().String()] = &Connection{Conn: conn, Text: textproto.NewConn(conn), User: u}
-		cursus.ConnectionQueueMu.Unlock()
+		cursus.Wg.Add(1)
+		go cursus.HandleConnection(conn, u)
 
 	}
 }
@@ -292,824 +287,778 @@ func (cursus *Cursus) AuthenticateUser(username string, password string) (string
 	return "", nil, errors.New("No user exists")
 }
 
-func (cursus Cursus) ConnectionEventWorker() {
+func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{}) {
+	log.Println("new conn")
 	defer cursus.Wg.Done()
+	defer conn.Close()
+
+	text := textproto.NewConn(conn)
+	defer text.Close()
+
+	query := ""
+
 	for {
-		if cursus.Context.Err() != nil {
-			fmt.Println("ending ConnectionEventWorker")
+		read, err := text.ReadLine()
+		if err != nil {
 			return
 		}
-		if len(cursus.ConnectionQueue) > 0 {
-			for _, c := range cursus.ConnectionQueue {
-				cursus.ConnectionChannel <- c
-				time.Sleep(time.Nanosecond * 100000)
-			}
+		if strings.HasSuffix(strings.TrimSpace(string(read)), ";") {
+			query += strings.TrimSpace(string(read))
+		} else {
+			query += strings.TrimSpace(string(read)) + " "
 		}
-		time.Sleep(time.Nanosecond * 100000)
 
-	}
-}
+		if strings.HasPrefix(query, "quit") {
+			return
+		} else if strings.HasSuffix(query, ";") {
+			fmt.Println("QUERY:", query) // Log
 
-func (cursus Cursus) ConnectionEventLoop(i int) {
-	defer cursus.Wg.Done()
-	for {
-		select {
-		case c := <-cursus.ConnectionChannel:
-			if c != nil {
-				c.Conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 100000))
+			switch user["permission"] {
+			case "R":
+			case strings.HasPrefix(query, "update"):
+				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+				return
+			case strings.HasPrefix(query, "insert"):
+				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+				return
+			case strings.HasPrefix(query, "delete"):
+				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+				return
+			case strings.HasPrefix(query, "select"):
+				goto allowed
+				return
+			case "RW":
+				goto allowed
+			}
 
-				reader := bufio.NewReader(c.Conn)
+		allowed:
 
-				for {
-					b, err := reader.ReadBytes('\n')
-					if err != nil {
-						if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-							break
-						} else {
-							cursus.ConnectionQueueMu.Lock()
-							if len(cursus.ConnectionQueue) > 0 {
-								delete(cursus.ConnectionQueue, c.Conn.RemoteAddr().String())
+			switch {
+			// Query starts with insert
+			case strings.HasPrefix(query, "insert "):
+
+				// query is not valid
+				// must have a full prefix of 'insert into '
+				if !strings.HasPrefix(query, "insert into ") {
+					text.PrintfLine(fmt.Sprintf("%d Invalid query", 3000))
+					query = "" // Clear query variable and listen for another
+					continue
+				}
+
+				// Regex for insert i.e coll({}) in-between parenthesis
+				var insertJsonRegex = regexp.MustCompile(`\((.*?)\)`)
+
+				insertJson := insertJsonRegex.FindStringSubmatch(query) // Get insert JSON
+
+				collection := strings.ReplaceAll(strings.Split(query, "({\"")[0], "insert into ", "")
+
+				if len(insertJson) != 2 {
+					text.PrintfLine(fmt.Sprintf("%d Invalid query", 3000))
+					query = ""
+					continue
+				}
+
+				// Checking if there are any !s to process
+				var indexed = regexp.MustCompile(`"([^"]+!)"`) // "email!":
+				// "key!" means check all nodes if this key and value exists
+				// if an array "key!": [arr]
+				// Cursus will check all values within the basic array.
+
+				indexedRes := indexed.FindAllStringSubmatch(query, -1)
+				// loop over unique key value pairs checking nodes
+				// Returns error 4004 to client if a document exists
+				for _, indx := range indexedRes {
+
+					// Read json key VALUE(s)!
+					kValue := regexp.MustCompile(fmt.Sprintf(`"%s"\s*:\s*(true|false|null|[A-Za-z]|\[.*?\]|[0-9]*[.]?[0-9]+|".*?"|'.*?')`, indx[1]))
+
+					// body map for node submission
+					body := make(map[string]interface{})
+					body["action"] = "select"       // We will select 1 from all nodes with provided key value
+					body["limit"] = "1"             // limit of 1 of course
+					body["collection"] = collection // collection is provided collection
+					body["conditions"] = []string{""}
+
+					var interface1 []interface{} // In-order to have an interface slice in go you must set them up prior to using them.
+					var interface2 []interface{} // ^
+					var interface3 []interface{} // ^
+
+					body["keys"] = interface1   // We send nodes an array of keys to query
+					body["oprs"] = interface2   // We send nodes an array of oprs to use for query
+					body["values"] = interface3 // Values for query
+					// There must be equal keys, oprs, and values.
+
+					body["keys"] = append(body["keys"].([]interface{}), strings.TrimSpace(strings.TrimSuffix(indx[1], "!"))) // add key for query
+					body["oprs"] = append(body["oprs"].([]interface{}), "==")                                                // == obviously
+
+					body["lock"] = true // lock on read.  There can be many clusters reading at one time.  This helps setup uniqueness across all nodes if indexes are required
+
+					if len(kValue.FindStringSubmatch(query)) > 0 {
+						if strings.HasPrefix(kValue.FindStringSubmatch(query)[1], "[") && strings.HasSuffix(kValue.FindStringSubmatch(query)[1], "]") {
+							var arr []interface{}
+							err := json.Unmarshal([]byte(kValue.FindStringSubmatch(query)[1]), &arr)
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
+								continue
 							}
-							cursus.ConnectionQueueMu.Unlock()
-							break
-						}
-					}
 
-					if strings.HasSuffix(strings.TrimSpace(string(b)), ";") {
-						c.Query += strings.TrimSpace(string(b))
-						break
-					} else {
-						c.Query += strings.TrimSpace(string(b)) + " "
+							for _, a := range arr {
+								body["values"] = append(body["values"].([]interface{}), a)
+								body["keys"] = append(body["keys"].([]interface{}), strings.TrimSpace(strings.TrimSuffix(indx[1], "!"))) // add key for query
+								body["oprs"] = append(body["oprs"].([]interface{}), "==")
+
+							}
+
+							res := cursus.QueryNodesRet(body)
+							for _, r := range res {
+								if !strings.EqualFold(r, "null") {
+									result := make(map[string]interface{})
+									result["statusCode"] = 4004
+									result["message"] = fmt.Sprintf("Document already exists")
+
+									r, _ := json.Marshal(result)
+									text.PrintfLine(string(r))
+									query = ""
+									goto cont
+								}
+							}
+
+						} else {
+
+							body["values"] = append(body["values"].([]interface{}), kValue.FindStringSubmatch(query)[1])
+
+							if strings.EqualFold(body["values"].([]interface{})[0].(string), "null") {
+								body["values"].([]interface{})[0] = nil
+							} else if cursus.IsString(body["values"].([]interface{})[0].(string)) {
+
+								body["values"].([]interface{})[0] = strings.TrimSuffix(body["values"].([]interface{})[0].(string), "\"")
+								body["values"].([]interface{})[0] = strings.TrimPrefix(body["values"].([]interface{})[0].(string), "\"")
+								body["values"].([]interface{})[0] = strings.TrimSuffix(body["values"].([]interface{})[0].(string), "'")
+								body["values"].([]interface{})[0] = strings.TrimPrefix(body["values"].([]interface{})[0].(string), "'")
+							} else if cursus.IsBool(body["values"].([]interface{})[0].(string)) {
+
+								b, err := strconv.ParseBool(body["values"].([]interface{})[0].(string))
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+									query = ""
+									continue
+								}
+
+								body["values"].([]interface{})[0] = b
+							} else if cursus.IsFloat(body["values"].([]interface{})[0].(string)) {
+
+								f, err := strconv.ParseFloat(body["values"].([]interface{})[0].(string), 64)
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+									query = ""
+									continue
+								}
+
+								body["values"].([]interface{})[0] = f
+							} else if cursus.IsInt(body["values"].([]interface{})[0].(string)) {
+								i, err := strconv.Atoi(body["values"].([]interface{})[0].(string))
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+									query = ""
+									continue
+								}
+
+								body["values"].([]interface{})[0] = i
+
+							}
+
+							res := cursus.QueryNodesRet(body)
+
+							for _, r := range res {
+								if !strings.EqualFold(r, "null") {
+									result := make(map[string]interface{})
+									result["statusCode"] = 4004
+									result["message"] = fmt.Sprintf("Document already exists")
+
+									r, _ := json.Marshal(result)
+									text.PrintfLine(string(r))
+									query = ""
+									goto cont
+								}
+							}
+						}
 					}
 				}
 
-				query := c.Query
-				c.Query = ""
+				goto ok
 
-				if strings.HasPrefix(query, "quit") {
-					break
-				} else if strings.HasSuffix(query, ";") {
-					fmt.Println("QUERY:", query) // Log
+			cont:
+				continue
 
-					wg := &sync.WaitGroup{}
-					mu := &sync.Mutex{}
+			ok:
+				body := make(map[string]interface{})
 
-					switch c.User["permission"] {
-					case "R":
-					case strings.HasPrefix(query, "update"):
-						c.Text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+				var interface1 []interface{}
+				var interface2 []interface{}
+				var interface3 []interface{}
+				body["action"] = "select"
+				body["limit"] = "1"
+				body["collection"] = collection
+				body["conditions"] = []string{""}
+
+				body["keys"] = interface1
+				body["keys"] = append(body["keys"].([]interface{}), "$id")
+				body["oprs"] = interface2
+				body["oprs"] = append(body["oprs"].([]interface{}), "==")
+
+				body["lock"] = true // lock on read.  There can be many clusters reading at one time.  This helps setup uniqueness across all nodes
+				body["values"] = interface3
+				body["values"] = append(body["values"].([]interface{}), uuid.New().String())
+
+				res := cursus.QueryNodesRet(body)
+				for _, r := range res {
+					if !strings.EqualFold(r, "null") {
+						goto retry // $id already exists
+					}
+				}
+
+				goto insert
+			retry:
+				body["values"].([]interface{})[0] = uuid.New().String()
+
+				res = cursus.QueryNodesRet(body)
+				for _, r := range res {
+					if !strings.EqualFold(r, "null") {
+						goto retry // $id already exists
+					}
+				}
+
+				goto insert
+
+			insert:
+				cursus.InsertIntoNode(&Connection{Conn: conn, Text: text, User: user}, strings.ReplaceAll(insertJson[1], "!\":", "\":"), collection, body["values"].([]interface{})[0].(string))
+
+				query = ""
+				continue
+			case strings.HasPrefix(query, "select "):
+
+				if !strings.Contains(query, "from ") {
+					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
+					query = ""
+					continue
+				}
+
+				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
+
+				if !strings.Contains(query, "where ") {
+					body := make(map[string]interface{})
+					body["action"] = querySplit[0]
+					body["limit"] = querySplit[1]
+					body["collection"] = strings.TrimSuffix(querySplit[2], ";")
+					var interface1 []interface{}
+					var interface2 []interface{}
+					var interface3 []interface{}
+
+					body["keys"] = interface1
+					body["oprs"] = interface2
+					body["values"] = interface3
+					body["conditions"] = []string{""}
+					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
+
+					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: user}, body)
+					if err != nil {
+						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+						query = ""
 						continue
-					case strings.HasPrefix(query, "insert"):
-						c.Text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
-						continue
-					case strings.HasPrefix(query, "delete"):
-						c.Text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
-						continue
-					case strings.HasPrefix(query, "select"):
-						goto allowed
-						continue
-					case "RW":
-						goto allowed
 					}
 
-				allowed:
+					query = ""
+					continue
+				} else {
+					r, _ := regexp.Compile("[\\&&\\||]+")
+					andOrSplit := r.Split(query, -1)
+
+					body := make(map[string]interface{})
+					body["action"] = querySplit[0]
+					body["limit"] = querySplit[1]
+					body["collection"] = querySplit[2]
+					body["conditions"] = []string{"*"}
+
+					var interface1 []interface{}
+					var interface2 []interface{}
+					var interface3 []interface{}
+
+					body["keys"] = interface1
+					body["oprs"] = interface2
+					body["values"] = interface3
+
+					for k, s := range andOrSplit {
+						querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
+
+						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
+						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
+						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
+
+						switch {
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
+						default:
+							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
+							query = ""
+							goto cont2
+						}
+
+						goto skip
+
+					cont2:
+						continue
+
+					skip:
+
+						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
+
+						if k < len(andOrSplit)-1 {
+							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+
+							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
+						}
+
+						if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
+							body["values"].([]interface{})[k] = nil
+						} else if cursus.IsString(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
+						} else if cursus.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
+						} else if cursus.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
+						} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = i
+
+						}
+
+					}
+
+					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: user}, body)
+					if err != nil {
+						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+						query = ""
+						continue
+					}
+
+					query = ""
+					continue
+
+				}
+
+			case strings.HasPrefix(query, "update "):
+				// update 1 in users where name == 'jackson' set name = 'alex';
+				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
+
+				// update 1 in users where name == 'jackson' && age == 44 set name = 'alex', age = 28;
+				var setStartIndex uint
+				for seti, t := range querySplit {
+					if t == "set" {
+						setStartIndex = uint(seti)
+					}
+				}
+
+				body := make(map[string]interface{})
+				body["action"] = querySplit[0]
+				body["limit"] = querySplit[1]
+				body["collection"] = querySplit[2]
+				body["conditions"] = []string{}
+
+				var interface1 []interface{}
+				var interface2 []interface{}
+				var interface3 []interface{}
+				var interface4 []interface{}
+				var interface5 []interface{}
+				body["keys"] = interface1
+				body["oprs"] = interface2
+				body["values"] = interface3
+				body["update-keys"] = interface4
+				body["new-values"] = interface5
+
+				conditions := querySplit[4:setStartIndex]
+				newValues := strings.Split(strings.ReplaceAll(strings.Join(querySplit[setStartIndex:], " "), "set ", ""), ",")
+
+				for _, nvSet := range newValues {
+					spl := strings.Split(nvSet, " = ")
+					body["update-keys"] = append(body["update-keys"].([]interface{}), strings.TrimSpace(spl[0]))
+					var val interface{}
+					if len(spl) != 2 {
+						text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
+						query = ""
+						goto cont4
+					}
+
+					val = strings.TrimSuffix(spl[1], ";")
+					if strings.EqualFold(val.(string), "null") {
+						val = nil
+					} else if cursus.IsString(val.(string)) {
+
+						val = strings.TrimSuffix(val.(string), "\"")
+						val = strings.TrimPrefix(val.(string), "\"")
+						val = strings.TrimSuffix(val.(string), "'")
+						val = strings.TrimPrefix(val.(string), "'")
+					} else if cursus.IsBool(val.(string)) {
+
+						b, err := strconv.ParseBool(val.(string))
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
+							continue
+						}
+
+						val = b
+					} else if cursus.IsFloat(val.(string)) {
+
+						f, err := strconv.ParseFloat(val.(string), 64)
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
+							continue
+						}
+
+						val = f
+					} else if cursus.IsInt(val.(string)) {
+						i, err := strconv.Atoi(val.(string))
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
+							continue
+						}
+
+						val = i
+
+					}
+					body["new-values"] = append(body["new-values"].([]interface{}), val)
+				}
+
+				goto skip3
+
+			cont4:
+				continue
+
+			skip3:
+
+				r, _ := regexp.Compile("[\\&&\\||]+")
+				andOrSplit := r.Split(strings.Join(conditions, " "), -1)
+
+				for k, s := range andOrSplit {
+					querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
+
+					body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
+					body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
+					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
 
 					switch {
-					// Query starts with insert
-					case strings.HasPrefix(query, "insert "):
-
-						// query is not valid
-						// must have a full prefix of 'insert into '
-						if !strings.HasPrefix(query, "insert into ") {
-							c.Text.PrintfLine(fmt.Sprintf("%d Invalid query", 3000))
-							query = "" // Clear query variable and listen for another
-							continue
-						}
-
-						// Regex for insert i.e coll({}) in-between parenthesis
-						var insertJsonRegex = regexp.MustCompile(`\((.*?)\)`)
-
-						insertJson := insertJsonRegex.FindStringSubmatch(query) // Get insert JSON
-
-						collection := strings.ReplaceAll(strings.Split(query, "({\"")[0], "insert into ", "")
-
-						if len(insertJson) != 2 {
-							c.Text.PrintfLine(fmt.Sprintf("%d Invalid query", 3000))
-							query = ""
-							continue
-						}
-
-						// Checking if there are any !s to process
-						var indexed = regexp.MustCompile(`"([^"]+!)"`) // "email!":
-						// "key!" means check all nodes if this key and value exists
-						// if an array "key!": [arr]
-						// Cursus will check all values within the basic array.
-
-						indexedRes := indexed.FindAllStringSubmatch(query, -1)
-						// loop over unique key value pairs checking nodes
-						// Returns error 4004 to client if a document exists
-						for _, indx := range indexedRes {
-
-							// Read json key VALUE(s)!
-							kValue := regexp.MustCompile(fmt.Sprintf(`"%s"\s*:\s*(true|false|null|[A-Za-z]|\[.*?\]|[0-9]*[.]?[0-9]+|".*?"|'.*?')`, indx[1]))
-
-							// body map for node submission
-							body := make(map[string]interface{})
-							body["action"] = "select"       // We will select 1 from all nodes with provided key value
-							body["limit"] = "1"             // limit of 1 of course
-							body["collection"] = collection // collection is provided collection
-							body["conditions"] = []string{""}
-
-							var interface1 []interface{} // In-order to have an interface slice in go you must set them up prior to using them.
-							var interface2 []interface{} // ^
-							var interface3 []interface{} // ^
-
-							body["keys"] = interface1   // We send nodes an array of keys to query
-							body["oprs"] = interface2   // We send nodes an array of oprs to use for query
-							body["values"] = interface3 // Values for query
-							// There must be equal keys, oprs, and values.
-
-							body["keys"] = append(body["keys"].([]interface{}), strings.TrimSpace(strings.TrimSuffix(indx[1], "!"))) // add key for query
-							body["oprs"] = append(body["oprs"].([]interface{}), "==")                                                // == obviously
-
-							body["lock"] = true // lock on read.  There can be many clusters reading at one time.  This helps setup uniqueness across all nodes if indexes are required
-
-							if len(kValue.FindStringSubmatch(query)) > 0 {
-								if strings.HasPrefix(kValue.FindStringSubmatch(query)[1], "[") && strings.HasSuffix(kValue.FindStringSubmatch(query)[1], "]") {
-									var arr []interface{}
-									err := json.Unmarshal([]byte(kValue.FindStringSubmatch(query)[1]), &arr)
-									if err != nil {
-										c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-										query = ""
-										continue
-									}
-
-									for _, a := range arr {
-										body["values"] = append(body["values"].([]interface{}), a)
-										body["keys"] = append(body["keys"].([]interface{}), strings.TrimSpace(strings.TrimSuffix(indx[1], "!"))) // add key for query
-										body["oprs"] = append(body["oprs"].([]interface{}), "==")
-
-									}
-
-									res := cursus.QueryNodesRet(c, body, wg, mu)
-									for _, r := range res {
-										if !strings.EqualFold(r, "null") {
-											result := make(map[string]interface{})
-											result["statusCode"] = 4004
-											result["message"] = fmt.Sprintf("Document already exists")
-
-											r, _ := json.Marshal(result)
-											c.Text.PrintfLine(string(r))
-											query = ""
-											goto cont
-										}
-									}
-
-								} else {
-
-									body["values"] = append(body["values"].([]interface{}), kValue.FindStringSubmatch(query)[1])
-
-									if strings.EqualFold(body["values"].([]interface{})[0].(string), "null") {
-										body["values"].([]interface{})[0] = nil
-									} else if cursus.IsString(body["values"].([]interface{})[0].(string)) {
-
-										body["values"].([]interface{})[0] = strings.TrimSuffix(body["values"].([]interface{})[0].(string), "\"")
-										body["values"].([]interface{})[0] = strings.TrimPrefix(body["values"].([]interface{})[0].(string), "\"")
-										body["values"].([]interface{})[0] = strings.TrimSuffix(body["values"].([]interface{})[0].(string), "'")
-										body["values"].([]interface{})[0] = strings.TrimPrefix(body["values"].([]interface{})[0].(string), "'")
-									} else if cursus.IsBool(body["values"].([]interface{})[0].(string)) {
-
-										b, err := strconv.ParseBool(body["values"].([]interface{})[0].(string))
-										if err != nil {
-											c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-											query = ""
-											continue
-										}
-
-										body["values"].([]interface{})[0] = b
-									} else if cursus.IsFloat(body["values"].([]interface{})[0].(string)) {
-
-										f, err := strconv.ParseFloat(body["values"].([]interface{})[0].(string), 64)
-										if err != nil {
-											c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-											query = ""
-											continue
-										}
-
-										body["values"].([]interface{})[0] = f
-									} else if cursus.IsInt(body["values"].([]interface{})[0].(string)) {
-										i, err := strconv.Atoi(body["values"].([]interface{})[0].(string))
-										if err != nil {
-											c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-											query = ""
-											continue
-										}
-
-										body["values"].([]interface{})[0] = i
-
-									}
-
-									res := cursus.QueryNodesRet(c, body, wg, mu)
-
-									for _, r := range res {
-										if !strings.EqualFold(r, "null") {
-											result := make(map[string]interface{})
-											result["statusCode"] = 4004
-											result["message"] = fmt.Sprintf("Document already exists")
-
-											r, _ := json.Marshal(result)
-											c.Text.PrintfLine(string(r))
-											query = ""
-											goto cont
-										}
-									}
-								}
-							}
-						}
-
-						goto ok
-
-					cont:
-						continue
-
-					ok:
-						body := make(map[string]interface{})
-
-						var interface1 []interface{}
-						var interface2 []interface{}
-						var interface3 []interface{}
-						body["action"] = "select"
-						body["limit"] = "1"
-						body["collection"] = collection
-						body["conditions"] = []string{""}
-
-						body["keys"] = interface1
-						body["keys"] = append(body["keys"].([]interface{}), "$id")
-						body["oprs"] = interface2
-						body["oprs"] = append(body["oprs"].([]interface{}), "==")
-
-						body["lock"] = true // lock on read.  There can be many clusters reading at one time.  This helps setup uniqueness across all nodes
-						body["values"] = interface3
-						body["values"] = append(body["values"].([]interface{}), uuid.New().String())
-
-						res := cursus.QueryNodesRet(c, body, wg, mu)
-						for _, r := range res {
-							if !strings.EqualFold(r, "null") {
-								goto retry // $id already exists
-							}
-						}
-
-						goto insert
-					retry:
-						body["values"].([]interface{})[0] = uuid.New().String()
-
-						res = cursus.QueryNodesRet(c, body, wg, mu)
-						for _, r := range res {
-							if !strings.EqualFold(r, "null") {
-								goto retry // $id already exists
-							}
-						}
-
-						goto insert
-
-					insert:
-						cursus.InsertIntoNode(c, strings.ReplaceAll(insertJson[1], "!\":", "\":"), collection, body["values"].([]interface{})[0].(string))
-
-						query = ""
-						continue
-					case strings.HasPrefix(query, "select "):
-
-						if !strings.Contains(query, "from ") {
-							c.Text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
-							query = ""
-							continue
-						}
-
-						querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
-
-						if !strings.Contains(query, "where ") {
-							body := make(map[string]interface{})
-							body["action"] = querySplit[0]
-							body["limit"] = querySplit[1]
-							body["collection"] = strings.TrimSuffix(querySplit[2], ";")
-							var interface1 []interface{}
-							var interface2 []interface{}
-							var interface3 []interface{}
-
-							body["keys"] = interface1
-							body["oprs"] = interface2
-							body["values"] = interface3
-							body["conditions"] = []string{""}
-							body["lock"] = false // lock on read.  There can be many clusters reading at one time.
-
-							err := cursus.QueryNodes(c, body, wg, mu)
-							if err != nil {
-								c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-								query = ""
-								continue
-							}
-
-							query = ""
-							continue
-						} else {
-							r, _ := regexp.Compile("[\\&&\\||]+")
-							andOrSplit := r.Split(query, -1)
-
-							body := make(map[string]interface{})
-							body["action"] = querySplit[0]
-							body["limit"] = querySplit[1]
-							body["collection"] = querySplit[2]
-							body["conditions"] = []string{"*"}
-
-							var interface1 []interface{}
-							var interface2 []interface{}
-							var interface3 []interface{}
-
-							body["keys"] = interface1
-							body["oprs"] = interface2
-							body["values"] = interface3
-
-							for k, s := range andOrSplit {
-								querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
-
-								body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
-								body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
-								body["lock"] = false // lock on read.  There can be many clusters reading at one time.
-
-								switch {
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
-								default:
-									c.Text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
-									query = ""
-									goto cont2
-								}
-
-								goto skip
-
-							cont2:
-								continue
-
-							skip:
-
-								body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
-
-								if k < len(andOrSplit)-1 {
-									lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-									valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-
-									body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
-								}
-
-								if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
-									body["values"].([]interface{})[k] = nil
-								} else if cursus.IsString(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
-								} else if cursus.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-									b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
-									if err != nil {
-										c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-										query = ""
-										continue
-									}
-
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
-								} else if cursus.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-									f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
-									if err != nil {
-										c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-										query = ""
-										continue
-									}
-
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
-								} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-									i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
-									if err != nil {
-										c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-										query = ""
-										continue
-									}
-
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = i
-
-								}
-
-							}
-
-							err := cursus.QueryNodes(c, body, wg, mu)
-							if err != nil {
-								c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-								query = ""
-								continue
-							}
-
-							query = ""
-							continue
-
-						}
-
-					case strings.HasPrefix(query, "update "):
-						// update 1 in users where name == 'jackson' set name = 'alex';
-						querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
-
-						// update 1 in users where name == 'jackson' && age == 44 set name = 'alex', age = 28;
-						var setStartIndex uint
-						for seti, t := range querySplit {
-							if t == "set" {
-								setStartIndex = uint(seti)
-							}
-						}
-
-						body := make(map[string]interface{})
-						body["action"] = querySplit[0]
-						body["limit"] = querySplit[1]
-						body["collection"] = querySplit[2]
-						body["conditions"] = []string{}
-
-						var interface1 []interface{}
-						var interface2 []interface{}
-						var interface3 []interface{}
-						var interface4 []interface{}
-						var interface5 []interface{}
-						body["keys"] = interface1
-						body["oprs"] = interface2
-						body["values"] = interface3
-						body["update-keys"] = interface4
-						body["new-values"] = interface5
-
-						conditions := querySplit[4:setStartIndex]
-						newValues := strings.Split(strings.ReplaceAll(strings.Join(querySplit[setStartIndex:], " "), "set ", ""), ",")
-
-						for _, nvSet := range newValues {
-							spl := strings.Split(nvSet, " = ")
-							body["update-keys"] = append(body["update-keys"].([]interface{}), strings.TrimSpace(spl[0]))
-							var val interface{}
-							if len(spl) != 2 {
-								c.Text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
-								query = ""
-								goto cont4
-							}
-
-							val = strings.TrimSuffix(spl[1], ";")
-							if strings.EqualFold(val.(string), "null") {
-								val = nil
-							} else if cursus.IsString(val.(string)) {
-
-								val = strings.TrimSuffix(val.(string), "\"")
-								val = strings.TrimPrefix(val.(string), "\"")
-								val = strings.TrimSuffix(val.(string), "'")
-								val = strings.TrimPrefix(val.(string), "'")
-							} else if cursus.IsBool(val.(string)) {
-
-								b, err := strconv.ParseBool(val.(string))
-								if err != nil {
-									c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-									query = ""
-									continue
-								}
-
-								val = b
-							} else if cursus.IsFloat(val.(string)) {
-
-								f, err := strconv.ParseFloat(val.(string), 64)
-								if err != nil {
-									c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-									query = ""
-									continue
-								}
-
-								val = f
-							} else if cursus.IsInt(val.(string)) {
-								i, err := strconv.Atoi(val.(string))
-								if err != nil {
-									c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-									query = ""
-									continue
-								}
-
-								val = i
-
-							}
-							body["new-values"] = append(body["new-values"].([]interface{}), val)
-						}
-
-						goto skip3
-
-					cont4:
-						continue
-
-					skip3:
-
-						r, _ := regexp.Compile("[\\&&\\||]+")
-						andOrSplit := r.Split(strings.Join(conditions, " "), -1)
-
-						for k, s := range andOrSplit {
-							querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
-
-							body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
-							body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
-							body["lock"] = false // lock on read.  There can be many clusters reading at one time.
-
-							switch {
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
-							case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
-							default:
-								c.Text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
-								query = ""
-								goto cont3
-							}
-
-							goto skip2
-
-						cont3:
-							continue
-
-						skip2:
-							var val interface{}
-							val = strings.TrimSuffix(strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"), ";")
-							if strings.EqualFold(val.(string), "null") {
-								val = nil
-							} else if cursus.IsString(val.(string)) {
-
-								val = strings.TrimSuffix(val.(string), "\"")
-								val = strings.TrimPrefix(val.(string), "\"")
-								val = strings.TrimSuffix(val.(string), "'")
-								val = strings.TrimPrefix(val.(string), "'")
-							} else if cursus.IsBool(val.(string)) {
-
-								b, err := strconv.ParseBool(val.(string))
-								if err != nil {
-									c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-									query = ""
-									continue
-								}
-
-								val = b
-							} else if cursus.IsFloat(val.(string)) {
-
-								f, err := strconv.ParseFloat(val.(string), 64)
-								if err != nil {
-									c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-									query = ""
-									continue
-								}
-
-								val = f
-							} else if cursus.IsInt(val.(string)) {
-								i, err := strconv.Atoi(val.(string))
-								if err != nil {
-									c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-									query = ""
-									continue
-								}
-
-								val = i
-
-							}
-							body["values"] = append(body["values"].([]interface{}), val)
-
-							if k < len(andOrSplit)-1 {
-								lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-								valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-
-								body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(query[lindx+valLen:lindx+valLen+4]), "'", ""), "\"", "")))
-							}
-						}
-
-						err := cursus.QueryNodes(c, body, wg, mu)
-						if err != nil {
-							c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-							query = ""
-							continue
-						}
-
-						query = ""
-						continue
-
-					case strings.HasPrefix(query, "delete "):
-						// delete 1 from users where name == 'alex' && last == 'padula';
-
-						if !strings.Contains(query, "from ") {
-							c.Text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
-							query = ""
-							continue
-						}
-
-						querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
-
-						if !strings.Contains(query, "where ") {
-							body := make(map[string]interface{})
-							body["action"] = querySplit[0]
-							body["limit"] = querySplit[1]
-							body["collection"] = strings.TrimSuffix(querySplit[2], ";")
-							var interface1 []interface{}
-							var interface2 []interface{}
-							var interface3 []interface{}
-
-							body["keys"] = interface1
-							body["oprs"] = interface2
-							body["values"] = interface3
-							body["conditions"] = []string{""}
-							body["lock"] = false
-
-							err := cursus.QueryNodes(c, body, wg, mu)
-							if err != nil {
-								c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-								query = ""
-								continue
-							}
-
-							query = ""
-							continue
-						} else {
-							r, _ := regexp.Compile("[\\&&\\||]+")
-							andOrSplit := r.Split(query, -1)
-
-							body := make(map[string]interface{})
-							body["action"] = querySplit[0]
-							body["limit"] = querySplit[1]
-							body["collection"] = querySplit[2]
-							body["conditions"] = []string{"*"}
-
-							var interface1 []interface{}
-							var interface2 []interface{}
-							var interface3 []interface{}
-
-							body["keys"] = interface1
-							body["oprs"] = interface2
-							body["values"] = interface3
-
-							for k, s := range andOrSplit {
-								querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
-
-								body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
-								body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
-								body["lock"] = false // lock on read.  There can be many clusters reading at one time.
-
-								switch {
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
-								case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
-								default:
-									c.Text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
-									query = ""
-									goto cont5
-								}
-
-								goto skip4
-
-							cont5:
-								continue
-
-							skip4:
-
-								body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
-
-								if k < len(andOrSplit)-1 {
-									lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-									valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-
-									body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
-								}
-
-								if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
-									body["values"].([]interface{})[k] = nil
-								} else if cursus.IsString(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
-								} else if cursus.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-									b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
-									if err != nil {
-										c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-										query = ""
-										continue
-									}
-
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
-								} else if cursus.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-									f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
-									if err != nil {
-										c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-										query = ""
-										continue
-									}
-
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
-								} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-									i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
-									if err != nil {
-										c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-										query = ""
-										continue
-									}
-
-									body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = i
-
-								}
-
-							}
-
-							err := cursus.QueryNodes(c, body, wg, mu)
-							if err != nil {
-								c.Text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-								query = ""
-								continue
-							}
-
-							query = ""
-							continue
-
-						}
-					case strings.HasPrefix(query, "delete user "):
-						splQ := strings.Split(query, "delete user ")
-
-						if len(splQ) != 2 {
-							c.Text.PrintfLine("%d Invalid command/query.", 4005)
-							query = ""
-							continue
-						}
-
-						err := cursus.RemoveUser(splQ[1])
-						if err != nil {
-							c.Text.PrintfLine("%d Database user %s removed successfully.", 201, splQ[1])
-							query = ""
-							continue
-						}
-
-						c.Text.PrintfLine("%d No user exists with username %s.", 102, splQ[1])
-						query = ""
-						continue
-
-					case strings.HasPrefix(query, "new user "): // new user username, password, RW
-						splQ := strings.Split(query, "new user ")
-
-						// now we split at comma if value is equal to 2
-						if len(splQ) != 2 {
-							c.Text.PrintfLine("%d Invalid command/query.", 4005)
-							query = ""
-							continue
-						}
-
-						splQComma := strings.Split(splQ[1], ",")
-
-						if len(splQComma) != 3 {
-							c.Text.PrintfLine("%d Invalid command/query.", 4005)
-							query = ""
-							continue
-						}
-
-						_, _, err := cursus.NewUser(strings.TrimSpace(splQComma[0]), strings.TrimSpace(splQComma[1]), strings.TrimSpace(splQComma[2]))
-						if err != nil {
-							c.Text.PrintfLine(err.Error())
-							query = ""
-							continue
-						}
-
-						c.Text.PrintfLine(fmt.Sprintf("%d New database user %s created successfully.", 200, strings.TrimSpace(splQComma[0])))
-						query = ""
-						continue
-
+					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
+					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
+					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
+					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
+					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
+					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 					default:
-						c.Text.PrintfLine("%d Invalid command/query.", 4005)
+						text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
+						query = ""
+						goto cont3
+					}
+
+					goto skip2
+
+				cont3:
+					continue
+
+				skip2:
+					var val interface{}
+					val = strings.TrimSuffix(strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"), ";")
+					if strings.EqualFold(val.(string), "null") {
+						val = nil
+					} else if cursus.IsString(val.(string)) {
+
+						val = strings.TrimSuffix(val.(string), "\"")
+						val = strings.TrimPrefix(val.(string), "\"")
+						val = strings.TrimSuffix(val.(string), "'")
+						val = strings.TrimPrefix(val.(string), "'")
+					} else if cursus.IsBool(val.(string)) {
+
+						b, err := strconv.ParseBool(val.(string))
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
+							continue
+						}
+
+						val = b
+					} else if cursus.IsFloat(val.(string)) {
+
+						f, err := strconv.ParseFloat(val.(string), 64)
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
+							continue
+						}
+
+						val = f
+					} else if cursus.IsInt(val.(string)) {
+						i, err := strconv.Atoi(val.(string))
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
+							continue
+						}
+
+						val = i
+
+					}
+					body["values"] = append(body["values"].([]interface{}), val)
+
+					if k < len(andOrSplit)-1 {
+						lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+						valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+
+						body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(query[lindx+valLen:lindx+valLen+4]), "'", ""), "\"", "")))
+					}
+				}
+
+				err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: user}, body)
+				if err != nil {
+					text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+					query = ""
+					continue
+				}
+
+				query = ""
+				continue
+
+			case strings.HasPrefix(query, "delete "):
+				// delete 1 from users where name == 'alex' && last == 'padula';
+
+				if !strings.Contains(query, "from ") {
+					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
+					query = ""
+					continue
+				}
+
+				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
+
+				if !strings.Contains(query, "where ") {
+					body := make(map[string]interface{})
+					body["action"] = querySplit[0]
+					body["limit"] = querySplit[1]
+					body["collection"] = strings.TrimSuffix(querySplit[2], ";")
+					var interface1 []interface{}
+					var interface2 []interface{}
+					var interface3 []interface{}
+
+					body["keys"] = interface1
+					body["oprs"] = interface2
+					body["values"] = interface3
+					body["conditions"] = []string{""}
+					body["lock"] = false
+
+					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: user}, body)
+					if err != nil {
+						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
 						continue
+					}
+
+					query = ""
+					continue
+				} else {
+					r, _ := regexp.Compile("[\\&&\\||]+")
+					andOrSplit := r.Split(query, -1)
+
+					body := make(map[string]interface{})
+					body["action"] = querySplit[0]
+					body["limit"] = querySplit[1]
+					body["collection"] = querySplit[2]
+					body["conditions"] = []string{"*"}
+
+					var interface1 []interface{}
+					var interface2 []interface{}
+					var interface3 []interface{}
+
+					body["keys"] = interface1
+					body["oprs"] = interface2
+					body["values"] = interface3
+
+					for k, s := range andOrSplit {
+						querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
+
+						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
+						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
+						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
+
+						switch {
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
+						default:
+							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
+							query = ""
+							goto cont5
+						}
+
+						goto skip4
+
+					cont5:
+						continue
+
+					skip4:
+
+						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
+
+						if k < len(andOrSplit)-1 {
+							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+
+							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
+						}
+
+						if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
+							body["values"].([]interface{})[k] = nil
+						} else if cursus.IsString(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
+						} else if cursus.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
+						} else if cursus.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
+						} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = i
+
+						}
 
 					}
 
+					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: user}, body)
+					if err != nil {
+						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+						query = ""
+						continue
+					}
+
+					query = ""
+					continue
+
+				}
+			case strings.HasPrefix(query, "delete user "):
+				splQ := strings.Split(query, "delete user ")
+
+				if len(splQ) != 2 {
+					text.PrintfLine("%d Invalid command/query.", 4005)
+					query = ""
+					continue
 				}
 
+				err := cursus.RemoveUser(splQ[1])
+				if err != nil {
+					text.PrintfLine("%d Database user %s removed successfully.", 201, splQ[1])
+					query = ""
+					continue
+				}
+
+				text.PrintfLine("%d No user exists with username %s.", 102, splQ[1])
+				query = ""
+				continue
+
+			case strings.HasPrefix(query, "new user "): // new user username, password, RW
+				splQ := strings.Split(query, "new user ")
+
+				// now we split at comma if value is equal to 2
+				if len(splQ) != 2 {
+					text.PrintfLine("%d Invalid command/query.", 4005)
+					query = ""
+					continue
+				}
+
+				splQComma := strings.Split(splQ[1], ",")
+
+				if len(splQComma) != 3 {
+					text.PrintfLine("%d Invalid command/query.", 4005)
+					query = ""
+					continue
+				}
+
+				_, _, err := cursus.NewUser(strings.TrimSpace(splQComma[0]), strings.TrimSpace(splQComma[1]), strings.TrimSpace(splQComma[2]))
+				if err != nil {
+					text.PrintfLine(err.Error())
+					query = ""
+					continue
+				}
+
+				text.PrintfLine(fmt.Sprintf("%d New database user %s created successfully.", 200, strings.TrimSpace(splQComma[0])))
+				query = ""
+				continue
+
+			default:
+				text.PrintfLine("%d Invalid command/query.", 4005)
+				query = ""
+				continue
+
 			}
-		default:
-			time.Sleep(time.Nanosecond * 100000)
 		}
 
-		if cursus.Context.Err() != nil {
-			return
-		}
-		time.Sleep(time.Nanosecond * 100000)
 	}
 
 }
@@ -1196,34 +1145,32 @@ query:
 }
 
 // QueryNode queries a specific node
-func (cursus *Cursus) QueryNode(wg *sync.WaitGroup, n *NodeConnection, body []byte, responses map[string]string, mu *sync.Mutex) {
+func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGroup, mu *sync.Mutex, responses *map[string]string) {
 	defer wg.Done()
+	n.Mu.Lock()
+	defer n.Mu.Unlock()
 
 	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cursus.Config.NodeReaderSize)
+	n.Conn.SetReadDeadline(time.Now().Add(6 * time.Second))
 
 	n.Text.PrintfLine("%s", string(body))
-	err := n.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	if err != nil {
-		fmt.Println("QueryNode(): ", err.Error())
-		return
-	}
 
 	line, err := n.Text.ReadLine()
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+
 			goto unavailable
 		} else if errors.Is(err, io.EOF) {
 			goto unavailable
 		}
-		return
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
-	responses[n.Conn.RemoteAddr().String()] = line
+	(*responses)[n.Conn.RemoteAddr().String()] = line
 	return
 unavailable:
-	responses[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
+	mu.Lock()
+	defer mu.Unlock()
+	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
 }
 
 // IsString is a provided string a string literal?  "hello world"  OR 'hello world'
@@ -1267,17 +1214,19 @@ func (cursus *Cursus) IsBool(str string) bool {
 }
 
 // QueryNodes queries all nodes in parallel and gets responses
-func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interface{}, wg *sync.WaitGroup, mu *sync.Mutex) error {
+func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interface{}) error {
 	jsonString, _ := json.Marshal(body)
 
 	responses := make(map[string]string)
 
+	wgPara := &sync.WaitGroup{}
+	muPara := &sync.Mutex{}
 	for _, n := range cursus.NodeConnections {
-		wg.Add(1)
-		go cursus.QueryNode(wg, n, jsonString, responses, mu)
+		wgPara.Add(1)
+		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
 	}
 
-	wg.Wait()
+	wgPara.Wait()
 
 	for key, res := range responses {
 		connection.Text.PrintfLine("%s: %s", key, res)
@@ -1287,17 +1236,19 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 }
 
 // QueryNodesRet queries all nodes and combines responses
-func (cursus *Cursus) QueryNodesRet(connection *Connection, body map[string]interface{}, wg *sync.WaitGroup, mu *sync.Mutex) map[string]string {
+func (cursus *Cursus) QueryNodesRet(body map[string]interface{}) map[string]string {
 	jsonString, _ := json.Marshal(body)
 
 	responses := make(map[string]string)
 
+	wgPara := &sync.WaitGroup{}
+	muPara := &sync.Mutex{}
 	for _, n := range cursus.NodeConnections {
-		wg.Add(1)
-		go cursus.QueryNode(wg, n, jsonString, responses, mu)
+		wgPara.Add(1)
+		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
 	}
 
-	wg.Wait()
+	wgPara.Wait()
 
 	return responses
 }
@@ -1309,6 +1260,12 @@ func (cursus *Cursus) SignalListener() {
 		select {
 		case sig := <-cursus.SignalChannel:
 			log.Println("received", sig)
+
+			// Close node connections
+			for _, n := range cursus.NodeConnections {
+				n.Text.Close()
+				n.Conn.Close()
+			}
 			cursus.ContextCancel()
 
 			return
@@ -1331,16 +1288,14 @@ func (cursus *Cursus) ConnectToNodes() {
 			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
 			if err != nil {
 				fmt.Println("ConnectToNodes():", err.Error())
-				cursus.SignalChannel <- os.Interrupt
-				return
+				os.Exit(1)
 			}
 
 			// Dial tcp address up
 			conn, err := net.DialTCP("tcp", nil, tcpAddr)
 			if err != nil {
 				fmt.Println("ConnectToNodes():", err.Error())
-				cursus.SignalChannel <- os.Interrupt
-				return
+				os.Exit(1)
 			}
 
 			// We will keep the node connection alive until shutdown
@@ -1376,8 +1331,7 @@ func (cursus *Cursus) ConnectToNodes() {
 			} else {
 				// Report back invalid key.
 				fmt.Println("ConnectToNodes():", "Invalid key.")
-				cursus.SignalChannel <- os.Interrupt
-				return
+				os.Exit(1)
 			}
 		}
 	} else {
@@ -1387,16 +1341,14 @@ func (cursus *Cursus) ConnectToNodes() {
 			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
 			if err != nil {
 				fmt.Println("ConnectToNodes():", err.Error())
-				cursus.SignalChannel <- os.Interrupt
-				return
+				os.Exit(1)
 			}
 
 			// Dial tcp address up
 			conn, err := net.DialTCP("tcp", nil, tcpAddr)
 			if err != nil {
 				fmt.Println("ConnectToNodes():", err.Error())
-				cursus.SignalChannel <- os.Interrupt
-				return
+				os.Exit(1)
 			}
 
 			// We will keep the node connection alive until shutdown
@@ -1417,6 +1369,7 @@ func (cursus *Cursus) ConnectToNodes() {
 				// Add new node connection to slice
 				cursus.NodeConnections = append(cursus.NodeConnections, &NodeConnection{
 					Conn: conn,
+					Mu:   &sync.Mutex{},
 					Text: textproto.NewConn(conn),
 				})
 
@@ -1425,8 +1378,7 @@ func (cursus *Cursus) ConnectToNodes() {
 			} else {
 				// Report back invalid key
 				fmt.Println("ConnectToNodes():", "Invalid key.")
-				cursus.SignalChannel <- os.Interrupt
-				return
+				os.Exit(1)
 			}
 
 		}
@@ -1438,9 +1390,7 @@ func main() {
 	var cursus Cursus
 	cursus.SignalChannel = make(chan os.Signal, 1)
 	cursus.Wg = &sync.WaitGroup{}
-	cursus.ConnectionQueue = make(map[string]*Connection)
-	cursus.ConnectionQueueMu = &sync.RWMutex{}
-	cursus.ConnectionChannel = make(chan *Connection)
+
 	cursus.Context, cursus.ContextCancel = context.WithCancel(context.Background())
 
 	cursus.ConfigMu = &sync.RWMutex{} // Cluster config mutex
@@ -1451,7 +1401,6 @@ func main() {
 
 		cursus.Config.Port = 7681            // Default CursusDB cluster port
 		cursus.Config.NodeReaderSize = 10240 // Default node reader size of 10240 bytes.. Pretty large json response
-		cursus.Config.ConnectionQueueWorkers = 4
 		cursus.Config.Host = "0.0.0.0"
 
 		// Get initial database user credentials
@@ -1503,7 +1452,7 @@ func main() {
 
 		defer clusterConfigFile.Close()
 
-		// Marhsal config to yaml
+		// Marshal config to yaml
 		yamlData, err := yaml.Marshal(&cursus.Config)
 		if err != nil {
 			fmt.Println("main():", err.Error())
@@ -1520,7 +1469,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Unmarhsal config into cluster.config
+		// Unmarshal config into cluster.config
 		err = yaml.Unmarshal(clusterConfigFile, &cursus.Config)
 		if err != nil {
 			fmt.Println("main():", err.Error())
@@ -1539,24 +1488,15 @@ func main() {
 	flag.IntVar(&cursus.Config.Port, "port", cursus.Config.Port, "port for cluster")
 	flag.Parse()
 
+	cursus.ConnectToNodes()
+
 	signal.Notify(cursus.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
 
 	cursus.Wg.Add(1)
 	go cursus.SignalListener()
 
-	cursus.ConnectToNodes()
-
 	cursus.Wg.Add(1)
 	go cursus.StartTCPListener()
-
-	cursus.Wg.Add(1)
-	go cursus.ConnectionEventWorker()
-
-	cursus.Wg.Add(1)
-	go cursus.ConnectionEventLoop(1)
-
-	cursus.Wg.Add(1)
-	go cursus.ConnectionEventLoop(2)
 
 	cursus.Wg.Wait()
 
