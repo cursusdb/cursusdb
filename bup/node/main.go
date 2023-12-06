@@ -2164,7 +2164,7 @@ func (curode *Curode) SignalListener() {
 			return
 
 		default:
-			time.Sleep(time.Nanosecond * 100000)
+			time.Sleep(time.Nanosecond * 1000000)
 		}
 	}
 }

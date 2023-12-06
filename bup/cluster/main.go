@@ -194,7 +194,7 @@ func (cursus Cursus) StartTCPListener() {
 			return
 		}
 
-		cursus.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 100000))
+		cursus.TCPListener.SetDeadline(time.Now().Add(time.Millisecond * 1))
 		conn, err := cursus.TCPListener.Accept()
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			continue
