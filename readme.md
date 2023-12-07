@@ -17,7 +17,6 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Unique values across all nodes based on key using "key!" on insert.
 - SQL like query language (CDQL - Cursus Document Query Language)
 - Super low-latency
-- Custom event based connection logic
 - Unique k:v across all nodes using exclamation at end of key name ``email!``
 - Secure by default with shared key and users
 - Highly configurable
