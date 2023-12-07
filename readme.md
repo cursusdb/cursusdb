@@ -253,8 +253,10 @@ curush>select * from users;
 ^ Single node
 
 If multiple nodes you'd see a response similar to the one below
-curush>select * from users;
+
 ```
+curush>select * from users;
+
 127.0.0.1:7682: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90","age":28,"last":"Doe","name":"John"},..]
 127.0.0.1:7683: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec91","age":32,"last":"Johnson","name":"Sarah"},..]
 127.0.0.1:7684: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec92","age":42,"last":"Stint","name":"Peter"},..]
