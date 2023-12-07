@@ -143,7 +143,7 @@ func (cursus *Cursus) NewUser(username, password, permission string) (string, ma
 }
 
 // StartTCPListener starts the cluster's TCP/TLS listener based on configurations
-func (cursus Cursus) StartTCPListener() {
+func (cursus *Cursus) StartTCPListener() {
 	var err error          // Local to go routine error variable
 	defer cursus.Wg.Done() // Defer go routine completion
 

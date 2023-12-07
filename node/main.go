@@ -90,7 +90,7 @@ type Data struct {
 }
 
 // StartTCPListener starts the node's TCP/TLS listener based on configurations
-func (curode Curode) StartTCPListener() {
+func (curode *Curode) StartTCPListener() {
 	var err error          // Local to go routine error variable
 	defer curode.Wg.Done() // Defer go routine completion
 
@@ -1873,7 +1873,7 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 	return nil
 }
 
-func (curode Curode) HandleConnection(conn net.Conn) {
+func (curode *Curode) HandleConnection(conn net.Conn) {
 	defer curode.Wg.Done()
 	defer conn.Close()
 	text := textproto.NewConn(conn)
