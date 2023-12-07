@@ -1,13 +1,15 @@
 ## Cursus Database System
-CursusDB is a blazing fast open source in-memory unstructured object type distributed database management system with an SQL like query language. Capable of extremely fast parallel search, JSON inserts, and more!
+CursusDB is a blazing fast open source in-memory document type database offering security, distribution, and an SQL like query language.
 
-The idea behind CursusDB was to create something unlimitedly scalable whilst never really slowing down.  Say you have 10 million documents stored on 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million.  This is the power of parallel search.  The Cursus system is searching say in the users collection in multiple sections of the collection simultaneously. 
+https://cursusdb.com/documentation
+
+The idea behind CursusDB was to create something unlimitedly scalable whilst never really slowing down. Say you have 10 million documents stored on 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million. This is the power of parallel search. The Cursus system is searching say in the users collection in multiple sections of the collection simultaneously.
 
 ### Features
 - Secured cluster and node(s) communication with shared key and OR TLS.
 - Encrypted data at rest by default with chacha20poly1305.
 - In-memory data during runtime
-- Very fast parallel search
+- Parallel search.  Searching collections within multiple nodes simultaneously.
 - Database Users with basic (R, RW) permissions
 - Cluster and node authentication.
 - JSON object insert.
