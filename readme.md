@@ -6,7 +6,7 @@ https://cursusdb.com/documentation
 The idea behind CursusDB was to create something unlimitedly scalable whilst never really slowing down. Say you have 10 million documents stored on 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million. This is the power of parallel search. The Cursus system is searching say in the users collection in multiple sections of the collection simultaneously.
 
 ### Features
-- Secured cluster and node(s) communication with shared key and OR TLS.
+- Secured cluster and node(s) communication with shared key and TLS.
 - Encrypted data at rest by default with chacha20poly1305.
 - In-memory data during runtime
 - Parallel search.  Searching collections within multiple nodes simultaneously.
