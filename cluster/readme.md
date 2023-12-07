@@ -1,16 +1,6 @@
 ## cursus
 The CursusDB cluster.
 
-#### Notes
-It seems 
-``` 
-sysctl net.ipv4.tcp_max_syn_backlog
-```
-Need's to be set to at least 
-``` 
-sysctl net.ipv4.tcp_max_syn_backlog=4096
-```
-
 #### Default port is 7681
 
 To run a cluster 

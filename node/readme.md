@@ -3,8 +3,6 @@
 
 ## Building
 
-VERSION to be replaced with V for example ``v1.0.1``
-
 ### Darwin / MacOS
 
 - ``env GOOS=darwin GOARCH=amd64 go build -o bin/macos-darwin/amd64/curode && tar -czf bin/macos-darwin/amd64/curode-VERSION-amd64.tar.gz -C bin/macos-darwin/amd64/ $(ls  bin/macos-darwin/amd64/)``
