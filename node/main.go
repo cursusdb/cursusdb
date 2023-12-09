@@ -193,7 +193,7 @@ func (curode *Curode) StartTCPListener() {
 		auth, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
 			curode.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
-			return
+			continue
 		}
 
 		authSpl := strings.Split(strings.TrimSpace(auth), "Key:")
@@ -1943,7 +1943,7 @@ func (curode *Curode) HandleConnection(conn net.Conn) {
 
 		query, err := text.ReadLine()
 		if err != nil {
-			return
+			continue
 		}
 
 		result := make(map[string]interface{})
