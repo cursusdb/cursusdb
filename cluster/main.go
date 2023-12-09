@@ -302,19 +302,19 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 	query := "" // Current client query
 
+	go func(c net.Conn) {
+		for {
+			if cursus.Context.Err() != nil { // When receiving a signal we return.0
+				c.Close()
+				return
+			}
+			time.Sleep(time.Nanosecond * 100000)
+		}
+	}(conn)
+
 	for {
 		if cursus.Context.Err() != nil { // When receiving a signal we return.
 			return
-		}
-
-		// If nothing read within 1 second continue
-		// This assists in shutting down the cluster gracefully
-		err := conn.SetReadDeadline(time.Now().Add(time.Second * 5))
-		if err != nil {
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				continue
-			}
-			continue
 		}
 
 		// Read line

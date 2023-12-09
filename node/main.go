@@ -1879,6 +1879,16 @@ func (curode *Curode) HandleConnection(conn net.Conn) {
 	text := textproto.NewConn(conn)
 	defer text.Close()
 
+	go func(c net.Conn) {
+		for {
+			if curode.Context.Err() != nil { // When receiving a signal we return.0
+				c.Close()
+				return
+			}
+			time.Sleep(time.Nanosecond * 100000)
+		}
+	}(conn)
+
 	for {
 		if curode.Context.Err() != nil {
 			return
