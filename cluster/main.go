@@ -354,6 +354,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 			}
 
 		continueOn: // User isn't allowed to use action but continue listening for something else
+			query = ""
 			continue
 
 		allowed:
@@ -514,6 +515,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				goto ok
 
 			cont:
+				query = ""
 				continue
 
 			ok:
@@ -636,6 +638,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						goto skip
 
 					cont2:
+						query = ""
 						continue
 
 					skip:
@@ -791,6 +794,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				goto skip3
 
 			cont4:
+				query = ""
 				continue
 
 			skip3:
@@ -799,8 +803,8 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				andOrSplit := r.Split(strings.Join(conditions, " "), -1)
 
 				for k, s := range andOrSplit {
-					querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
-
+					re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
+					querySplitNested := re.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), "where", ""), "from", "")), -1)
 					body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
 					body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
 					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
@@ -821,6 +825,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					goto skip2
 
 				cont3:
+					query = ""
 					continue
 
 				skip2:
@@ -939,12 +944,16 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					body["values"] = interface3
 
 					for k, s := range andOrSplit {
-						querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
+						re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
+						querySplitNested := re.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), "where", ""), "from", "")), -1)
+						//querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
+
+						log.Println("WTF", querySplitNested)
 
 						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
 						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
 						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
-
+						log.Println("DUDE", body["oprs"].([]interface{})[k].(string))
 						switch {
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
@@ -961,12 +970,13 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						goto skip4
 
 					cont5:
+						query = ""
 						continue
 
 					skip4:
 
 						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
-
+						log.Println("WTF2", body["values"])
 						if k < len(andOrSplit)-1 {
 							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
 							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
@@ -1014,6 +1024,12 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 						}
 
+					}
+
+					if len(body["values"].([]interface{})) == 0 {
+						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, "No values found."))
+						query = ""
+						continue
 					}
 
 					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: user}, body)
@@ -1082,6 +1098,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				continue
 
 			}
+
 		}
 
 	}

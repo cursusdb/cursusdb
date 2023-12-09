@@ -1956,8 +1956,6 @@ func (curode *Curode) HandleConnection(conn net.Conn) {
 					}
 				}
 
-				log.Println("WTF", result)
-
 				results := curode.Delete(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
 				r, _ := json.Marshal(results)
 				result["statusCode"] = 2000
