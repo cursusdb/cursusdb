@@ -1267,6 +1267,10 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 						curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
 						curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
 						curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
+						// if no entries in collection, remove it.
+						if len(curode.Data.Map[collection]) == 0 {
+							delete(curode.Data.Map, collection)
+						}
 						curode.Data.Writers[collection].Unlock()
 					}
 				}
@@ -1282,6 +1286,11 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 				curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
 				curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
 				curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
+
+				// if no entries in collection, remove it.
+				if len(curode.Data.Map[collection]) == 0 {
+					delete(curode.Data.Map, collection)
+				}
 				curode.Data.Writers[collection].Unlock()
 			}
 		}
@@ -2391,6 +2400,7 @@ func main() {
 		for c, _ := range curode.Data.Map {
 			curode.Data.Writers[c] = &sync.RWMutex{}
 		}
+		log.Println("Collection mutexes created.")
 	}
 
 	// Parse flags
