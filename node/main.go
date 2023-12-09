@@ -1277,6 +1277,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 		for _, i := range objects {
 			if i < uint64(len(curode.Data.Map[collection])) {
 				deleted = append(deleted, curode.Data.Map[collection][i])
+
 				curode.Data.Writers[collection].Lock()
 				curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
 				curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
@@ -1948,6 +1949,8 @@ func (curode *Curode) HandleConnection(conn net.Conn) {
 					}
 				}
 
+				log.Println("WTF", result)
+
 				results := curode.Delete(result["collection"].(string), result["keys"], result["values"], result["limit"].(int), result["skip"].(int), result["oprs"], result["lock"].(bool), result["conditions"].([]interface{}))
 				r, _ := json.Marshal(results)
 				result["statusCode"] = 2000
@@ -2383,6 +2386,11 @@ func main() {
 		fDFTmp.Close()
 
 		os.Remove(".cdat.tmp") // Remove temp
+
+		// Setup collection mutexes
+		for c, _ := range curode.Data.Map {
+			curode.Data.Writers[c] = &sync.RWMutex{}
+		}
 	}
 
 	// Parse flags
