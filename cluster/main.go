@@ -1322,10 +1322,15 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 	var response string
 	for key, res := range responses {
-		response += fmt.Sprintf("%s: %s\r\n", key, res)
+		if key != responses[cursus.Config.Nodes[len(cursus.Config.Nodes)-1]] {
+
+			response += fmt.Sprintf(`{"%s": %s},`, key, res)
+		} else {
+			response += fmt.Sprintf(`{"%s": %s}`, key, res)
+		}
 	}
 
-	connection.Text.PrintfLine(response)
+	connection.Text.PrintfLine(fmt.Sprintf("[%s]", response))
 
 	return nil
 }
