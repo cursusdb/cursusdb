@@ -1884,7 +1884,7 @@ func (curode *Curode) HandleConnection(conn net.Conn) {
 			return
 		}
 
-		err := conn.SetReadDeadline(time.Now().Add(time.Second * 1))
+		err := conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				continue

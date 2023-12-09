@@ -309,7 +309,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 		// If nothing read within 1 second continue
 		// This assists in shutting down the cluster gracefully
-		err := conn.SetReadDeadline(time.Now().Add(time.Second * 1))
+		err := conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				continue
