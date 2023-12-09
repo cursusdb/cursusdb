@@ -1320,9 +1320,12 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 	wgPara.Wait()
 
+	var response string
 	for key, res := range responses {
-		connection.Text.PrintfLine("%s: %s", key, res)
+		response += fmt.Sprintf("%s: %s\r\n", key, res)
 	}
+
+	connection.Text.PrintfLine(response)
 
 	return nil
 }
