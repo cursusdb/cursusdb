@@ -208,13 +208,15 @@ func (cursus *Cursus) StartTCPListener() {
 			return
 		}
 
+		// Split AT -> Authentication:
 		authSpl := strings.Split(strings.TrimSpace(auth), "Authentication:")
-		if len(authSpl) != 2 {
+		if len(authSpl) != 2 { // length not equal 2?  not good return error
 			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 1, "Missing authentication header.")))
 			conn.Close()
 			continue
 		}
 
+		// Get auth value and decode.
 		authValues, err := base64.StdEncoding.DecodeString(strings.TrimSpace(authSpl[1]))
 		if err != nil {
 			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 2, "Invalid authentication value.")))
@@ -222,6 +224,7 @@ func (cursus *Cursus) StartTCPListener() {
 			continue
 		}
 
+		// Split AT \0 and get username and password
 		authValuesSpl := strings.Split(string(authValues), "\\0")
 		if len(authValuesSpl) != 2 {
 			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 2, "Invalid authentication value.")))
@@ -229,6 +232,7 @@ func (cursus *Cursus) StartTCPListener() {
 			continue
 		}
 
+		// Authenticate user
 		_, u, err := cursus.AuthenticateUser(authValuesSpl[0], authValuesSpl[1])
 		if err != nil {
 			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 4, err.Error()))) // no user match
@@ -236,10 +240,12 @@ func (cursus *Cursus) StartTCPListener() {
 			continue
 		}
 
+		// Write back to client that authentication was a success
 		conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 0, "Authentication successful.")))
 
+		// Add to cluster waitgroup
 		cursus.Wg.Add(1)
-		go cursus.HandleConnection(conn, u)
+		go cursus.HandleConnection(conn, u) // Handle connection in go routine
 
 	}
 }
@@ -286,6 +292,7 @@ func (cursus *Cursus) AuthenticateUser(username string, password string) (string
 	return "", nil, errors.New("No user exists")
 }
 
+// HandleConnection handles a client connection after authentication.  A client provides queries and this method will read up to a semi-colon then forming JSON the node will understand and sending it off to every node.
 func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{}) {
 	log.Println("new conn")
 	defer cursus.Wg.Done()
