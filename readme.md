@@ -217,20 +217,14 @@ delete user USERNAME;
 - ``200`` - New database user created successfully.
 - ``201`` - Database user removed successfully.
 
-## Todo
-- Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
-- Log file for node and cluster
-
 ### Ports
 Default cluster port: ``7681``
 Default node port: ``7682``
 
-
-### Notes
-If you write ``select 1 from users;``  This will select 1 from each node.  Therefore on your backend when calling Cursus, JOIN your results into one result.  If you have 4 nodes and you select 1 well you'll get 4 results if one record matches your query on each node.
-
-A cluster should be public where nodes should be private to the cluster.
-A node can have a private IP whereas the cluster has an address that is external and can be reached by outside applications for example
+## Logging 
+Logs for the CursusDB cluster and node are found where you launch your binaries.
+Cluster: ``cursus.log``
+Node: ``curode.log``
 
 #### Example using curush querying cluster
 ``` 
@@ -263,3 +257,12 @@ curush>select * from users;
 127.0.0.1:7684: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec92","age":42,"last":"Stint","name":"Peter"},..]
 
 ```
+
+## Todo
+- Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
+
+### Notes
+If you write ``select 1 from users;``  This will select 1 from each node.  Therefore on your backend when calling Cursus, JOIN your results into one result.  If you have 4 nodes and you select 1 well you'll get 4 results if one record matches your query on each node.
+
+A cluster should be public where nodes should be private to the cluster.
+A node can have a private IP whereas the cluster has an address that is external and can be reached by outside applications for example
