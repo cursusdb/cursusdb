@@ -2,8 +2,8 @@
 Description=CursusDB Cluster Service
 
 [Service]
-WorkingDirectory=~/cursus
-ExecStart=cursus
+WorkingDirectory=/opt/cursusdb
+ExecStart=/opt/cursusdb/cursus
 
 Restart=always
 RestartSec=3

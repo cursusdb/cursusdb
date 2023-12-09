@@ -1,9 +1,9 @@
 [Unit]
-Description=CursusDB Cluster Service
+Description=CursusDB Cluster Node Service
 
 [Service]
-WorkingDirectory=~/curode
-ExecStart=curode
+WorkingDirectory=/opt/cursusdb
+ExecStart=/opt/cursusdb/curode
 
 Restart=always
 RestartSec=3

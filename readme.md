@@ -238,7 +238,7 @@ Logs can have either level:
 - WARN
 
 ``` 
-[INFO][2023-12-09 05:28:36.119141987 +0000 UTC] Log truncated at 5
+[INFO][2023-12-09 05:28:36.119141987 +0000 UTC] Log truncated at 1000
 [INFO][2023-12-09 05:28:36.119159073 +0000 UTC] Collection mutexes created.
 [INFO][2023-12-09 05:28:37.115749244 +0000 UTC] Received signal interrupt.  Starting shutdown.
 [INFO][2023-12-09 05:28:37.115770678 +0000 UTC] Starting to write node data to file.
