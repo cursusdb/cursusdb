@@ -220,7 +220,6 @@ delete user USERNAME;
 ## Todo
 - ** There is an issue with the update and delete actions.  The cluster is not passing values it seems, working on this now.
 - On shutdown of cluster the open client connections should be closed like is done for node connections.
-- 
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
 
 ### Ports
