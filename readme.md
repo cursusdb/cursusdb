@@ -226,6 +226,26 @@ Logs for the CursusDB cluster and node are found where you launch your binaries.
 Cluster: ``cursus.log``
 Node: ``curode.log``
 
+Within your yaml configs you can set ``log-max-lines`` this option will tell either node or cluster when to truncate(clear up) the log file(s).
+
+### How are logs are formatted?
+[LEVEL][UTC DATETIME] DATA
+
+Logs can have either level:
+- ERROR
+- INFO
+- FATAL
+- WARN
+
+``` 
+[INFO][2023-12-09 05:28:36.119141987 +0000 UTC] Log truncated at 5
+[INFO][2023-12-09 05:28:36.119159073 +0000 UTC] Collection mutexes created.
+[INFO][2023-12-09 05:28:37.115749244 +0000 UTC] Received signal interrupt.  Starting shutdown.
+[INFO][2023-12-09 05:28:37.115770678 +0000 UTC] Starting to write node data to file.
+[INFO][2023-12-09 05:28:37.115928288 +0000 UTC] WriteToFile(): Node data written to file successfully.
+
+```
+
 #### Example using curush querying cluster
 ``` 
 ./curush -host 0.0.0.0

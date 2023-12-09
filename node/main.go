@@ -67,12 +67,6 @@ type Curode struct {
 	LogFile       *os.File           // Opened log file
 }
 
-// Connection is the main TCP connection struct for node
-type Connection struct {
-	Text *textproto.Conn // Text is used for reading and writing
-	Conn net.Conn        // net.Conn is a generic stream-oriented network connection.
-}
-
 // Config is the CursusDB cluster config struct
 type Config struct {
 	TLSCert     string `yaml:"tls-cert"`            // TLS cert path
