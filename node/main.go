@@ -134,8 +134,6 @@ func (curode *Curode) StartTCPListener() {
 	for {
 		if curode.Context.Err() != nil {
 			curode.TCPListener.Close()
-			// Writing in memory data to file, encrypting data as well.
-			curode.WriteToFile()
 			return
 		}
 
@@ -2142,7 +2140,8 @@ func (curode *Curode) SignalListener() {
 		case sig := <-curode.SignalChannel:
 			log.Println("received", sig)
 			curode.ContextCancel()
-
+			// Writing in memory data to file, encrypting data as well.
+			curode.WriteToFile()
 			return
 
 		default:
