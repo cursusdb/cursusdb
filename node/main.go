@@ -36,7 +36,6 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
-	"log"
 	"net"
 	"net/textproto"
 	"os"
@@ -64,6 +63,8 @@ type Curode struct {
 	ConfigMu      *sync.RWMutex      // Node config mutex
 	Data          Data               // Node data
 	Context       context.Context    // Main looped go routine context.  This is for listeners, event loops and so forth
+	LogMu         *sync.Mutex        // Log file mutex
+	LogFile       *os.File           // Opened log file
 }
 
 // Connection is the main TCP connection struct for node
@@ -74,19 +75,66 @@ type Connection struct {
 
 // Config is the CursusDB cluster config struct
 type Config struct {
-	TLSCert   string `yaml:"tls-cert"`            // TLS cert path
-	TLSKey    string `yaml:"tls-key"`             // TLS cert key
-	Host      string `yaml:"host"`                // Node host i.e 0.0.0.0 usually
-	TLS       bool   `default:"false" yaml:"tls"` // Use TLS?
-	Port      int    `yaml:"port"`                // Node port
-	Key       string `yaml:"key"`                 // Key for a cluster to communicate with the node and also used to resting data.
-	MaxMemory uint64 `yaml:"max-memory"`          // Default 10240MB = 10 GB (1024 * 10)
+	TLSCert     string `yaml:"tls-cert"`            // TLS cert path
+	TLSKey      string `yaml:"tls-key"`             // TLS cert key
+	Host        string `yaml:"host"`                // Node host i.e 0.0.0.0 usually
+	TLS         bool   `default:"false" yaml:"tls"` // Use TLS?
+	Port        int    `yaml:"port"`                // Node port
+	Key         string `yaml:"key"`                 // Key for a cluster to communicate with the node and also used to resting data.
+	MaxMemory   uint64 `yaml:"max-memory"`          // Default 10240MB = 10 GB (1024 * 10)
+	LogMaxLines int    `yaml:"log-max-lines"`       // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
 }
 
 // Data is the node data struct
 type Data struct {
 	Map     map[string][]map[string]interface{} // Data hash map
 	Writers map[string]*sync.RWMutex            // Collection writers
+}
+
+// Printl prints a line to the curode.log file also will clear at LogMaxLines.
+// Appropriate levels: ERROR, INFO, FATAL, WARN
+func (curode *Curode) Printl(data string, level string) {
+	if curode.CountLog(curode.LogFile)+1 >= curode.Config.LogMaxLines {
+		curode.LogMu.Lock()
+		defer curode.LogMu.Unlock()
+		curode.LogFile.Close()
+		err := os.Truncate(curode.LogFile.Name(), 0)
+		if err != nil {
+			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
+			return
+		}
+
+		curode.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
+		if err != nil {
+			return
+		}
+		curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), fmt.Sprintf("Log truncated at %d", curode.Config.LogMaxLines))))
+		curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
+	} else {
+		curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
+	}
+
+}
+
+// CountLog counts amount of lines within log file
+func (curode *Curode) CountLog(r io.Reader) int {
+	buf := make([]byte, 32*1024)
+	count := 0
+	lineSep := []byte{'\n'}
+
+	for {
+		c, err := r.Read(buf)
+		count += bytes.Count(buf[:c], lineSep)
+
+		switch {
+		case err == io.EOF:
+			return count
+
+		case err != nil:
+			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
+			return 99999999
+		}
+	}
 }
 
 // StartTCPListener starts the node's TCP/TLS listener based on configurations
@@ -97,7 +145,7 @@ func (curode *Curode) StartTCPListener() {
 	// Resolve the string address to a TCP address
 	curode.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", curode.Config.Host, curode.Config.Port)) // Setting configured host and port
 	if err != nil {
-		fmt.Println("StartTCPListener()", err.Error())
+		curode.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
 		curode.SignalChannel <- os.Interrupt // Send signal
 		return
 	}
@@ -106,17 +154,17 @@ func (curode *Curode) StartTCPListener() {
 
 		// Check if TLS cert and key is provided within config
 		if curode.Config.TLSCert == "" || curode.Config.TLSKey == "" {
-			fmt.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
-			curode.SignalChannel <- os.Interrupt                           // Send interrupt to signal channel
+			curode.Printl(fmt.Sprintf("TCP_TLSListener(): %s", "TLS cert and key missing."), "ERROR")
+			curode.SignalChannel <- os.Interrupt // Send interrupt to signal channel
 			return
 		}
 
 		// Load cert
 		cer, err := tls.LoadX509KeyPair(curode.Config.TLSCert, curode.Config.TLSKey)
 		if err != nil {
-			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
-			curode.SignalChannel <- os.Interrupt           // Send interrupt to signal channel
-			return                                         // close up go routine
+			curode.Printl(fmt.Sprintf("TCP_TLSListener(): %s", err.Error()), "ERROR")
+			curode.SignalChannel <- os.Interrupt // Send interrupt to signal channel
+			return                               // close up go routine
 		}
 
 		curode.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
@@ -126,7 +174,7 @@ func (curode *Curode) StartTCPListener() {
 	// Start listening for TCP connections on the given address
 	curode.TCPListener, err = net.ListenTCP("tcp", curode.TCPAddr)
 	if err != nil {
-		fmt.Println("StartTCPListener()", err.Error())
+		curode.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
 		curode.SignalChannel <- os.Interrupt // Send signal
 		return
 	}
@@ -150,7 +198,7 @@ func (curode *Curode) StartTCPListener() {
 
 		auth, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
-			fmt.Println(err)
+			curode.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
 			return
 		}
 
@@ -203,7 +251,6 @@ func (curode *Curode) Update(collection string, ks []interface{}, vs []interface
 			for m, k := range ks {
 
 				if oprs[m] == "" {
-					fmt.Sprintf("Query operator required.")
 					return nil
 				}
 
@@ -755,7 +802,6 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 			for m, k := range ks.([]interface{}) {
 
 				if oprs.([]interface{})[m] == "" {
-					fmt.Sprintf("Query operator required.")
 					return nil
 				}
 
@@ -1342,7 +1388,6 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 			for m, k := range ks.([]interface{}) {
 
 				if oprs.([]interface{})[m] == "" {
-					fmt.Sprintf("Query operator required.")
 					return nil
 				}
 
@@ -2136,10 +2181,11 @@ func (curode *Curode) SignalListener() {
 	for {
 		select {
 		case sig := <-curode.SignalChannel:
-			log.Println("received", sig)
+			curode.Printl(fmt.Sprintf("Received signal %s.  Starting shutdown.", sig), "INFO")
 			curode.ContextCancel()
 			// Writing in memory data to file, encrypting data as well.
 			curode.WriteToFile()
+			curode.LogFile.Close()
 			return
 
 		default:
@@ -2182,12 +2228,14 @@ func (curode *Curode) Encrypt(key, plaintext []byte) ([]byte, error) {
 
 // WriteToFile will write the current node data to a .cdat file encrypted with your node key.
 func (curode *Curode) WriteToFile() {
+	curode.Printl(fmt.Sprintf("Starting to write node data to file."), "INFO")
 
 	// Create temporary .cdat which is all serialized data.  An encryption is performed after the fact to not consume memory.
 	fTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
 	if err != nil {
-		fmt.Println("WriteToFile():", err.Error())
-		os.Exit(1)
+		curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+		curode.SignalChannel <- os.Interrupt
+		return
 	}
 
 	e := gob.NewEncoder(fTmp)
@@ -2195,8 +2243,9 @@ func (curode *Curode) WriteToFile() {
 	// Encoding the map
 	err = e.Encode(curode.Data.Map)
 	if err != nil {
-		fmt.Println("WriteToFile():", err.Error())
-		os.Exit(1)
+		curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+		curode.SignalChannel <- os.Interrupt
+		return
 	}
 
 	fTmp.Close()
@@ -2204,8 +2253,9 @@ func (curode *Curode) WriteToFile() {
 	// After serialization encrypt temp data file
 	fTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
 	if err != nil {
-		fmt.Println("WriteToFile():", err.Error())
-		os.Exit(1)
+		curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+		curode.SignalChannel <- os.Interrupt
+		return
 	}
 
 	//
@@ -2213,8 +2263,9 @@ func (curode *Curode) WriteToFile() {
 	buf := make([]byte, 1024)
 	f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
 	if err != nil {
-		fmt.Println("WriteToFile():", err.Error())
-		os.Exit(1)
+		curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+		curode.SignalChannel <- os.Interrupt
+		return
 	}
 	defer f.Close()
 
@@ -2223,8 +2274,9 @@ func (curode *Curode) WriteToFile() {
 
 		if err != nil {
 			if err != io.EOF {
-				fmt.Println("WriteToFile():", err.Error())
-				os.Exit(1)
+				curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+				curode.SignalChannel <- os.Interrupt
+				return
 			}
 			break
 		}
@@ -2232,14 +2284,16 @@ func (curode *Curode) WriteToFile() {
 		if read > 0 {
 			decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
 			if err != nil {
-				fmt.Println("WriteToFile():", err.Error())
-				os.Exit(1)
+				curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+				curode.SignalChannel <- os.Interrupt
+				return
 			}
 
 			cipherblock, err := curode.Encrypt(decodedKey[:], buf[:read])
 			if err != nil {
-				fmt.Println("WriteToFile():", err.Error())
-				os.Exit(1)
+				curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+				curode.SignalChannel <- os.Interrupt
+				return
 			}
 
 			f.Write(cipherblock)
@@ -2247,17 +2301,24 @@ func (curode *Curode) WriteToFile() {
 	}
 
 	os.Remove(".cdat.tmp")
-
-	fmt.Println("WriteToFile(): Completed.")
+	curode.Printl(fmt.Sprintf("WriteToFile(): Node data written to file successfully."), "INFO")
 }
 
 func main() {
 	var curode Curode
+	var err error
 	curode.SignalChannel = make(chan os.Signal, 1)
 	curode.Wg = &sync.WaitGroup{}
 	curode.Context, curode.ContextCancel = context.WithCancel(context.Background())
 
 	curode.ConfigMu = &sync.RWMutex{} // Node config mutex
+	curode.LogMu = &sync.Mutex{}      // Node log mutex
+
+	curode.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
+	if err != nil {
+		fmt.Println("Could not open log file - ", err.Error())
+		os.Exit(1)
+	}
 
 	curode.Data.Map = make(map[string][]map[string]interface{}) // Main hashmap
 	curode.Data.Writers = make(map[string]*sync.RWMutex)        // Read/Write mutexes per collection
@@ -2280,6 +2341,7 @@ func main() {
 		curode.Config.Port = 7682       // Set default CursusDB node port
 		curode.Config.MaxMemory = 10240 // Max memory 10GB default
 		curode.Config.Host = "0.0.0.0"
+		curode.Config.LogMaxLines = 1000
 
 		fmt.Println("Node key is required.  A node key is shared with your cluster and will encrypt all your data at rest and allow for only connections that contain a correct Key: header value matching the hashed key you provide.")
 		fmt.Print("key> ")
@@ -2376,7 +2438,7 @@ func main() {
 
 		fDFTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
 		if err != nil {
-			fmt.Println(err.Error())
+			curode.Printl(fmt.Sprintf(err.Error()), "ERROR")
 			os.Exit(1)
 		}
 
@@ -2385,6 +2447,7 @@ func main() {
 		// Now with all serialized data we encode into data hashmap
 		err = d.Decode(&curode.Data.Map)
 		if err != nil {
+			fmt.Println(err.Error())
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
@@ -2397,7 +2460,7 @@ func main() {
 		for c, _ := range curode.Data.Map {
 			curode.Data.Writers[c] = &sync.RWMutex{}
 		}
-		log.Println("Collection mutexes created.")
+		curode.Printl(fmt.Sprintf("Collection mutexes created."), "INFO")
 	}
 
 	// Parse flags

@@ -218,8 +218,8 @@ delete user USERNAME;
 - ``201`` - Database user removed successfully.
 
 ## Todo
-- ** There is an issue with the update and delete actions.  The cluster is not passing values it seems, working on this now.
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
+- Log file for node and cluster
 
 ### Ports
 Default cluster port: ``7681``

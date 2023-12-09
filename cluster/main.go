@@ -21,6 +21,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
@@ -33,7 +34,6 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
-	"log"
 	"math/rand"
 	"net"
 	"net/textproto"
@@ -60,6 +60,8 @@ type Cursus struct {
 	ContextCancel   context.CancelFunc // For gracefully shutting down
 	ConfigMu        *sync.RWMutex      // Cluster config mutex
 	Context         context.Context    // Main looped go routine context.  This is for listeners, event loops and so forth
+	LogMu           *sync.Mutex        // Log file mutex
+	LogFile         *os.File           // Opened log file
 }
 
 // NodeConnection is the cluster connected to a node as a client.
@@ -89,6 +91,53 @@ type Config struct {
 	Key            string   `yaml:"key"`                      // Shared key - this key is used to encrypt data on all nodes and to authenticate with a node.
 	Users          []string `yaml:"users"`                    // Array of encoded users
 	NodeReaderSize int      `yaml:"node-reader-size"`         // How large of a response buffer can the cluster handle
+	LogMaxLines    int      `yaml:"log-max-lines"`            // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
+}
+
+// Printl prints a line to the cursus.log file also will clear at LogMaxLines.
+// Appropriate levels: ERROR, INFO, FATAL, WARN
+func (cursus *Cursus) Printl(data string, level string) {
+	if cursus.CountLog(cursus.LogFile)+1 >= cursus.Config.LogMaxLines {
+		cursus.LogMu.Lock()
+		defer cursus.LogMu.Unlock()
+		cursus.LogFile.Close()
+		err := os.Truncate(cursus.LogFile.Name(), 0)
+		if err != nil {
+			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
+			return
+		}
+
+		cursus.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
+		if err != nil {
+			return
+		}
+		cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), fmt.Sprintf("Log truncated at %d", cursus.Config.LogMaxLines))))
+		cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
+	} else {
+		cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
+	}
+
+}
+
+// CountLog counts amount of lines within log file
+func (cursus *Cursus) CountLog(r io.Reader) int {
+	buf := make([]byte, 32*1024)
+	count := 0
+	lineSep := []byte{'\n'}
+
+	for {
+		c, err := r.Read(buf)
+		count += bytes.Count(buf[:c], lineSep)
+
+		switch {
+		case err == io.EOF:
+			return count
+
+		case err != nil:
+			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
+			return 99999999
+		}
+	}
 }
 
 // ValidatePermission validates cluster permissions aka R or RW
@@ -149,7 +198,7 @@ func (cursus *Cursus) StartTCPListener() {
 	// Resolve the string address to a TCP address
 	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", cursus.Config.Host, cursus.Config.Port)) // Setting configured host and port
 	if err != nil {
-		fmt.Println("StartTCPListener()", err.Error())
+		cursus.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
 		cursus.SignalChannel <- os.Interrupt // Send signal
 		return
 	}
@@ -158,17 +207,17 @@ func (cursus *Cursus) StartTCPListener() {
 
 		// Check if TLS cert and key is provided within config
 		if cursus.Config.TLSCert == "" || cursus.Config.TLSKey == "" {
-			fmt.Println("TCP_TLSListener():", "TLS cert and key missing.") // Log an error
-			cursus.SignalChannel <- os.Interrupt                           // Send interrupt to signal channel
+			cursus.Printl(fmt.Sprintf("StartTCPListener(): %s", "TLS cert and key missing."), "ERROR")
+			cursus.SignalChannel <- os.Interrupt // Send interrupt to signal channel
 			return
 		}
 
 		// Load cert
 		cer, err := tls.LoadX509KeyPair(cursus.Config.TLSCert, cursus.Config.TLSKey)
 		if err != nil {
-			fmt.Println("TCP_TLSListener():", err.Error()) // Log an error
-			cursus.SignalChannel <- os.Interrupt           // Send interrupt to signal channel
-			return                                         // close up go routine
+			cursus.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
+			cursus.SignalChannel <- os.Interrupt // Send interrupt to signal channel
+			return                               // close up go routine
 		}
 
 		cursus.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
@@ -178,14 +227,14 @@ func (cursus *Cursus) StartTCPListener() {
 	// Start listening for TCP connections on the given address
 	cursus.TCPListener, err = net.ListenTCP("tcp", cursus.TCPAddr)
 	if err != nil {
-		fmt.Println("StartTCPListener()", err.Error())
+		cursus.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
 		cursus.SignalChannel <- os.Interrupt // Send signal
 		return
 	}
 
 	for {
 		if cursus.Context.Err() != nil {
-			fmt.Println("ending StartTCPListener")
+			cursus.Printl(fmt.Sprintf("StartTCPListener(): %s", "closing"), "INFO")
 			cursus.TCPListener.Close()
 			return
 		}
@@ -204,7 +253,6 @@ func (cursus *Cursus) StartTCPListener() {
 		//Expect Authentication: username\0password\n b64 encoded
 		auth, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
-			fmt.Println(err)
 			return
 		}
 
@@ -294,6 +342,7 @@ func (cursus *Cursus) AuthenticateUser(username string, password string) (string
 
 // HandleConnection handles a client connection after authentication.  A client provides queries and this method will read up to a semi-colon then forming JSON the node will understand and sending it off to every node.
 func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{}) {
+	cursus.Printl(fmt.Sprintf("HandleConnection(): New client connection %s", conn.RemoteAddr().String()), "INFO")
 	defer cursus.Wg.Done() // Defer waigroup removal/finish
 	defer conn.Close()     // Close connection on return of method
 
@@ -333,7 +382,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 		if strings.HasPrefix(query, "quit") {
 			return
 		} else if strings.HasSuffix(query, ";") { // Does line end with a semicolon?
-			fmt.Println("QUERY:", query) // Log
+			cursus.Printl(fmt.Sprintf("HandleConnection(): %s query(%s)", conn.RemoteAddr().String(), query), "INFO")
 
 			// Check user permission and check if their allowed to use the specific action
 			switch user["permission"] {
@@ -946,14 +995,11 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					for k, s := range andOrSplit {
 						re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
 						querySplitNested := re.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), "where", ""), "from", "")), -1)
-						//querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
-
-						log.Println("WTF", querySplitNested)
 
 						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
 						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
 						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
-						log.Println("DUDE", body["oprs"].([]interface{})[k].(string))
+
 						switch {
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
@@ -976,7 +1022,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					skip4:
 
 						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
-						log.Println("WTF2", body["values"])
+
 						if k < len(andOrSplit)-1 {
 							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
 							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
@@ -1305,7 +1351,7 @@ func (cursus *Cursus) SignalListener() {
 	for {
 		select {
 		case sig := <-cursus.SignalChannel:
-			log.Println("received", sig)
+			cursus.Printl(fmt.Sprintf("Received signal %s starting cluster shutdown.", sig), "INFO")
 
 			// Close node connections
 			for _, n := range cursus.NodeConnections {
@@ -1334,13 +1380,14 @@ func (cursus *Cursus) ConnectToNodes() {
 			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
 			if err != nil {
 				fmt.Println("ConnectToNodes():", err.Error())
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
 				os.Exit(1)
 			}
 
 			// Dial tcp address up
 			conn, err := net.DialTCP("tcp", nil, tcpAddr)
 			if err != nil {
-				fmt.Println("ConnectToNodes():", err.Error())
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
 				os.Exit(1)
 			}
 
@@ -1373,9 +1420,10 @@ func (cursus *Cursus) ConnectToNodes() {
 				})
 
 				// Report back successful connection
-				fmt.Println("ConnectToNodes(): Node connection established to", conn.RemoteAddr().String())
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", conn.RemoteAddr().String()), "INFO")
 			} else {
 				// Report back invalid key.
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")
 				fmt.Println("ConnectToNodes():", "Invalid key.")
 				os.Exit(1)
 			}
@@ -1386,14 +1434,14 @@ func (cursus *Cursus) ConnectToNodes() {
 			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
 			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
 			if err != nil {
-				fmt.Println("ConnectToNodes():", err.Error())
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
 				os.Exit(1)
 			}
 
 			// Dial tcp address up
 			conn, err := net.DialTCP("tcp", nil, tcpAddr)
 			if err != nil {
-				fmt.Println("ConnectToNodes():", err.Error())
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
 				os.Exit(1)
 			}
 
@@ -1420,9 +1468,10 @@ func (cursus *Cursus) ConnectToNodes() {
 				})
 
 				// Report back successful connection
-				fmt.Println("ConnectToNodes(): Node connection established to", conn.RemoteAddr().String())
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", conn.RemoteAddr().String()), "INFO")
 			} else {
 				// Report back invalid key
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")
 				fmt.Println("ConnectToNodes():", "Invalid key.")
 				os.Exit(1)
 			}
@@ -1434,12 +1483,21 @@ func (cursus *Cursus) ConnectToNodes() {
 
 func main() {
 	var cursus Cursus
+	var err error
 	cursus.SignalChannel = make(chan os.Signal, 1)
 	cursus.Wg = &sync.WaitGroup{}
 
 	cursus.Context, cursus.ContextCancel = context.WithCancel(context.Background())
 
 	cursus.ConfigMu = &sync.RWMutex{} // Cluster config mutex
+	cursus.LogMu = &sync.Mutex{}      // Cluster log mutex
+	cursus.Config.LogMaxLines = 1000
+
+	cursus.LogFile, err = os.OpenFile("cursus.log", os.O_CREATE|os.O_RDWR, 0777)
+	if err != nil {
+		fmt.Println("Could not open log file - ", err.Error())
+		os.Exit(1)
+	}
 
 	// We check if a .cursusconfig file exists
 	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
@@ -1454,6 +1512,7 @@ func main() {
 		fmt.Print("username> ")
 		username, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
 			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
@@ -1464,6 +1523,7 @@ func main() {
 		fmt.Print("password> ")
 		password, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
 			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
@@ -1474,6 +1534,7 @@ func main() {
 		fmt.Print("key> ")
 		key, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
 			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
@@ -1492,6 +1553,7 @@ func main() {
 
 		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777) // Create .cursusconfig yaml file
 		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
 			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
@@ -1501,6 +1563,7 @@ func main() {
 		// Marshal config to yaml
 		yamlData, err := yaml.Marshal(&cursus.Config)
 		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
 			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
@@ -1511,6 +1574,7 @@ func main() {
 		// Read .cursus config
 		clusterConfigFile, err := os.ReadFile("./.cursusconfig")
 		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
 			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
@@ -1518,6 +1582,7 @@ func main() {
 		// Unmarshal config into cluster.config
 		err = yaml.Unmarshal(clusterConfigFile, &cursus.Config)
 		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
 			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
