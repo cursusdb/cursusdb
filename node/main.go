@@ -1880,6 +1880,19 @@ func (curode *Curode) HandleConnection(conn net.Conn) {
 	defer text.Close()
 
 	for {
+		if curode.Context.Err() != nil {
+			return
+		}
+
+		err := conn.SetReadDeadline(time.Now().Add(time.Second * 1))
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				continue
+			} else {
+				return
+			}
+		}
+
 		query, err := text.ReadLine()
 		if err != nil {
 			return
