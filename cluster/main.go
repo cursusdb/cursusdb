@@ -1506,8 +1506,8 @@ func main() {
 	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
 		// .cursusconfig does not exist..
 
-		cursus.Config.Port = 7681            // Default CursusDB cluster port
-		cursus.Config.NodeReaderSize = 10240 // Default node reader size of 10240 bytes.. Pretty large json response
+		cursus.Config.Port = 7681              // Default CursusDB cluster port
+		cursus.Config.NodeReaderSize = 2097152 // Default node reader size of 2097152 bytes (2MB).. Pretty large json response
 		cursus.Config.Host = "0.0.0.0"
 
 		// Get initial database user credentials
