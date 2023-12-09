@@ -294,20 +294,21 @@ func (cursus *Cursus) AuthenticateUser(username string, password string) (string
 
 // HandleConnection handles a client connection after authentication.  A client provides queries and this method will read up to a semi-colon then forming JSON the node will understand and sending it off to every node.
 func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{}) {
-	log.Println("new conn")
-	defer cursus.Wg.Done()
-	defer conn.Close()
+	defer cursus.Wg.Done() // Defer waigroup removal/finish
+	defer conn.Close()     // Close connection on return of method
 
-	text := textproto.NewConn(conn)
-	defer text.Close()
+	text := textproto.NewConn(conn) // Connection write and read
+	defer text.Close()              // Defer textproto close
 
-	query := ""
+	query := "" // Current client query
 
 	for {
-		if cursus.Context.Err() != nil {
+		if cursus.Context.Err() != nil { // When receiving a signal we return.
 			return
 		}
 
+		// If nothing read within 1 second continue
+		// This assists in shutting down the cluster gracefully
 		err := conn.SetReadDeadline(time.Now().Add(time.Second * 1))
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
@@ -316,10 +317,14 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				return
 			}
 		}
+
+		// Read line
 		read, err := text.ReadLine()
 		if err != nil {
 			return
 		}
+
+		// Does line end with a semicolon?
 		if strings.HasSuffix(strings.TrimSpace(string(read)), ";") {
 			query += strings.TrimSpace(string(read))
 		} else {
@@ -328,26 +333,29 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 		if strings.HasPrefix(query, "quit") {
 			return
-		} else if strings.HasSuffix(query, ";") {
+		} else if strings.HasSuffix(query, ";") { // Does line end with a semicolon?
 			fmt.Println("QUERY:", query) // Log
 
+			// Check user permission and check if their allowed to use the specific action
 			switch user["permission"] {
 			case "R":
 			case strings.HasPrefix(query, "update"):
 				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
-				return
+				goto continueOn // User not allowed
 			case strings.HasPrefix(query, "insert"):
 				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
-				return
+				goto continueOn // User not allowed
 			case strings.HasPrefix(query, "delete"):
 				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
-				return
+				goto continueOn // User not allowed, ret
 			case strings.HasPrefix(query, "select"):
-				goto allowed
-				return
+				goto allowed // Goto allowed
 			case "RW":
-				goto allowed
+				goto allowed // Goto allowed
 			}
+
+		continueOn: // User isn't allowed to use action but continue listening for something else
+			continue
 
 		allowed:
 
