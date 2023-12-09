@@ -190,10 +190,11 @@ func (cursus *Cursus) StartTCPListener() {
 			return
 		}
 
-		cursus.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 100000))
 		conn, err := cursus.TCPListener.Accept()
-		if errors.Is(err, os.ErrDeadlineExceeded) {
-			continue
+		if err != nil {
+			if !errors.Is(err, os.ErrDeadlineExceeded) {
+				return
+			}
 		}
 
 		// If TLS is set to true within config let's make the connection secure
@@ -313,9 +314,8 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				continue
-			} else {
-				return
 			}
+			continue
 		}
 
 		// Read line
@@ -1171,10 +1171,10 @@ query:
 }
 
 // QueryNode queries a specific node
-func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGroup, mu *sync.Mutex, responses *map[string]string) {
+func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGroup, mu *sync.RWMutex, responses *map[string]string) {
 	defer wg.Done()
-	n.Mu.Lock()
-	defer n.Mu.Unlock()
+	//n.Mu.Lock()
+	//defer n.Mu.Unlock()
 
 	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cursus.Config.NodeReaderSize)
 	n.Conn.SetReadDeadline(time.Now().Add(6 * time.Second))
@@ -1190,13 +1190,17 @@ func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGro
 			goto unavailable
 		}
 	}
-
+	mu.Lock()
 	(*responses)[n.Conn.RemoteAddr().String()] = line
-	return
+	mu.Unlock()
+	goto fin
 unavailable:
 	mu.Lock()
-	defer mu.Unlock()
 	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
+	mu.Unlock()
+	goto fin
+fin:
+	return
 }
 
 // IsString is a provided string a string literal?  "hello world"  OR 'hello world'
@@ -1246,7 +1250,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 	responses := make(map[string]string)
 
 	wgPara := &sync.WaitGroup{}
-	muPara := &sync.Mutex{}
+	muPara := &sync.RWMutex{}
 	for _, n := range cursus.NodeConnections {
 		wgPara.Add(1)
 		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
@@ -1268,7 +1272,7 @@ func (cursus *Cursus) QueryNodesRet(body map[string]interface{}) map[string]stri
 	responses := make(map[string]string)
 
 	wgPara := &sync.WaitGroup{}
-	muPara := &sync.Mutex{}
+	muPara := &sync.RWMutex{}
 	for _, n := range cursus.NodeConnections {
 		wgPara.Add(1)
 		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
