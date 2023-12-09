@@ -2381,9 +2381,9 @@ func main() {
 
 	// Read rested data from .cdat file
 	if _, err := os.Stat("./.cdat"); errors.Is(err, os.ErrNotExist) { // Not exists we create it
-		fmt.Println("No previous data to read.  Creating new .cdat file.")
+		curode.Printl(fmt.Sprintf("main(): No previous data to read.  Creating new .cdat file."), "INFO")
 	} else {
-		fmt.Println("Node data read into memory.")
+		curode.Printl(fmt.Sprintf("main(): Node data read into memory."), "INFO")
 		dataFile, err := os.Open("./.cdat") // Open .cdat
 
 		// Temporary decrypted data file.. to be unserialized into map
@@ -2442,7 +2442,7 @@ func main() {
 		err = d.Decode(&curode.Data.Map)
 		if err != nil {
 			fmt.Println(err.Error())
-			fmt.Println(err.Error())
+			curode.Printl(fmt.Sprintf("main(): %s", err.Error()), "INFO")
 			os.Exit(1)
 		}
 
@@ -2454,7 +2454,7 @@ func main() {
 		for c, _ := range curode.Data.Map {
 			curode.Data.Writers[c] = &sync.RWMutex{}
 		}
-		curode.Printl(fmt.Sprintf("Collection mutexes created."), "INFO")
+		curode.Printl(fmt.Sprintf("main(): Collection mutexes created."), "INFO")
 	}
 
 	// Parse flags
