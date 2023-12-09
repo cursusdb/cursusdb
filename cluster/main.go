@@ -190,11 +190,10 @@ func (cursus *Cursus) StartTCPListener() {
 			return
 		}
 
+		cursus.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000))
 		conn, err := cursus.TCPListener.Accept()
-		if err != nil {
-			if !errors.Is(err, os.ErrDeadlineExceeded) {
-				return
-			}
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			continue
 		}
 
 		// If TLS is set to true within config let's make the connection secure
