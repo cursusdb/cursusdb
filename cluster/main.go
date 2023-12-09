@@ -1189,8 +1189,8 @@ query:
 // QueryNode queries a specific node
 func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGroup, mu *sync.RWMutex, responses *map[string]string) {
 	defer wg.Done()
-	//n.Mu.Lock()
-	//defer n.Mu.Unlock()
+	n.Mu.Lock()
+	defer n.Mu.Unlock()
 
 	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cursus.Config.NodeReaderSize)
 	n.Conn.SetReadDeadline(time.Now().Add(6 * time.Second))
