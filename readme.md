@@ -288,7 +288,6 @@ curush>select * from users;
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
 
 ### Notes
-If you write ``select 1 from users;``  This will select 1 from each node.  Therefore on your backend when calling Cursus, JOIN your results into one result.  If you have 4 nodes and you select 1 well you'll get 4 results if one record matches your query on each node.
-
+If you write ``select 1 from users;``  This will select 1 from each node then the cluster will depending on the limit provided slice the results, in this case 1.
 A cluster should be public where nodes should be private to the cluster.
 A node can have a private IP whereas the cluster has an address that is external and can be reached by outside applications for example

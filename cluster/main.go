@@ -81,17 +81,22 @@ type Connection struct {
 
 // Config is the CursusDB cluster config struct
 type Config struct {
-	Nodes          []string `yaml:"nodes"`                    // Node host/ips
-	Host           string   `yaml:"host"`                     // Cluster host
-	TLSNode        bool     `default:"false" yaml:"tls-node"` // Connects to nodes with tls.  Nodes MUST be using tls in-order to set this to true.
-	TLSCert        string   `yaml:"tls-cert"`                 // Location to TLS cert
-	TLSKey         string   `yaml:"tls-key"`                  // Location to TLS key
-	TLS            bool     `default:"false" yaml:"tls"`      // TLS on or off ?
-	Port           int      `yaml:"port"`                     // Cluster port
-	Key            string   `yaml:"key"`                      // Shared key - this key is used to encrypt data on all nodes and to authenticate with a node.
-	Users          []string `yaml:"users"`                    // Array of encoded users
-	NodeReaderSize int      `yaml:"node-reader-size"`         // How large of a response buffer can the cluster handle
-	LogMaxLines    int      `yaml:"log-max-lines"`            // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
+	Nodes          []string `yaml:"nodes"`                         // Node host/ips
+	Host           string   `yaml:"host"`                          // Cluster host
+	TLSNode        bool     `default:"false" yaml:"tls-node"`      // Connects to nodes with tls.  Nodes MUST be using tls in-order to set this to true.
+	TLSCert        string   `yaml:"tls-cert"`                      // Location to TLS cert
+	TLSKey         string   `yaml:"tls-key"`                       // Location to TLS key
+	TLS            bool     `default:"false" yaml:"tls"`           // TLS on or off ?
+	Port           int      `yaml:"port"`                          // Cluster port
+	Key            string   `yaml:"key"`                           // Shared key - this key is used to encrypt data on all nodes and to authenticate with a node.
+	Users          []string `yaml:"users"`                         // Array of encoded users
+	NodeReaderSize int      `yaml:"node-reader-size"`              // How large of a response buffer can the cluster handle
+	LogMaxLines    int      `yaml:"log-max-lines"`                 // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
+	JoinResponses  bool     `default:"true" yaml:"join-responses"` // Joins all nodes results
+	// select 1 from users;
+	// the query above has no condition thus it will grab one from each
+	// configured node but the cluster will respond with the first result on the first queried node
+
 }
 
 // Printl prints a line to the cursus.log file also will clear at LogMaxLines.
@@ -1309,6 +1314,7 @@ func (cursus *Cursus) IsBool(str string) bool {
 
 // QueryNodes queries all nodes in parallel and gets responses
 func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interface{}) error {
+	//log.Println("LIMIT", limit)
 	jsonString, _ := json.Marshal(body)
 
 	responses := make(map[string]string)
@@ -1322,12 +1328,25 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 	wgPara.Wait()
 
+	//if cursus.Config.JoinResponses {
+	//	var f []interface{}
+	//	for _, res := range responses {
+	//		var x []interface{}
+	//		json.Unmarshal([]byte(res), &x)
+	//		f = append(f, x...)
+	//	}
+	//
+	//	response, _ := json.Marshal(f)
+	//
+	//	connection.Text.PrintfLine(string(response))
+	//} else {
 	var response string
 	for key, res := range responses {
 		response += fmt.Sprintf(`{"%s": %s},`, key, res)
 	}
 
 	connection.Text.PrintfLine(fmt.Sprintf("[%s]", strings.TrimSuffix(response, ",")))
+	//}
 
 	return nil
 }
