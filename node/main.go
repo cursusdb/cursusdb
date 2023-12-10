@@ -36,6 +36,7 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
+	"log"
 	"net"
 	"net/textproto"
 	"os"
@@ -1344,6 +1345,15 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 
 // Select selects documents based on provided keys, values and operations such as select * from COLL where KEY == VALUE && KEY > VALUE
 func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
+
+	log.Println("collection", collection)
+	log.Println("keys", ks)
+	log.Println("values", vs)
+	log.Println("volume", vol)
+	log.Println("skip", skip)
+	log.Println("operators", oprs)
+	log.Println("conditions", conditions)
+
 	// If a lock was sent from cluster lock the collection
 	if lock {
 		l, ok := curode.Data.Writers[collection]
@@ -1397,6 +1407,8 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 			continue
 		} else {
 
+			conditionsMetDocument := 0
+
 			// range over provided keys
 			for m, k := range ks.([]interface{}) {
 
@@ -1438,88 +1450,93 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 									if oprs.([]interface{})[m] == "==" {
 										if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
-											conditionsMet += 1
+
 											(func() {
 												for _, o := range objects {
 													if reflect.DeepEqual(o, d) {
 														goto exists
 													}
 												}
-												objects = append(objects, d)
+												conditionsMetDocument += 1
 											exists:
 											})()
+
 										}
 									} else if oprs.([]interface{})[m] == "!=" {
 										if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
-											conditionsMet += 1
+
 											(func() {
 												for _, o := range objects {
 													if reflect.DeepEqual(o, d) {
 														goto exists
 													}
 												}
-												objects = append(objects, d)
+												conditionsMetDocument += 1
 											exists:
 											})()
 										}
 									} else if oprs.([]interface{})[m] == ">" {
 										if vType == "int" {
 											if interfaceI > vs.([]interface{})[m].(int) {
-												conditionsMet += 1
+
 												(func() {
 													for _, o := range objects {
 														if reflect.DeepEqual(o, d) {
 															goto exists
 														}
 													}
-													objects = append(objects, d)
+													conditionsMetDocument += 1
 												exists:
 												})()
+
 											}
 										}
 									} else if oprs.([]interface{})[m] == "<" {
 										if vType == "int" {
 											if interfaceI < vs.([]interface{})[m].(int) {
-												conditionsMet += 1
+
 												(func() {
 													for _, o := range objects {
 														if reflect.DeepEqual(o, d) {
 															goto exists
 														}
 													}
-													objects = append(objects, d)
+													conditionsMetDocument += 1
 												exists:
 												})()
+
 											}
 										}
 									} else if oprs.([]interface{})[m] == ">=" {
 										if vType == "int" {
 											if interfaceI >= vs.([]interface{})[m].(int) {
-												conditionsMet += 1
+
 												(func() {
 													for _, o := range objects {
 														if reflect.DeepEqual(o, d) {
 															goto exists
 														}
 													}
-													objects = append(objects, d)
+													conditionsMetDocument += 1
 												exists:
 												})()
+
 											}
 										}
 									} else if oprs.([]interface{})[m] == "<=" {
 										if vType == "int" {
 											if interfaceI <= vs.([]interface{})[m].(int) {
-												conditionsMet += 1
+
 												(func() {
 													for _, o := range objects {
 														if reflect.DeepEqual(o, d) {
 															goto exists
 														}
 													}
-													objects = append(objects, d)
+													conditionsMetDocument += 1
 												exists:
 												})()
+
 											}
 										}
 									}
@@ -1530,85 +1547,90 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 										if bytes.Equal([]byte(fmt.Sprintf("%f", float64(interfaceI))), []byte(fmt.Sprintf("%f", float64(vs.([]interface{})[m].(float64))))) {
 
-											conditionsMet += 1
 											(func() {
 												for _, o := range objects {
 													if reflect.DeepEqual(o, d) {
 														goto exists
 													}
 												}
-												objects = append(objects, d)
+												conditionsMetDocument += 1
 											exists:
 											})()
+
 										}
 									} else if oprs.([]interface{})[m] == "!=" {
 										if float64(interfaceI) != vs.([]interface{})[m].(float64) {
-											conditionsMet += 1
+
 											(func() {
 												for _, o := range objects {
 													if reflect.DeepEqual(o, d) {
 														goto exists
 													}
 												}
-												objects = append(objects, d)
+												conditionsMetDocument += 1
 											exists:
 											})()
+
 										}
 									} else if oprs.([]interface{})[m] == ">" {
 										if float64(interfaceI) > vs.([]interface{})[m].(float64) {
-											conditionsMet += 1
+
 											(func() {
 												for _, o := range objects {
 													if reflect.DeepEqual(o, d) {
 														goto exists
 													}
 												}
-												objects = append(objects, d)
+												conditionsMetDocument += 1
 											exists:
 											})()
+
 										}
 
 									} else if oprs.([]interface{})[m] == "<" {
 										if float64(interfaceI) < vs.([]interface{})[m].(float64) {
-											conditionsMet += 1
+
 											(func() {
 												for _, o := range objects {
 													if reflect.DeepEqual(o, d) {
 														goto exists
 													}
 												}
-												objects = append(objects, d)
+												conditionsMetDocument += 1
 											exists:
 											})()
+
 										}
 
 									} else if oprs.([]interface{})[m] == ">=" {
 
 										if float64(interfaceI) >= vs.([]interface{})[m].(float64) {
-											conditionsMet += 1
+
 											(func() {
 												for _, o := range objects {
 													if reflect.DeepEqual(o, d) {
 														goto exists
 													}
 												}
-												objects = append(objects, d)
+												conditionsMetDocument += 1
 											exists:
 											})()
+
 										}
 
 									} else if oprs.([]interface{})[m] == "<=" {
 										if float64(interfaceI) <= vs.([]interface{})[m].(float64) {
-											conditionsMet += 1
+
 											(func() {
 												for _, o := range objects {
 													if reflect.DeepEqual(o, d) {
 														goto exists
 													}
 												}
-												objects = append(objects, d)
+												conditionsMetDocument += 1
 											exists:
 											})()
+
 										}
 
 									}
@@ -1620,29 +1642,31 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 							} else {
 								if oprs.([]interface{})[m] == "==" {
 									if reflect.DeepEqual(dd, vs.([]interface{})[m]) {
-										conditionsMet += 1
+
 										(func() {
 											for _, o := range objects {
 												if reflect.DeepEqual(o, d) {
 													goto exists
 												}
 											}
-											objects = append(objects, d)
+											conditionsMetDocument += 1
 										exists:
 										})()
+
 									}
 								} else if oprs.([]interface{})[m] == "!=" {
 									if !reflect.DeepEqual(dd, vs.([]interface{})[m]) {
-										conditionsMet += 1
+
 										(func() {
 											for _, o := range objects {
 												if reflect.DeepEqual(o, d) {
 													goto exists
 												}
 											}
-											objects = append(objects, d)
+											conditionsMetDocument += 1
 										exists:
 										})()
+
 									}
 								}
 							}
@@ -1653,88 +1677,94 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 						if oprs.([]interface{})[m] == "==" {
 							if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
-								conditionsMet += 1
+
 								(func() {
 									for _, o := range objects {
 										if reflect.DeepEqual(o, d) {
 											goto exists
 										}
 									}
-									objects = append(objects, d)
+									conditionsMetDocument += 1
 								exists:
 								})()
+
 							}
 						} else if oprs.([]interface{})[m] == "!=" {
 							if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
-								conditionsMet += 1
+
 								(func() {
 									for _, o := range objects {
 										if reflect.DeepEqual(o, d) {
 											goto exists
 										}
 									}
-									objects = append(objects, d)
+									conditionsMetDocument += 1
 								exists:
 								})()
+
 							}
 						} else if oprs.([]interface{})[m] == ">" {
 							if vType == "int" {
 								if interfaceI > vs.([]interface{})[m].(int) {
-									conditionsMet += 1
+
 									(func() {
 										for _, o := range objects {
 											if reflect.DeepEqual(o, d) {
 												goto exists
 											}
 										}
-										objects = append(objects, d)
+										conditionsMetDocument += 1
 									exists:
 									})()
+
 								}
 							}
 						} else if oprs.([]interface{})[m] == "<" {
 							if vType == "int" {
 								if interfaceI < vs.([]interface{})[m].(int) {
-									conditionsMet += 1
+
 									(func() {
 										for _, o := range objects {
 											if reflect.DeepEqual(o, d) {
 												goto exists
 											}
 										}
-										objects = append(objects, d)
+										conditionsMetDocument += 1
 									exists:
 									})()
+
 								}
 							}
 						} else if oprs.([]interface{})[m] == ">=" {
 							if vType == "int" {
 								if interfaceI >= vs.([]interface{})[m].(int) {
-									conditionsMet += 1
+
 									(func() {
 										for _, o := range objects {
 											if reflect.DeepEqual(o, d) {
 												goto exists
 											}
 										}
-										objects = append(objects, d)
+										conditionsMetDocument += 1
 									exists:
 									})()
+
 								}
 							}
 						} else if oprs.([]interface{})[m] == "<=" {
 							if vType == "int" {
 								if interfaceI <= vs.([]interface{})[m].(int) {
-									conditionsMet += 1
+
 									(func() {
 										for _, o := range objects {
 											if reflect.DeepEqual(o, d) {
 												goto exists
 											}
 										}
-										objects = append(objects, d)
+										conditionsMetDocument += 1
 									exists:
 									})()
+
 								}
 							}
 						}
@@ -1745,7 +1775,19 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 							if bytes.Equal([]byte(fmt.Sprintf("%f", float64(interfaceI))), []byte(fmt.Sprintf("%f", float64(vs.([]interface{})[m].(float64))))) {
 
-								conditionsMet += 1
+								(func() {
+									for _, o := range objects {
+										if reflect.DeepEqual(o, d) {
+											goto exists
+										}
+									}
+									conditionsMetDocument += 1
+								exists:
+								})()
+
+							}
+						} else if oprs.([]interface{})[m] == "!=" {
+							if float64(interfaceI) != vs.([]interface{})[m].(float64) {
 
 								(func() {
 									for _, o := range objects {
@@ -1753,85 +1795,76 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, d)
+									conditionsMetDocument += 1
 								exists:
 								})()
-							}
-						} else if oprs.([]interface{})[m] == "!=" {
-							if float64(interfaceI) != vs.([]interface{})[m].(float64) {
-								conditionsMet += 1
-								(func() {
-									for _, o := range objects {
-										if reflect.DeepEqual(o, d) {
-											goto exists
-										}
-									}
-									objects = append(objects, d)
-								exists:
-								})()
+
 							}
 						} else if oprs.([]interface{})[m] == ">" {
 							if float64(interfaceI) > vs.([]interface{})[m].(float64) {
-								conditionsMet += 1
+
 								(func() {
 									for _, o := range objects {
 										if reflect.DeepEqual(o, d) {
 											goto exists
 										}
 									}
-									objects = append(objects, d)
+									conditionsMetDocument += 1
 								exists:
 								})()
+
 							}
 
 						} else if oprs.([]interface{})[m] == "<" {
 							if float64(interfaceI) < vs.([]interface{})[m].(float64) {
-								conditionsMet += 1
+
 								(func() {
 									for _, o := range objects {
 										if reflect.DeepEqual(o, d) {
 											goto exists
 										}
 									}
-									objects = append(objects, d)
+									conditionsMetDocument += 1
 								exists:
 								})()
+
 							}
 
 						} else if oprs.([]interface{})[m] == ">=" {
 
 							if float64(interfaceI) >= vs.([]interface{})[m].(float64) {
-								conditionsMet += 1
+
 								(func() {
 									for _, o := range objects {
 										if reflect.DeepEqual(o, d) {
 											goto exists
 										}
 									}
-									objects = append(objects, d)
+									conditionsMetDocument += 1
 								exists:
 								})()
+
 							}
 
 						} else if oprs.([]interface{})[m] == "<=" {
 							if float64(interfaceI) <= vs.([]interface{})[m].(float64) {
-								conditionsMet += 1
+
 								(func() {
 									for _, o := range objects {
 										if reflect.DeepEqual(o, d) {
 											goto exists
 										}
 									}
-									objects = append(objects, d)
+									conditionsMetDocument += 1
 								exists:
 								})()
+
 							}
 
 						}
 					} else {
 						if oprs.([]interface{})[m] == "==" {
 							if reflect.DeepEqual(d[k.(string)], vs.([]interface{})[m]) {
-								conditionsMet += 1
 
 								(func() {
 									for _, o := range objects {
@@ -1839,14 +1872,13 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, d)
+									conditionsMetDocument += 1
 								exists:
 								})()
 
 							}
 						} else if oprs.([]interface{})[m] == "!=" {
 							if !reflect.DeepEqual(d[k.(string)], vs.([]interface{})[m]) {
-								conditionsMet += 1
 
 								(func() {
 									for _, o := range objects {
@@ -1854,13 +1886,28 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, d)
+									conditionsMetDocument += 1
 								exists:
 								})()
+
 							}
 						}
 
 					}
+				}
+			}
+
+			if slices.Contains(conditions, "&&") {
+				if conditionsMetDocument >= len(conditions) {
+					log.Println("GOOD OBJ")
+					objects = append(objects, d)
+					conditionsMet += 1
+				} else if slices.Contains(conditions, "||") {
+					objects = append(objects, d)
+				}
+			} else if slices.Contains(conditions, "||") {
+				{
+					objects = append(objects, d)
 				}
 			}
 		}
@@ -1871,21 +1918,24 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 cont:
 
-	if slices.Contains(conditions, "&&") {
-
-		if conditionsMet < uint64(len(conditions)) {
-			var nullObjects []interface{}
-
-			if !slices.Contains(conditions, "||") {
-				objects = nullObjects
-			}
-		} else if conditionsMet >= uint64(len(conditions)) {
-			return objects
-		} else {
-			var nullObjects []interface{}
-			objects = nullObjects
-		}
-	}
+	//log.Println(conditionsMet > uint64(len(objects)) && uint64(len(oprs.([]interface{}))) != conditionsMet)
+	//
+	//log.Println(conditionsMet, uint64(len(objects)))
+	//if slices.Contains(conditions, "&&") {
+	//
+	//	if conditionsMet < uint64(len(conditions)) {
+	//		var nullObjects []interface{}
+	//
+	//		if !slices.Contains(conditions, "||") {
+	//			objects = nullObjects
+	//		}
+	//	} else if conditionsMet >= uint64(len(conditions)) {
+	//		return objects
+	//	} else {
+	//		var nullObjects []interface{}
+	//		objects = nullObjects
+	//	}
+	//}
 
 	return objects
 }
