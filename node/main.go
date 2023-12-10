@@ -1388,7 +1388,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 			// if a volume is set check if we are at wanted document volume for query
 			if vol != -1 {
 				if i-1 == vol-1 {
-					return objects
+					goto cont
 				}
 			}
 
@@ -1411,7 +1411,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 				if vol != -1 {
 					if len(objects) == vol {
-						return objects
+						goto cont
 					}
 				}
 
@@ -1429,7 +1429,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 						for _, dd := range d[k.(string)].([]interface{}) {
 
 							if len(objects) == vol {
-								return objects
+								goto cont
 							}
 
 							if reflect.TypeOf(dd).Kind() == reflect.Float64 {
@@ -1866,6 +1866,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 		}
 
 	}
+
+	goto cont
+
+cont:
 
 	if slices.Contains(conditions, "&&") {
 
