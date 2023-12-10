@@ -784,7 +784,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				if setStartIndex < 4 {
 					text.PrintfLine(fmt.Sprintf("%d Invalid update query missing set", 4011))
 					query = ""
-					goto cont4
+					goto cont2
 				}
 				conditions := querySplit[4:setStartIndex]
 				newValues := strings.Split(strings.ReplaceAll(strings.Join(querySplit[setStartIndex:], " "), "set ", ""), ",")
@@ -796,7 +796,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					if len(spl) != 2 {
 						text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
 						query = ""
-						goto cont4
+						goto cont2
 					}
 
 					val = strings.TrimSuffix(spl[1], ";")
@@ -843,10 +843,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				}
 
 				goto skip3
-
-			cont4:
-				query = ""
-				continue
 
 			skip3:
 
