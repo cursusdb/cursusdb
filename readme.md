@@ -24,7 +24,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Lightweight core code under 4,000 lines of code in total
 - Logging and automatic log truncation based on ``log-max-lines`` config
 
-![drawing.png](images/drawing1.png)
+![drawing.png](images/drawing2.png)
 
 ## Cluster & Node Building & Initial Setup
 Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
