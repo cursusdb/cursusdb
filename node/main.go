@@ -1376,9 +1376,6 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	// Results
 	var objects []interface{}
 
-	// Conditions met
-	var conditionsMet uint64
-
 	//The && operator displays a document if all the conditions are TRUE.
 	//The || operator displays a record if any of the conditions are TRUE.
 
@@ -1899,9 +1896,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 			if slices.Contains(conditions, "&&") {
 				if conditionsMetDocument >= len(conditions) {
-					log.Println("GOOD OBJ")
 					objects = append(objects, d)
-					conditionsMet += 1
 				} else if slices.Contains(conditions, "||") {
 					objects = append(objects, d)
 				}
@@ -1917,25 +1912,6 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	goto cont
 
 cont:
-
-	//log.Println(conditionsMet > uint64(len(objects)) && uint64(len(oprs.([]interface{}))) != conditionsMet)
-	//
-	//log.Println(conditionsMet, uint64(len(objects)))
-	//if slices.Contains(conditions, "&&") {
-	//
-	//	if conditionsMet < uint64(len(conditions)) {
-	//		var nullObjects []interface{}
-	//
-	//		if !slices.Contains(conditions, "||") {
-	//			objects = nullObjects
-	//		}
-	//	} else if conditionsMet >= uint64(len(conditions)) {
-	//		return objects
-	//	} else {
-	//		var nullObjects []interface{}
-	//		objects = nullObjects
-	//	}
-	//}
 
 	return objects
 }
