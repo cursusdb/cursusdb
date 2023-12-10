@@ -784,6 +784,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 	var deleted []interface{}
 
 	for i, d := range curode.Data.Map[collection] {
+		conditionsMetDocument := 0
 		if ks == nil && vs == nil && oprs == nil {
 			if skip != 0 {
 				skip = skip - 1
@@ -847,7 +848,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
-												objects = append(objects, uint64(i))
+												conditionsMetDocument += 1
 
 											exists:
 											})()
@@ -861,7 +862,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
-												objects = append(objects, uint64(i))
+												conditionsMetDocument += 1
 
 											exists:
 											})()
@@ -876,7 +877,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 															goto exists
 														}
 													}
-													objects = append(objects, uint64(i))
+													conditionsMetDocument += 1
 
 												exists:
 												})()
@@ -892,7 +893,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 															goto exists
 														}
 													}
-													objects = append(objects, uint64(i))
+													conditionsMetDocument += 1
 
 												exists:
 												})()
@@ -908,7 +909,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 															goto exists
 														}
 													}
-													objects = append(objects, uint64(i))
+													conditionsMetDocument += 1
 
 												exists:
 												})()
@@ -924,7 +925,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 															goto exists
 														}
 													}
-													objects = append(objects, uint64(i))
+													conditionsMetDocument += 1
 
 												exists:
 												})()
@@ -945,7 +946,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
-												objects = append(objects, uint64(i))
+												conditionsMetDocument += 1
 
 											exists:
 											})()
@@ -959,7 +960,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
-												objects = append(objects, uint64(i))
+												conditionsMetDocument += 1
 
 											exists:
 											})()
@@ -973,7 +974,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
-												objects = append(objects, uint64(i))
+												conditionsMetDocument += 1
 
 											exists:
 											})()
@@ -988,7 +989,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
-												objects = append(objects, uint64(i))
+												conditionsMetDocument += 1
 
 											exists:
 											})()
@@ -1004,7 +1005,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
-												objects = append(objects, uint64(i))
+												conditionsMetDocument += 1
 
 											exists:
 											})()
@@ -1019,7 +1020,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
-												objects = append(objects, uint64(i))
+												conditionsMetDocument += 1
 
 											exists:
 											})()
@@ -1041,7 +1042,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 													goto exists
 												}
 											}
-											objects = append(objects, uint64(i))
+											conditionsMetDocument += 1
 
 										exists:
 										})()
@@ -1055,7 +1056,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 													goto exists
 												}
 											}
-											objects = append(objects, uint64(i))
+											conditionsMetDocument += 1
 
 										exists:
 										})()
@@ -1076,7 +1077,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, uint64(i))
+									conditionsMetDocument += 1
 
 								exists:
 								})()
@@ -1090,7 +1091,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, uint64(i))
+									conditionsMetDocument += 1
 
 								exists:
 								})()
@@ -1105,7 +1106,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 												goto exists
 											}
 										}
-										objects = append(objects, uint64(i))
+										conditionsMetDocument += 1
 
 									exists:
 									})()
@@ -1121,7 +1122,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 												goto exists
 											}
 										}
-										objects = append(objects, uint64(i))
+										conditionsMetDocument += 1
 
 									exists:
 									})()
@@ -1137,7 +1138,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 												goto exists
 											}
 										}
-										objects = append(objects, uint64(i))
+										conditionsMetDocument += 1
 
 									exists:
 									})()
@@ -1153,7 +1154,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 												goto exists
 											}
 										}
-										objects = append(objects, uint64(i))
+										conditionsMetDocument += 1
 
 									exists:
 									})()
@@ -1175,7 +1176,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, uint64(i))
+									conditionsMetDocument += 1
 
 								exists:
 								})()
@@ -1189,7 +1190,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, uint64(i))
+									conditionsMetDocument += 1
 
 								exists:
 								})()
@@ -1203,7 +1204,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, uint64(i))
+									conditionsMetDocument += 1
 
 								exists:
 								})()
@@ -1218,7 +1219,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, uint64(i))
+									conditionsMetDocument += 1
 
 								exists:
 								})()
@@ -1234,7 +1235,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, uint64(i))
+									conditionsMetDocument += 1
 
 								exists:
 								})()
@@ -1249,7 +1250,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, uint64(i))
+									conditionsMetDocument += 1
 
 								exists:
 								})()
@@ -1267,7 +1268,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, uint64(i))
+									conditionsMetDocument += 1
 								exists:
 								})()
 
@@ -1282,7 +1283,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
-									objects = append(objects, uint64(i))
+									conditionsMetDocument += 1
 								exists:
 								})()
 							}
@@ -1291,6 +1292,61 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 					}
 				}
 			}
+
+		}
+
+		if slices.Contains(conditions, "&&") {
+			if conditionsMetDocument >= len(conditions) {
+				deleted = append(deleted, curode.Data.Map[collection][i])
+				curode.Data.Writers[collection].Lock()
+				curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
+				curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
+				curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
+
+				// if no entries in collection, remove it.
+				if len(curode.Data.Map[collection]) == 0 {
+					delete(curode.Data.Map, collection)
+				}
+				curode.Data.Writers[collection].Unlock()
+			} else if slices.Contains(conditions, "||") {
+				deleted = append(deleted, curode.Data.Map[collection][i])
+				curode.Data.Writers[collection].Lock()
+				curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
+				curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
+				curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
+
+				// if no entries in collection, remove it.
+				if len(curode.Data.Map[collection]) == 0 {
+					delete(curode.Data.Map, collection)
+				}
+				curode.Data.Writers[collection].Unlock()
+			}
+		} else if slices.Contains(conditions, "||") {
+			{
+				deleted = append(deleted, curode.Data.Map[collection][i])
+				curode.Data.Writers[collection].Lock()
+				curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
+				curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
+				curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
+
+				// if no entries in collection, remove it.
+				if len(curode.Data.Map[collection]) == 0 {
+					delete(curode.Data.Map, collection)
+				}
+				curode.Data.Writers[collection].Unlock()
+			}
+		} else if len(conditions) == 1 {
+			deleted = append(deleted, curode.Data.Map[collection][i])
+			curode.Data.Writers[collection].Lock()
+			curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
+			curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
+			curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
+
+			// if no entries in collection, remove it.
+			if len(curode.Data.Map[collection]) == 0 {
+				delete(curode.Data.Map, collection)
+			}
+			curode.Data.Writers[collection].Unlock()
 		}
 
 	}
