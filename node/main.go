@@ -36,7 +36,6 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
-	"log"
 	"net"
 	"net/textproto"
 	"os"
@@ -782,6 +781,8 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 
 	var conditionsMet uint64
 
+	var deleted []interface{}
+
 	for i, d := range curode.Data.Map[collection] {
 		if ks == nil && vs == nil && oprs == nil {
 			if skip != 0 {
@@ -1294,65 +1295,11 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 
 	}
 
-	var deleted []interface{}
-
-	if slices.Contains(conditions, "&&") {
-		var nullObjects []interface{}
-
-		if uint64(len(conditions)) != conditionsMet {
-
-			if !slices.Contains(conditions, "||") {
-				return nullObjects
-			} else if conditionsMet > 0 {
-				for _, i := range objects {
-					if i < uint64(len(curode.Data.Map[collection])) {
-						deleted = append(deleted, curode.Data.Map[collection][i])
-						curode.Data.Writers[collection].Lock()
-						curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
-						curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
-						curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
-						// if no entries in collection, remove it.
-						if len(curode.Data.Map[collection]) == 0 {
-							delete(curode.Data.Map, collection)
-						}
-						curode.Data.Writers[collection].Unlock()
-					}
-				}
-			}
-		}
-
-	} else if conditionsMet > 0 {
-		for _, i := range objects {
-			if i < uint64(len(curode.Data.Map[collection])) {
-				deleted = append(deleted, curode.Data.Map[collection][i])
-
-				curode.Data.Writers[collection].Lock()
-				curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
-				curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
-				curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
-
-				// if no entries in collection, remove it.
-				if len(curode.Data.Map[collection]) == 0 {
-					delete(curode.Data.Map, collection)
-				}
-				curode.Data.Writers[collection].Unlock()
-			}
-		}
-	}
-
 	return deleted
 }
 
 // Select selects documents based on provided keys, values and operations such as select * from COLL where KEY == VALUE && KEY > VALUE
 func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
-
-	log.Println("collection", collection)
-	log.Println("keys", ks)
-	log.Println("values", vs)
-	log.Println("volume", vol)
-	log.Println("skip", skip)
-	log.Println("operators", oprs)
-	log.Println("conditions", conditions)
 
 	// If a lock was sent from cluster lock the collection
 	if lock {
@@ -1904,6 +1851,8 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 				{
 					objects = append(objects, d)
 				}
+			} else if len(conditions) == 1 {
+				objects = append(objects, d)
 			}
 		}
 
