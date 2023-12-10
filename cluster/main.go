@@ -668,6 +668,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
 
 						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
+
 						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
 						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
 
@@ -685,10 +686,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						}
 
 						goto skip
-
-					cont2:
-						query = ""
-						continue
 
 					skip:
 
@@ -1146,6 +1143,10 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 			}
 
 		}
+
+	cont2:
+		query = ""
+		continue
 
 	}
 

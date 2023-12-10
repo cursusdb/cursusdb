@@ -1365,26 +1365,36 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 	// Conditions met
 	var conditionsMet uint64
+
 	//The && operator displays a document if all the conditions are TRUE.
 	//The || operator displays a record if any of the conditions are TRUE.
 
+	// Linearly search collection documents by using a range loop
 	for i, d := range curode.Data.Map[collection] {
+
+		// if keys, values and operators are nil
+		// This could be a case of "select * from users;" for example if passing skip and volume checks
 		if ks == nil && vs == nil && oprs == nil {
+
+			// decrement skip and continue
 			if skip != 0 {
 				skip = skip - 1
 				continue
 			}
 
+			// if a volume is set check if we are at wanted document volume for query
 			if vol != -1 {
 				if i-1 == vol-1 {
 					return objects
 				}
 			}
 
+			// add document to objects
 			objects = append(objects, d)
 			continue
 		} else {
 
+			// range over provided keys
 			for m, k := range ks.([]interface{}) {
 
 				if oprs.([]interface{})[m] == "" {
