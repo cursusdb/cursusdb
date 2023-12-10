@@ -36,6 +36,7 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
+	"log"
 	"net"
 	"net/textproto"
 	"os"
@@ -179,7 +180,7 @@ func (curode *Curode) StartTCPListener() {
 			return
 		}
 
-		curode.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000))
+		curode.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 10000))
 		conn, err := curode.TCPListener.Accept()
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			continue
@@ -206,6 +207,7 @@ func (curode *Curode) StartTCPListener() {
 		if curode.Config.Key == strings.TrimSpace(authSpl[1]) {
 			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 0, "Authentication successful.")))
 
+			curode.Wg.Add(1)
 			go curode.HandleConnection(conn)
 		} else {
 			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 2, "Invalid authentication value.")))
@@ -1339,6 +1341,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 
 // Select selects documents based on provided keys, values and operations such as select * from COLL where KEY == VALUE && KEY > VALUE
 func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
+	// If a lock was sent from cluster lock the collection
 	if lock {
 		l, ok := curode.Data.Writers[collection]
 		if ok {
@@ -1347,6 +1350,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 	}
 
+	// Unlock when completed
 	defer func() {
 		if lock {
 			l, ok := curode.Data.Writers[collection]
@@ -1356,8 +1360,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 		}
 	}()
 
+	// Results
 	var objects []interface{}
 
+	// Conditions met
 	var conditionsMet uint64
 	//The && operator displays a document if all the conditions are TRUE.
 	//The || operator displays a record if any of the conditions are TRUE.
@@ -1849,12 +1855,21 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	}
 
 	if slices.Contains(conditions, "&&") {
-		if uint64(len(conditions)) != conditionsMet {
+		log.Println("COND", len(conditions))
+		log.Println("COND MET", conditionsMet)
+		log.Println("OBJ LEN", len(objects))
+
+		if conditionsMet < uint64(len(conditions)) {
 			var nullObjects []interface{}
 
 			if !slices.Contains(conditions, "||") {
 				objects = nullObjects
 			}
+		} else if conditionsMet >= uint64(len(conditions)) {
+			return objects
+		} else {
+			var nullObjects []interface{}
+			objects = nullObjects
 		}
 	}
 
@@ -1932,7 +1947,7 @@ func (curode *Curode) HandleConnection(conn net.Conn) {
 				c.Close()
 				return
 			}
-			time.Sleep(time.Nanosecond * 100000)
+			time.Sleep(time.Nanosecond * 1000000)
 		}
 	}(conn)
 
@@ -2175,15 +2190,15 @@ func (curode *Curode) SignalListener() {
 	for {
 		select {
 		case sig := <-curode.SignalChannel:
+			curode.WriteToFile()
 			curode.Printl(fmt.Sprintf("Received signal %s.  Starting shutdown.", sig), "INFO")
 			curode.ContextCancel()
 			// Writing in memory data to file, encrypting data as well.
-			curode.WriteToFile()
 			curode.LogFile.Close()
 			return
 
 		default:
-			time.Sleep(time.Nanosecond * 100000)
+			time.Sleep(time.Nanosecond * 1000000)
 		}
 	}
 }
