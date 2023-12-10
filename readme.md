@@ -21,6 +21,10 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Secure by default with shared key and users
 - Highly configurable
 - User permissions ``RW`` ``R``
+- Lightweight core code under 4,000 lines of code in total
+- Logging and automatic log truncation based on ``log-max-lines`` config
+
+![drawing.png](images/drawing.png)
 
 ## Cluster & Node Building & Initial Setup
 Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
