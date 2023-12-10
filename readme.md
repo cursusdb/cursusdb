@@ -196,7 +196,6 @@ delete user USERNAME;
 - ``4`` User not authorized
 #### Document
 - ``2000`` Document inserted/updated/deleted
-- ``3000`` Invalid query
 - ``4000`` Unmarsharable JSON insert
 - ``4001`` Missing action
 - ``4002`` None existent action
@@ -206,6 +205,9 @@ delete user USERNAME;
 - ``4006`` From is required
 - ``4007`` Invalid query operator
 - ``4008`` Set is missing =
+- ``4009`` Invalid insert query missing 'insert into'
+- ``4010`` Invalid insert query is missing parentheses
+- ``4011`` Invalid update query missing set
 ### Node / Cluster 
 - ``500`` - Unknown error (with description)
 - ``100`` - Node is at peak allocation.

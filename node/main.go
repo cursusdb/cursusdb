@@ -36,7 +36,6 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
-	"log"
 	"net"
 	"net/textproto"
 	"os"
@@ -719,7 +718,7 @@ func (curode *Curode) Update(collection string, ks []interface{}, vs []interface
 	if slices.Contains(conditions, "&&") {
 		var nullObjects []interface{}
 
-		if uint64(len(conditions)) != conditionsMet {
+		if uint64(len(conditions)) < conditionsMet {
 
 			if !slices.Contains(conditions, "||") {
 				return nullObjects
@@ -746,7 +745,7 @@ func (curode *Curode) Update(collection string, ks []interface{}, vs []interface
 			}
 		}
 
-	} else if conditionsMet > 0 {
+	} else if conditionsMet >= uint64(len(conditions)) {
 		for _, d := range objects {
 			for m, _ := range uks {
 
@@ -766,6 +765,10 @@ func (curode *Curode) Update(collection string, ks []interface{}, vs []interface
 			}
 
 		}
+	} else {
+		var nullObjects []interface{}
+		updated = nullObjects
+
 	}
 
 	return updated
@@ -1865,9 +1868,6 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	}
 
 	if slices.Contains(conditions, "&&") {
-		log.Println("COND", len(conditions))
-		log.Println("COND MET", conditionsMet)
-		log.Println("OBJ LEN", len(objects))
 
 		if conditionsMet < uint64(len(conditions)) {
 			var nullObjects []interface{}

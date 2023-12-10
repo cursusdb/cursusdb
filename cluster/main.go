@@ -415,7 +415,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				// query is not valid
 				// must have a full prefix of 'insert into '
 				if !strings.HasPrefix(query, "insert into ") {
-					text.PrintfLine(fmt.Sprintf("%d Invalid query", 3000))
+					text.PrintfLine(fmt.Sprintf("%d Invalid insert query missing 'insert into'", 4009))
 					query = "" // Clear query variable and listen for another
 					continue
 				}
@@ -428,7 +428,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				collection := strings.ReplaceAll(strings.Split(query, "({\"")[0], "insert into ", "")
 
 				if len(insertJson) != 2 {
-					text.PrintfLine(fmt.Sprintf("%d Invalid query", 3000))
+					text.PrintfLine(fmt.Sprintf("%d Invalid insert query is missing parentheses", 4010))
 					query = ""
 					continue
 				}
@@ -781,6 +781,11 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				body["update-keys"] = interface4
 				body["new-values"] = interface5
 
+				if setStartIndex < 4 {
+					text.PrintfLine(fmt.Sprintf("%d Invalid update query missing set", 4011))
+					query = ""
+					goto cont4
+				}
 				conditions := querySplit[4:setStartIndex]
 				newValues := strings.Split(strings.ReplaceAll(strings.Join(querySplit[setStartIndex:], " "), "set ", ""), ",")
 
