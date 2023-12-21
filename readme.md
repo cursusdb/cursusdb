@@ -285,6 +285,8 @@ curush>select * from users;
 ```
 
 ## Todo
+- Node select, delete, and update actions to be tested thoroughly, logic commented
+- There seems to be specific scenarios in-which the nodes dont return appropriate data based on limit and conditions, the logic has to be able to accompany many conditions and scenarios.
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
 
 ### Notes
