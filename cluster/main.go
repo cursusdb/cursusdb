@@ -34,6 +34,7 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
+	"log"
 	"math/rand"
 	"net"
 	"net/textproto"
@@ -356,26 +357,16 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 	query := "" // Current client query
 
-	cursus.Wg.Add(1)
-	go func(c net.Conn, wg *sync.WaitGroup) {
-		for {
-			defer wg.Done()
-			if cursus.Context.Err() != nil { // When receiving a signal we return.0
-				c.Close()
-				return
-			}
-			time.Sleep(time.Nanosecond * 100000)
-		}
-	}(conn, cursus.Wg)
-
 	for {
 		if cursus.Context.Err() != nil { // When receiving a signal we return.
 			return
 		}
-
+		conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 		// Read line
 		read, err := text.ReadLine()
-		if err != nil {
+		if e, ok := err.(net.Error); ok && e.Timeout() {
+			continue
+		} else if err != nil {
 			return
 		}
 
@@ -606,6 +597,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				body["values"].([]interface{})[0] = uuid.New().String()
 
 				res = cursus.QueryNodesRet(body)
+				log.Println("WEIRD", res)
 				for _, r := range res {
 					if !strings.EqualFold(r, "null") {
 						goto retry // $id already exists

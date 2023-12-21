@@ -36,6 +36,7 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
+	"log"
 	"net"
 	"net/textproto"
 	"os"
@@ -1360,6 +1361,15 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 // Select selects documents based on provided keys, values and operations such as select * from COLL where KEY == VALUE && KEY > VALUE
 func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
 
+	log.Println("COLL", collection)
+	log.Println("KEYS", ks)
+	log.Println("VALUES", vs)
+	log.Println("VOLL", vol)
+	log.Println("SKIP", skip)
+	log.Println("OPRS", oprs)
+	log.Println("LOCK", lock)
+	log.Println("CONDS", conditions)
+
 	// If a lock was sent from cluster lock the collection on this read
 	if lock {
 		l, ok := curode.Data.Writers[collection]
@@ -1402,7 +1412,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 			// if a volume is set check if we are at wanted document volume for query
 			if vol != -1 {
-				if len(objects)-1 == vol-1 { // Does currently collected documents equal desired volume?
+				if len(objects) == vol { // Does currently collected documents equal desired volume?
 					goto cont // return pretty much
 				}
 			}
@@ -1417,11 +1427,6 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 				if oprs.([]interface{})[m] == "" {
 					return nil
-				}
-
-				if skip != 0 {
-					skip = skip - 1
-					goto cont2
 				}
 
 				if vol != -1 {
@@ -1443,8 +1448,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 					if reflect.TypeOf(d[k.(string)]).Kind() == reflect.Slice {
 						for _, dd := range d[k.(string)].([]interface{}) {
 
-							if len(objects) == vol {
-								goto cont
+							if vol != -1 {
+								if len(objects) == vol {
+									goto cont
+								}
 							}
 
 							if reflect.TypeOf(dd).Kind() == reflect.Float64 {
@@ -1460,6 +1467,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
+												}
 												conditionsMetDocument += 1
 											exists:
 											})()
@@ -1474,6 +1485,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
+												}
 												conditionsMetDocument += 1
 											exists:
 											})()
@@ -1487,6 +1502,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 														if reflect.DeepEqual(o, d) {
 															goto exists
 														}
+													}
+													if skip != 0 {
+														skip = skip - 1
+														goto exists
 													}
 													conditionsMetDocument += 1
 												exists:
@@ -1504,6 +1523,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 															goto exists
 														}
 													}
+													if skip != 0 {
+														skip = skip - 1
+														goto exists
+													}
 													conditionsMetDocument += 1
 												exists:
 												})()
@@ -1520,6 +1543,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 															goto exists
 														}
 													}
+													if skip != 0 {
+														skip = skip - 1
+														goto exists
+													}
 													conditionsMetDocument += 1
 												exists:
 												})()
@@ -1535,6 +1562,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 														if reflect.DeepEqual(o, d) {
 															goto exists
 														}
+													}
+													if skip != 0 {
+														skip = skip - 1
+														goto exists
 													}
 													conditionsMetDocument += 1
 												exists:
@@ -1556,6 +1587,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
+												}
 												conditionsMetDocument += 1
 											exists:
 											})()
@@ -1569,6 +1604,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 													if reflect.DeepEqual(o, d) {
 														goto exists
 													}
+												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
 												}
 												conditionsMetDocument += 1
 											exists:
@@ -1584,6 +1623,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
+												}
 												conditionsMetDocument += 1
 											exists:
 											})()
@@ -1598,6 +1641,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 													if reflect.DeepEqual(o, d) {
 														goto exists
 													}
+												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
 												}
 												conditionsMetDocument += 1
 											exists:
@@ -1615,6 +1662,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 														goto exists
 													}
 												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
+												}
 												conditionsMetDocument += 1
 											exists:
 											})()
@@ -1629,6 +1680,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 													if reflect.DeepEqual(o, d) {
 														goto exists
 													}
+												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
 												}
 												conditionsMetDocument += 1
 											exists:
@@ -1652,6 +1707,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 													goto exists
 												}
 											}
+											if skip != 0 {
+												skip = skip - 1
+												goto exists
+											}
 											conditionsMetDocument += 1
 										exists:
 										})()
@@ -1665,6 +1724,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 												if reflect.DeepEqual(o, d) {
 													goto exists
 												}
+											}
+											if skip != 0 {
+												skip = skip - 1
+												goto exists
 											}
 											conditionsMetDocument += 1
 										exists:
@@ -1687,6 +1750,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
+									}
 									conditionsMetDocument += 1
 								exists:
 								})()
@@ -1700,6 +1767,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 										if reflect.DeepEqual(o, d) {
 											goto exists
 										}
+									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
 									}
 									conditionsMetDocument += 1
 								exists:
@@ -1715,6 +1786,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											if reflect.DeepEqual(o, d) {
 												goto exists
 											}
+										}
+										if skip != 0 {
+											skip = skip - 1
+											goto exists
 										}
 										conditionsMetDocument += 1
 									exists:
@@ -1732,6 +1807,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 												goto exists
 											}
 										}
+										if skip != 0 {
+											skip = skip - 1
+											goto exists
+										}
 										conditionsMetDocument += 1
 									exists:
 									})()
@@ -1748,6 +1827,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 												goto exists
 											}
 										}
+										if skip != 0 {
+											skip = skip - 1
+											goto exists
+										}
 										conditionsMetDocument += 1
 									exists:
 									})()
@@ -1763,6 +1846,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											if reflect.DeepEqual(o, d) {
 												goto exists
 											}
+										}
+										if skip != 0 {
+											skip = skip - 1
+											goto exists
 										}
 										conditionsMetDocument += 1
 									exists:
@@ -1784,6 +1871,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
+									}
 									conditionsMetDocument += 1
 								exists:
 								})()
@@ -1797,6 +1888,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 										if reflect.DeepEqual(o, d) {
 											goto exists
 										}
+									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
 									}
 									conditionsMetDocument += 1
 								exists:
@@ -1812,6 +1907,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
+									}
 									conditionsMetDocument += 1
 								exists:
 								})()
@@ -1826,6 +1925,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 										if reflect.DeepEqual(o, d) {
 											goto exists
 										}
+									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
 									}
 									conditionsMetDocument += 1
 								exists:
@@ -1843,6 +1946,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
+									}
 									conditionsMetDocument += 1
 								exists:
 								})()
@@ -1857,6 +1964,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 										if reflect.DeepEqual(o, d) {
 											goto exists
 										}
+									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
 									}
 									conditionsMetDocument += 1
 								exists:
@@ -1875,6 +1986,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											goto exists
 										}
 									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
+									}
 									conditionsMetDocument += 1
 								exists:
 								})()
@@ -1888,6 +2003,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 										if reflect.DeepEqual(o, d) {
 											goto exists
 										}
+									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
 									}
 									conditionsMetDocument += 1
 								exists:
@@ -1908,12 +2027,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 				}
 			} else if slices.Contains(conditions, "||") {
 				objects = append(objects, d)
-			} else if len(conditions) == 1 {
+			} else if conditionsMetDocument >= len(conditions) && len(conditions) == 1 {
 				objects = append(objects, d)
 			}
 
-		cont2:
-			continue
 		}
 
 	}
