@@ -1308,7 +1308,7 @@ func (cursus *Cursus) IsBool(str string) bool {
 
 // QueryNodes queries all nodes in parallel and gets responses
 func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interface{}) error {
-	//log.Println("LIMIT", limit)
+
 	jsonString, _ := json.Marshal(body)
 
 	responses := make(map[string]string)
@@ -1322,25 +1322,27 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 	wgPara.Wait()
 
-	//if cursus.Config.JoinResponses {
-	//	var f []interface{}
-	//	for _, res := range responses {
-	//		var x []interface{}
-	//		json.Unmarshal([]byte(res), &x)
-	//		f = append(f, x...)
-	//	}
-	//
-	//	response, _ := json.Marshal(f)
-	//
-	//	connection.Text.PrintfLine(string(response))
-	//} else {
-	var response string
-	for key, res := range responses {
-		response += fmt.Sprintf(`{"%s": %s},`, key, res)
-	}
+	if cursus.Config.JoinResponses {
+		var f []interface{}
+		for _, res := range responses {
+			var x []interface{}
+			json.Unmarshal([]byte(res), &x)
+			f = append(f, x...)
+		}
 
-	connection.Text.PrintfLine(fmt.Sprintf("[%s]", strings.TrimSuffix(response, ",")))
-	//}
+		response, _ := json.Marshal(f)
+
+		connection.Text.PrintfLine(string(response))
+	} else {
+		var response string
+		for key, res := range responses {
+			response += fmt.Sprintf(`{"%s": %s},`, key, res)
+		}
+
+		// If a client select 1 for example we can call body["limit"] this will contain either * OR n,n OR n
+		// We should splice this to the required limit set by query
+		connection.Text.PrintfLine(fmt.Sprintf("[%s]", strings.TrimSuffix(response, ",")))
+	}
 
 	return nil
 }

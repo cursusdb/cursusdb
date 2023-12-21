@@ -36,7 +36,6 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
-	"log"
 	"net"
 	"net/textproto"
 	"os"
@@ -1360,15 +1359,6 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 
 // Select selects documents based on provided keys, values and operations such as select * from COLL where KEY == VALUE && KEY > VALUE
 func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
-
-	log.Println("COLL", collection)
-	log.Println("KEYS", ks)
-	log.Println("VALUES", vs)
-	log.Println("VOLL", vol)
-	log.Println("SKIP", skip)
-	log.Println("OPRS", oprs)
-	log.Println("LOCK", lock)
-	log.Println("CONDS", conditions)
 
 	// If a lock was sent from cluster lock the collection on this read
 	if lock {
