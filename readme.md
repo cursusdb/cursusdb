@@ -284,6 +284,9 @@ curush>select * from users;
 
 ```
 
+## Issues 
+Please report issues, enhancements, etc at https://github.com/cursusdb/cursusdb/discussions OR https://github.com/cursusdb/cursusdb/issues
+
 ## Todo
 - Node select, delete, and update actions to be tested thoroughly, logic commented
 - There seems to be specific scenarios in-which the nodes dont return appropriate data based on limit and conditions, the logic has to be able to accompany many conditions and scenarios.
