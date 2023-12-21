@@ -1360,7 +1360,7 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 // Select selects documents based on provided keys, values and operations such as select * from COLL where KEY == VALUE && KEY > VALUE
 func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
 
-	// If a lock was sent from cluster lock the collection
+	// If a lock was sent from cluster lock the collection on this read
 	if lock {
 		l, ok := curode.Data.Writers[collection]
 		if ok {
@@ -1369,7 +1369,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 	}
 
-	// Unlock when completed
+	// Unlock when completed, by defering
 	defer func() {
 		if lock {
 			l, ok := curode.Data.Writers[collection]
@@ -1386,9 +1386,9 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	//The || operator displays a record if any of the conditions are TRUE.
 
 	// Linearly search collection documents by using a range loop
-	for i, d := range curode.Data.Map[collection] {
+	for _, d := range curode.Data.Map[collection] {
 
-		conditionsMetDocument := 0
+		conditionsMetDocument := 0 // conditions met as in th first condition would be key == v lets say the next would be && or || etc..
 
 		// if keys, values and operators are nil
 		// This could be a case of "select * from users;" for example if passing skip and volume checks
@@ -1402,12 +1402,13 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 			// if a volume is set check if we are at wanted document volume for query
 			if vol != -1 {
-				if i-1 == vol-1 {
-					goto cont
+				if len(objects)-1 == vol-1 { // Does currently collected documents equal desired volume?
+					goto cont // return pretty much
 				}
 			}
 
 			// add document to objects
+			objects = append(objects, d)
 			continue
 		} else {
 
@@ -1420,7 +1421,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 				if skip != 0 {
 					skip = skip - 1
-					continue
+					goto cont2
 				}
 
 				if vol != -1 {
@@ -1910,6 +1911,9 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 			} else if len(conditions) == 1 {
 				objects = append(objects, d)
 			}
+
+		cont2:
+			continue
 		}
 
 	}

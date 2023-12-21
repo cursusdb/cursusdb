@@ -348,7 +348,7 @@ func (cursus *Cursus) AuthenticateUser(username string, password string) (string
 // HandleConnection handles a client connection after authentication.  A client provides queries and this method will read up to a semi-colon then forming JSON the node will understand and sending it off to every node.
 func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{}) {
 	cursus.Printl(fmt.Sprintf("HandleConnection(): New client connection %s", conn.RemoteAddr().String()), "INFO")
-	defer cursus.Wg.Done() // Defer waigroup removal/finish
+	defer cursus.Wg.Done() // Defer waitgroup removal/finish
 	defer conn.Close()     // Close connection on return of method
 
 	text := textproto.NewConn(conn) // Connection write and read
@@ -356,15 +356,17 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 	query := "" // Current client query
 
-	go func(c net.Conn) {
+	cursus.Wg.Add(1)
+	go func(c net.Conn, wg *sync.WaitGroup) {
 		for {
+			defer wg.Done()
 			if cursus.Context.Err() != nil { // When receiving a signal we return.0
 				c.Close()
 				return
 			}
 			time.Sleep(time.Nanosecond * 100000)
 		}
-	}(conn)
+	}(conn, cursus.Wg)
 
 	for {
 		if cursus.Context.Err() != nil { // When receiving a signal we return.
