@@ -230,6 +230,26 @@ func main() {
 	os.Exit(0)
 }
 
+func (cursus *Cursus) SaveConfig() {
+	config, err := os.OpenFile(".cursusconfig", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0777)
+	if err != nil {
+		cursus.Printl("Could not update config file"+err.Error(), "ERROR")
+		return
+	}
+
+	defer config.Close()
+
+	// Marshal config to yaml
+	yamlConfig, err := yaml.Marshal(&cursus.Config)
+	if err != nil {
+		cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
+		fmt.Println("main():", err.Error())
+		os.Exit(1)
+	}
+
+	config.Write(yamlConfig)
+}
+
 // ValidatePermission validates cluster permissions aka R or RW
 func (cursus *Cursus) ValidatePermission(perm string) bool {
 	switch perm {
@@ -453,6 +473,7 @@ func (cursus *Cursus) SignalListener() {
 			cursus.Printl(fmt.Sprintf("Received signal %s starting database cluster shutdown.", sig), "INFO")
 			cursus.TCPListener.Close()
 			cursus.ContextCancel()
+			cursus.SaveConfig()
 			return
 		default:
 			time.Sleep(time.Nanosecond * 1000000)
