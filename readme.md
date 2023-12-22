@@ -82,8 +82,9 @@ logging: false
 
 Let's put in under nodes a local node we will start shortly.
 ``` 
-nodes: 
-    - 0.0.0.0:7682
+nodes:
+- host: 0.0.0.0
+  port: 7682
 ```
 
 Now with your .cursusconfig setup let's start our node for the first time.
@@ -114,7 +115,29 @@ On inserts every document will get a unique ``$id `` key which is unique across 
 If we try and insert the same document we will get an error stating an existing document already exists.  This is because we set ``email`` with and ``!`` 
 ![img_9.png](images/img_9.png)
 
+## Node Replicating
+```
+nodes:
+- host: 0.0.0.0
+  port: 7682
+replicas:
+- host: 0.0.0.0
+  port: 7683
+```
 
+Node at ``0.0.0.0:7682`` has a configured replica at ``0.0.0.0:7682``
+
+On the nodes end you need to configure a twin so the node you're configuring knows to replicate the data over.
+
+.curodeconfig
+``` 
+twins:
+- host: 0.0.0.0
+  port: 1111
+tls-cert: ""
+tls-key: ""
+..
+```
 
 ## Query Language
 Case-sensitive.. Keep it lowercase as the example.
