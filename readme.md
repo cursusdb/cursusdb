@@ -149,6 +149,39 @@ delete 0,5 from users where age > 28 && name == 'Alex';
 ect
 ```
 
+### Pattern Matching
+#### LIKE
+Starts with 'A'
+``` 
+select * from users where firstName like 'A%lex Padula'
+```
+
+Ends with 'la'
+``` 
+select * from users where firstName like 'Alex Padu%la'
+```
+
+Contains Pad
+``` 
+select * from users where firstName like 'Alex %Pad%ula'
+```
+
+#### NOT LIKE
+Starts with 'A'
+``` 
+select * from users where firstName not like 'A%lex Padula'
+```
+
+Ends with 'la'
+``` 
+select * from users where firstName not like 'Alex Padu%la'
+```
+
+Contains Pad
+``` 
+select * from users where firstName not like 'Alex %Pad%ula'
+```
+
 ### Uniqueness
 using ``key!`` will make sure the value is unique across all nodes!
 ``` 
@@ -301,5 +334,4 @@ Please report issues, enhancements, etc at:
 
 
 ## Todo
-- Like operator to be part of actions i.e ```select * from users where firstName like '%Alex%ander';```
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.

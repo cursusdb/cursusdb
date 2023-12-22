@@ -1059,6 +1059,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 				}
 
+				query = strings.ReplaceAll(query, "not like", "!like")
 				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
 
 				if !strings.Contains(query, "where ") {
@@ -1156,6 +1157,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "like"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "not like"):
 						default:
 							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 							continue
@@ -1255,6 +1257,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				}
 			case strings.HasPrefix(query, "update "):
 				// update 1 in users where name == 'jackson' set name = 'alex';
+				query = strings.ReplaceAll(query, "not like", "!like")
 				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
 
 				// update 1 in users where name == 'jackson' && age == 44 set name = 'alex', age = 28;
@@ -1361,6 +1364,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "like"):
+					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "not like"):
 					default:
 						text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 						continue
@@ -1465,7 +1469,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
 					continue
 				}
-
+				query = strings.ReplaceAll(query, "not like", "!like")
 				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
 
 				if !strings.Contains(query, "where ") {
@@ -1561,6 +1565,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "like"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "not like"):
 						default:
 							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 							continue
