@@ -42,6 +42,7 @@ import (
 	"os"
 	"os/signal"
 	"reflect"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -1000,9 +1001,84 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 							} else {
 								// string
 								if oprs.([]interface{})[m] == "like" {
-									// select * from users where firstName like 'alex%'
-									// select * from users where firstName like 'alex %pad%ula'
-									log.Println("to be implemented")
+									if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
+										// Get index of % and check if on left or right of string
+										percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
+										sMiddle := len(vs.([]interface{})[m].(string)) / 2
+										right := false
+
+										if sMiddle >= percIndex {
+											right = false
+										} else {
+											right = true
+										}
+
+										if right {
+											r := regexp.MustCompile(`^(.*?)%`)
+											patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+											for j, _ := range patterns {
+												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+											}
+
+											for _, p := range patterns {
+												// does value start with p
+												if strings.HasPrefix(vs.([]interface{})[m].(string), p) {
+													if skip != 0 {
+														skip = skip - 1
+														goto s
+													}
+													conditionsMetDocument += 1
+
+												s:
+													continue
+												}
+											}
+										} else {
+											r := regexp.MustCompile(`\%(.*)`)
+											patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+											for j, _ := range patterns {
+												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+											}
+
+											for _, p := range patterns {
+												// does value end with p
+												if strings.HasSuffix(vs.([]interface{})[m].(string), p) {
+													if skip != 0 {
+														skip = skip - 1
+														goto s2
+													}
+													conditionsMetDocument += 1
+
+												s2:
+													continue
+												}
+											}
+										}
+									} else {
+
+										r := regexp.MustCompile(`%(.*?)%`)
+										patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+										for j, _ := range patterns {
+											patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+										}
+
+										for _, p := range patterns {
+											// does value contain p
+											if strings.Count(vs.([]interface{})[m].(string), p) > 0 {
+												if skip != 0 {
+													skip = skip - 1
+													goto s3
+												}
+												conditionsMetDocument += 1
+
+											s3:
+												continue
+											}
+										}
+									}
 								} else if oprs.([]interface{})[m] == "==" {
 									if reflect.DeepEqual(dd, vs.([]interface{})[m]) {
 
@@ -1253,9 +1329,84 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 						if oprs.([]interface{})[m] == "like" {
 							// select * from users where firstName like 'alex%'
-							// select * from users where firstName like 'alex %pad%ula'
-							log.Println("to be implemented")
+							if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
+								// Get index of % and check if on left or right of string
+								percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
+								sMiddle := len(vs.([]interface{})[m].(string)) / 2
+								right := false
 
+								if sMiddle >= percIndex {
+									right = false
+								} else {
+									right = true
+								}
+
+								if right {
+									r := regexp.MustCompile(`^(.*?)%`)
+									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+									for j, _ := range patterns {
+										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+									}
+
+									for _, p := range patterns {
+										// does value start with p
+										if strings.HasPrefix(vs.([]interface{})[m].(string), p) {
+											if skip != 0 {
+												skip = skip - 1
+												goto sk
+											}
+											conditionsMetDocument += 1
+
+										sk:
+											continue
+										}
+									}
+								} else {
+									r := regexp.MustCompile(`\%(.*)`)
+									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+									for j, _ := range patterns {
+										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+									}
+
+									for _, p := range patterns {
+										// does value end with p
+										if strings.HasSuffix(vs.([]interface{})[m].(string), p) {
+											if skip != 0 {
+												skip = skip - 1
+												goto sk2
+											}
+											conditionsMetDocument += 1
+
+										sk2:
+											continue
+										}
+									}
+								}
+							} else {
+
+								r := regexp.MustCompile(`%(.*?)%`)
+								patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+								for j, _ := range patterns {
+									patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+								}
+
+								for _, p := range patterns {
+									// does value contain p
+									if strings.Count(vs.([]interface{})[m].(string), p) > 0 {
+										if skip != 0 {
+											skip = skip - 1
+											goto sk3
+										}
+										conditionsMetDocument += 1
+
+									sk3:
+										continue
+									}
+								}
+							}
 						} else if oprs.([]interface{})[m] == "==" {
 							if reflect.DeepEqual(d[k.(string)], vs.([]interface{})[m]) {
 
