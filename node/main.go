@@ -1010,13 +1010,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 										// Get index of % and check if on left or right of string
 										percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
 										sMiddle := len(vs.([]interface{})[m].(string)) / 2
-										right := false
-
-										if sMiddle >= percIndex {
-											right = false
-										} else {
-											right = true
-										}
+										right := sMiddle < percIndex
 
 										if right {
 											r := regexp.MustCompile(`^(.*?)%`)
@@ -1090,13 +1084,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 										// Get index of % and check if on left or right of string
 										percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
 										sMiddle := len(vs.([]interface{})[m].(string)) / 2
-										right := false
-
-										if sMiddle >= percIndex {
-											right = false
-										} else {
-											right = true
-										}
+										right := sMiddle < percIndex
 
 										if right {
 											r := regexp.MustCompile(`^(.*?)%`)
@@ -1418,13 +1406,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 								// Get index of % and check if on left or right of string
 								percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
 								sMiddle := len(vs.([]interface{})[m].(string)) / 2
-								right := false
-
-								if sMiddle >= percIndex {
-									right = false
-								} else {
-									right = true
-								}
+								right := sMiddle < percIndex
 
 								if right {
 									r := regexp.MustCompile(`^(.*?)%`)
@@ -1498,13 +1480,8 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 								// Get index of % and check if on left or right of string
 								percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
 								sMiddle := len(vs.([]interface{})[m].(string)) / 2
-								right := false
+								right := sMiddle < percIndex
 
-								if sMiddle >= percIndex {
-									right = false
-								} else {
-									right = true
-								}
 
 								if right {
 									r := regexp.MustCompile(`^(.*?)%`)
