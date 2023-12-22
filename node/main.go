@@ -1020,7 +1020,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 											for j, _ := range patterns {
-												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 											}
 
 											for _, p := range patterns {
@@ -1041,7 +1041,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 											for j, _ := range patterns {
-												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 											}
 
 											for _, p := range patterns {
@@ -1064,7 +1064,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 										patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 										for j, _ := range patterns {
-											patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+											patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 										}
 
 										for _, p := range patterns {
@@ -1094,7 +1094,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 											for j, _ := range patterns {
-												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 											}
 
 											for _, p := range patterns {
@@ -1115,7 +1115,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 											patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 											for j, _ := range patterns {
-												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 											}
 
 											for _, p := range patterns {
@@ -1138,7 +1138,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 										patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 										for j, _ := range patterns {
-											patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+											patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 										}
 
 										for _, p := range patterns {
@@ -1416,7 +1416,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 									for j, _ := range patterns {
-										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 									}
 
 									for _, p := range patterns {
@@ -1437,7 +1437,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 									for j, _ := range patterns {
-										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 									}
 
 									for _, p := range patterns {
@@ -1460,7 +1460,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 								patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 								for j, _ := range patterns {
-									patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+									patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 								}
 
 								for _, p := range patterns {
@@ -1490,7 +1490,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 									for j, _ := range patterns {
-										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 									}
 
 									for _, p := range patterns {
@@ -1511,7 +1511,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 									for j, _ := range patterns {
-										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 									}
 
 									for _, p := range patterns {
@@ -1534,7 +1534,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 								patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
 
 								for j, _ := range patterns {
-									patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[i], "%"), "%")
+									patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
 								}
 
 								for _, p := range patterns {
@@ -1656,6 +1656,26 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	goto cont
 
 cont:
+
+	// Should only sort integers, floats and strings
+	if sortKey != "" && sortPos != "" {
+
+		for _, d := range objects {
+
+			_, ok := d.(map[string]interface{})[sortKey]
+			if ok {
+				if reflect.TypeOf(d.(map[string]interface{})[sortKey]).Kind().String() == "string" {
+					log.Println("good")
+				} else if reflect.TypeOf(d.(map[string]interface{})[sortKey]).Kind().String() == "float64" {
+					log.Println("good")
+				} else if reflect.TypeOf(d.(map[string]interface{})[sortKey]).Kind().String() == "int" {
+					log.Println("good")
+				}
+
+			}
+
+		}
+	}
 
 	return objects
 }
