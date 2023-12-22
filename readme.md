@@ -237,6 +237,11 @@ Logs for the CursusDB cluster and node are found where you launch your binaries.
 Cluster: ``cursus.log``
 Node: ``curode.log``
 
+You can enable logging on either cluster or node enabling logging.  This will log to file instead of stdout
+``` 
+logging: true
+```
+
 Within your yaml configs you can set ``log-max-lines`` this option will tell either node or cluster when to truncate(clear up) the log file(s).
 
 ### How are logs are formatted?
