@@ -1663,9 +1663,9 @@ cont:
 
 		for _, d := range objects {
 
-			_, ok := d.(map[string]interface{})[sortKey]
+			doc, ok := d.(map[string]interface{})[sortKey]
 			if ok {
-				if reflect.TypeOf(d.(map[string]interface{})[sortKey]).Kind().String() == "string" {
+				if reflect.TypeOf(doc).Kind().String() == "string" {
 					// alphabetical sorting based on string[0] value A,B,C asc C,B,A desc
 					sort.Slice(objects[:], func(z, x int) bool {
 						if sortPos == "asc" {
@@ -1674,7 +1674,6 @@ cont:
 							return objects[z].(map[string]interface{})[sortKey].(string) > objects[x].(map[string]interface{})[sortKey].(string)
 						}
 					})
-					log.Println(objects)
 				} else if reflect.TypeOf(d.(map[string]interface{})[sortKey]).Kind().String() == "float64" {
 					// numerical sorting based on float64[0] value 1.1,1.0,0.9 desc 0.9,1.0,1.1 asc
 					sort.Slice(objects[:], func(z, x int) bool {

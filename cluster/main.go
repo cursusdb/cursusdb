@@ -1076,7 +1076,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				if strings.Contains(query, "order by ") {
 					sortKey = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(query[strings.Index(query, "order by "):], "order by "), "asc;"), "desc;"))
-					if strings.HasPrefix(query, "asc;") {
+					if strings.HasSuffix(query, "asc;") {
 						sortPos = "asc"
 					} else {
 						sortPos = "desc"
@@ -1294,7 +1294,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				if strings.Contains(query, "order by ") {
 					sortKey = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(query[strings.Index(query, "order by "):], "order by "), "asc;"), "desc;"))
-					if strings.HasPrefix(query, "asc;") {
+					if strings.HasSuffix(query, "asc;") {
 						sortPos = "asc"
 					} else {
 						sortPos = "desc"
@@ -1525,7 +1525,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				if strings.Contains(query, "order by ") {
 					sortKey = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(query[strings.Index(query, "order by "):], "order by "), "asc;"), "desc;"))
-					if strings.HasPrefix(query, "asc;") {
+					if strings.HasSuffix(query, "asc;") {
 						sortPos = "asc"
 					} else {
 						sortPos = "desc"
