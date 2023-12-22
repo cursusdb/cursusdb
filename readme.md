@@ -134,6 +134,20 @@ select * from users where tags == "tag1";
 select * from users where name == 'Alex' && age == 28 && tags == 'tag1';
 ```
 
+##### NOTE
+You can use ``==`` OR ``=``
+
+For example 
+``` 
+select 1 from users where name == 'Alex' || name == 'John';
+```
+
+OR
+``` 
+select 1 from users where name = 'Alex' || name = 'John';
+```
+
+
 ### Updating
 ```
 update 1 in users where age >= 28 set name = 'Josie';
