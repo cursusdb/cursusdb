@@ -1151,6 +1151,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						switch {
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "="):
+							body["oprs"].([]interface{})[k] = "=="
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
@@ -1358,6 +1360,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 					switch {
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
+					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "="):
+						body["oprs"].([]interface{})[k] = "=="
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
@@ -1559,6 +1563,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						switch {
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "="):
+							body["oprs"].([]interface{})[k] = "=="
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
