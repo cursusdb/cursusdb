@@ -679,8 +679,6 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 	}
 
-	log.Println(oprs)
-
 	// Unlock when completed, by defering
 	defer func() {
 		if lock {
@@ -1252,7 +1250,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 						}
 					} else { // string
-						log.Println("well", oprs)
+
 						if oprs.([]interface{})[m] == "like" {
 							// select * from users where firstName like 'alex%'
 							// select * from users where firstName like 'alex %pad%ula'
