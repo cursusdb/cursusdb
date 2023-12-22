@@ -679,6 +679,8 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 	}
 
+	log.Println(oprs)
+
 	// Unlock when completed, by defering
 	defer func() {
 		if lock {
@@ -998,7 +1000,12 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 								//	// unimplemented
 								//}
 							} else {
-								if oprs.([]interface{})[m] == "==" {
+								// string
+								if oprs.([]interface{})[m] == "like" {
+									// select * from users where firstName like 'alex%'
+									// select * from users where firstName like 'alex %pad%ula'
+									log.Println("to be implemented")
+								} else if oprs.([]interface{})[m] == "==" {
 									if reflect.DeepEqual(dd, vs.([]interface{})[m]) {
 
 										(func() {
@@ -1244,8 +1251,14 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 							}
 
 						}
-					} else {
-						if oprs.([]interface{})[m] == "==" {
+					} else { // string
+						log.Println("well", oprs)
+						if oprs.([]interface{})[m] == "like" {
+							// select * from users where firstName like 'alex%'
+							// select * from users where firstName like 'alex %pad%ula'
+							log.Println("to be implemented")
+
+						} else if oprs.([]interface{})[m] == "==" {
 							if reflect.DeepEqual(d[k.(string)], vs.([]interface{})[m]) {
 
 								(func() {

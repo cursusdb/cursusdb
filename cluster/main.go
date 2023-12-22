@@ -806,7 +806,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 		if strings.HasPrefix(query, "quit") {
 			return
 		} else if strings.HasSuffix(query, ";") { // Does line end with a semicolon?
-			cursus.Printl(fmt.Sprintf("HandleConnection(): %s query(%s)", conn.RemoteAddr().String(), query), "INFO")
+			cursus.Printl(fmt.Sprintf("HandleClientConnection(): %s query(%s)", conn.RemoteAddr().String(), query), "INFO")
 
 			//Check user permission and check if their allowed to use the specific action
 			switch user["permission"] {
@@ -1155,6 +1155,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "like"):
 						default:
 							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 							continue
@@ -1359,6 +1360,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
+					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "like"):
 					default:
 						text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 						continue
@@ -1558,6 +1560,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "like"):
 						default:
 							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 							continue
