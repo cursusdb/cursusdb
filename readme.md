@@ -235,6 +235,7 @@ delete user USERNAME;
 - ``<``
 - ``>=``
 - ``==``
+- ``=``
 - ``!=``
 
 ### Conditionals
