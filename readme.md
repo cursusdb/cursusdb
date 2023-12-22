@@ -116,6 +116,8 @@ If we try and insert the same document we will get an error stating an existing 
 
 
 ## Query Language
+Case-sensitive.. Keep it lowercase as the example.
+
 ### Inserts
 ```
 insert into users({"name": "Alex", "last": "Lee", "age": 28});
@@ -299,5 +301,5 @@ Please report issues, enhancements, etc at:
 
 
 ## Todo
-- Like operator to be part of actions i.e ```select * from users where firstName LIKE '%Alex%ander';```
+- Like operator to be part of actions i.e ```select * from users where firstName like '%Alex%ander';```
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
