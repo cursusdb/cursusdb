@@ -1667,19 +1667,31 @@ cont:
 			if ok {
 				if reflect.TypeOf(d.(map[string]interface{})[sortKey]).Kind().String() == "string" {
 					// alphabetical sorting based on string[0] value A,B,C asc C,B,A desc
-					sort.Slice(objects, func(z, x int) bool {
-						return objects[z].(map[string]interface{})[sortKey].(string) < objects[x].(map[string]interface{})[sortKey].(string)
+					sort.Slice(objects[:], func(z, x int) bool {
+						if sortPos == "asc" {
+							return objects[z].(map[string]interface{})[sortKey].(string) < objects[x].(map[string]interface{})[sortKey].(string)
+						} else {
+							return objects[z].(map[string]interface{})[sortKey].(string) > objects[x].(map[string]interface{})[sortKey].(string)
+						}
 					})
 					log.Println(objects)
 				} else if reflect.TypeOf(d.(map[string]interface{})[sortKey]).Kind().String() == "float64" {
 					// numerical sorting based on float64[0] value 1.1,1.0,0.9 desc 0.9,1.0,1.1 asc
-					sort.Slice(objects, func(z, x int) bool {
-						return objects[z].(map[string]interface{})[sortKey].(float64) < objects[x].(map[string]interface{})[sortKey].(float64)
+					sort.Slice(objects[:], func(z, x int) bool {
+						if sortPos == "asc" {
+							return objects[z].(map[string]interface{})[sortKey].(float64) < objects[x].(map[string]interface{})[sortKey].(float64)
+						} else {
+							return objects[z].(map[string]interface{})[sortKey].(float64) > objects[x].(map[string]interface{})[sortKey].(float64)
+						}
 					})
 				} else if reflect.TypeOf(d.(map[string]interface{})[sortKey]).Kind().String() == "int" {
 					// numerical sorting based on int[0] value 22,12,3 desc 3,12,22 asc
-					sort.Slice(objects, func(z, x int) bool {
-						return objects[z].(map[string]interface{})[sortKey].(int) < objects[x].(map[string]interface{})[sortKey].(int)
+					sort.Slice(objects[:], func(z, x int) bool {
+						if sortPos == "asc" {
+							return objects[z].(map[string]interface{})[sortKey].(int) < objects[x].(map[string]interface{})[sortKey].(int)
+						} else {
+							return objects[z].(map[string]interface{})[sortKey].(int) > objects[x].(map[string]interface{})[sortKey].(int)
+						}
 					})
 				}
 

@@ -358,5 +358,7 @@ Please report issues, enhancements, etc at:
 
 
 ## Todo
+- Allow SQL inserts ```insert into coll (key, key, key, ...)
+  VALUES (value1, value2, value3, ...); ```
 - Sorting.. for example ```select * from users where lastName like 'A%' order by createdOn desc;```
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
