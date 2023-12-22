@@ -244,14 +244,14 @@ func main() {
 	}
 
 	curode.Wg.Add(1)
-	go curode.SignalListener()
+	go curode.SignalListener() // Listen for system signals
 
 	curode.Wg.Add(1)
-	go curode.StartTCP_TLS()
+	go curode.StartTCP_TLS() // Start listening tcp/tls with config
 
-	curode.Wg.Wait()
+	curode.Wg.Wait() // Wait for go routines to finish
 
-	os.Exit(0)
+	os.Exit(0) // exit
 }
 
 // Decrypt decrypts .cdat file to temporary serialized data file to be read

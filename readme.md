@@ -59,12 +59,12 @@ tls-cert: ""
 tls-key: ""
 tls: false
 port: 7681
-key: QyjlGfs+AMjvqJd/ovUUA1mBZ3yEq72y8xBQw94a96k=
+key: QyjlGfs+AMjvqJd/ovUUA1mBZ3yEq72y8xBQw94a96k= # Hashed and encoded
 users:
-    - YWxleA==:7V8VGHNwVTVC7EktlWS8V3kS/xkLvRg/oODmOeIukDY=
+    - YWxleA==:7V8VGHNwVTVC7EktlWS8V3kS/xkLvRg/oODmOeIukDY= # {ENCODED-UNAME}:{ENCODED-HASHED-UPW} first part is encoded username then encrypted and encoded pw
 node-reader-size: 2097152
 log-max-lines: 1000
-join-responses: false
+join-responses: true
 logging: false
 ```
 - nodes - database cluster nodes.  i.e an ip/fqdn + port combination (cluster1.example.com:7682)
@@ -210,6 +210,7 @@ delete user USERNAME;
 - ``4010`` Invalid insert query is missing parentheses
 - ``4011`` Invalid update query missing set
 - ``4012`` Could not marshal JSON
+- ``4013`` Unmarsharable JSON
 ### Node / Cluster 
 - ``500`` - Unknown error (with description)
 - ``501`` - Limit skip must be an integer (with description)

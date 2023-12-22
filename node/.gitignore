@@ -1,5 +1,5 @@
 bin
-../cursusbup/node/.cdat
+.cdat
 .curodeconfig
 curode
 curode.exe

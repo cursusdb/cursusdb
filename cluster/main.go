@@ -217,19 +217,20 @@ func main() {
 
 	signal.Notify(cursus.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
 
-	cursus.ConnectToNodes()
+	cursus.ConnectToNodes() // Connect to configured nodes for fast communication
 
 	cursus.Wg.Add(1)
-	go cursus.SignalListener()
+	go cursus.SignalListener() // Listen to system systems
 
 	cursus.Wg.Add(1)
-	go cursus.StartTCP_TLS()
+	go cursus.StartTCP_TLS() // Start listening tcp/tls with setup configuration
 
-	cursus.Wg.Wait()
+	cursus.Wg.Wait() // Wait for all go routines to finish up
 
-	os.Exit(0)
+	os.Exit(0) // exit
 }
 
+// SaveConfig save cluster config such as created users and so forth on shutdown
 func (cursus *Cursus) SaveConfig() {
 	config, err := os.OpenFile(".cursusconfig", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0777)
 	if err != nil {
@@ -679,25 +680,43 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 	wgPara.Wait()
 
 	if cursus.Config.JoinResponses {
-		var f []interface{}
+		var docs []interface{}
 		for _, res := range responses {
 			var x []interface{}
-			json.Unmarshal([]byte(res), &x)
-			f = append(f, x...)
+			err := json.Unmarshal([]byte(res), &x)
+			if err != nil {
+				fmt.Sprintf("%d Unmarsharable JSON", 4013)
+				return nil
+			}
+			docs = append(docs, x...)
 		}
 
-		response, _ := json.Marshal(f)
+		if body["limit"] != -1 {
+			for i, _ := range docs {
+				if i > body["limit"].(int) {
+					docs[i] = docs[len(docs)-1]
+					docs[len(docs)-1] = nil
+					docs = docs[:len(docs)-1]
+				}
+			}
+		}
 
-		connection.Text.PrintfLine(string(response))
+		docsJson, err := json.Marshal(docs)
+		if err != nil {
+			connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
+			return nil
+		}
+
+		connection.Text.PrintfLine(string(docsJson))
+
 	} else {
 		var response string
 		for key, res := range responses {
 			response += fmt.Sprintf(`{"%s": %s},`, key, res)
 		}
 
-		// If a client select 1 for example we can call body["limit"] this will contain either * OR n,n OR n
-		// We should splice this to the required limit set by query
 		connection.Text.PrintfLine(fmt.Sprintf("[%s]", strings.TrimSuffix(response, ",")))
+
 	}
 
 	return nil
