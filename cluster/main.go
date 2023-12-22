@@ -99,15 +99,15 @@ type Config struct {
 
 // Node is a cluster node
 type Node struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	Replicas []NodeReplica
+	Host     string        `yaml:"host"` // Cluster node host i.e 0.0.0.0 or cluster0.example.com
+	Port     int           `yaml:"port"` // Cluster node port default for a cluster node is 7682
+	Replicas []NodeReplica // Cluster node replicas of configured.  If node becomes unavailable where to go to instead.
 }
 
 // NodeReplica is a replica of original node.  Used in-case active node is not available
 type NodeReplica struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
+	Host string `yaml:"host"` // Cluster node replica host i.e 0.0.0.0 or cluster0.example.com
+	Port int    `yaml:"port"` // Default cluster node port of 7682 but can be configured
 }
 
 // Global variables

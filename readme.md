@@ -378,4 +378,4 @@ Please report issues, enhancements, etc at:
 ## Todo
 - Allow SQL inserts ```insert into coll (key, key, key, ...)
   VALUES (value1, value2, value3, ...); ```
-- Node replication.
+- Node replication (in progress)
