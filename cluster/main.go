@@ -202,7 +202,7 @@ func main() {
 			cursus.LogMu = &sync.Mutex{} // Cluster log mutex
 			cursus.LogFile, err = os.OpenFile("cursus.log", os.O_CREATE|os.O_RDWR, 0777)
 			if err != nil {
-				fmt.Println("Could not open log file - ", err.Error())
+				fmt.Println("main():", "Could not open log file - ", err.Error())
 				os.Exit(1)
 			}
 		}
@@ -226,6 +226,8 @@ func main() {
 	go cursus.StartTCP_TLS()
 
 	cursus.Wg.Wait()
+
+	os.Exit(0)
 }
 
 // ValidatePermission validates cluster permissions aka R or RW
@@ -485,7 +487,6 @@ func (cursus *Cursus) StartTCP_TLS() {
 			return
 		}
 
-		// If TLS is set to true within config let's make the connection secure
 		// If TLS is set to true within config let's make the connection secure
 		if cursus.Config.TLS {
 			conn = tls.Server(conn, cursus.TLSConfig)

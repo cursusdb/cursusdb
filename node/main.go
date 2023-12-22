@@ -112,7 +112,7 @@ func main() {
 		// Create .curodeconfig
 		nodeConfigFile, err := os.OpenFile("./.curodeconfig", os.O_CREATE|os.O_RDWR, 0777)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -128,7 +128,7 @@ func main() {
 		fmt.Print("key> ")
 		key, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -143,7 +143,7 @@ func main() {
 		// Marshal node config into yaml
 		yamlData, err := yaml.Marshal(&curode.Config)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -153,14 +153,14 @@ func main() {
 		// Read node config
 		nodeConfigFile, err := os.ReadFile("./.curodeconfig")
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
 		// Unmarshal node config yaml
 		err = yaml.Unmarshal(nodeConfigFile, &curode.Config)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -176,7 +176,7 @@ func main() {
 		// Temporary decrypted data file.. to be unserialized into map
 		fDFTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -191,7 +191,7 @@ func main() {
 
 			if err != nil {
 				if err != io.EOF {
-					fmt.Println(err.Error())
+					fmt.Println("main():", err.Error())
 					os.Exit(1)
 				}
 				break
@@ -200,14 +200,14 @@ func main() {
 			if read > 0 {
 				decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
 				if err != nil {
-					fmt.Println(err.Error())
+					fmt.Println("main():", err.Error())
 					os.Exit(1)
 					return
 				}
 
 				serialized, err := curode.Decrypt(decodedKey[:], buf[:read])
 				if err != nil {
-					fmt.Println(err.Error())
+					fmt.Println("main():", err.Error())
 					os.Exit(1)
 					return
 				}
@@ -228,8 +228,7 @@ func main() {
 		// Now with all serialized data we encode into data hashmap
 		err = d.Decode(&curode.Data.Map)
 		if err != nil {
-			fmt.Println(err.Error())
-			curode.Printl(fmt.Sprintf("main(): %s", err.Error()), "INFO")
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -251,6 +250,8 @@ func main() {
 	go curode.StartTCP_TLS()
 
 	curode.Wg.Wait()
+
+	os.Exit(0)
 }
 
 // Decrypt decrypts .cdat file to temporary serialized data file to be read
@@ -455,6 +456,12 @@ func (curode *Curode) StartTCP_TLS() {
 			curode.SignalChannel <- os.Interrupt
 			return
 		}
+
+		// If TLS is set to true within config let's make the connection secure
+		if curode.Config.TLS {
+			conn = tls.Server(conn, curode.TLSConfig)
+		}
+
 		auth, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
 			curode.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")

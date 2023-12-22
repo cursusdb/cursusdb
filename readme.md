@@ -3,7 +3,7 @@ CursusDB is a blazing fast open source in-memory document type database offering
 
 https://cursusdb.com/documentation
 
-The idea behind CursusDB was to create something unlimitedly scalable whilst never really slowing down. Say you have 10 million documents stored on 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million. This is the power of parallel search. The Cursus system is searching say in the users collection in multiple sections of the collection simultaneously.
+The idea behind CursusDB was to create something unlimitedly scalable whilst never really slowing down. Say you have 1 billion documents stored within 1 collection spread across 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million as the cluster initiates a non insert action on each node simultaneously. This is the power of parallel search. The Cursus system is searching say in the users collection in multiple sections of the collection simultaneously.
 
 ### Features
 - Secured cluster and node(s) communication with shared key and OR TLS.
@@ -21,8 +21,8 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Secure by default with shared key and users
 - Highly configurable
 - User permissions ``RW`` ``R``
-- Lightweight core code under 4,000 lines of code in total
-- Logging and automatic log truncation based on ``log-max-lines`` config
+- Lightweight core code under 3,000 lines of code in total
+- File logging and automatic log truncation based on ``log-max-lines`` config
 
 ![drawing.png](images/drawing2.png)
 
@@ -53,15 +53,19 @@ So now that we have our credentials setup we have to setup our first node!
 We can run a node on the same instance as a cluster for this example.  After completion of cluster setup through the initial run you'll get a .cursusconfig which has a few configurations.
 ``` 
 nodes: []
+host: 0.0.0.0
 tls-node: false
 tls-cert: ""
 tls-key: ""
 tls: false
 port: 7681
-key: n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=
+key: QyjlGfs+AMjvqJd/ovUUA1mBZ3yEq72y8xBQw94a96k=
 users:
-    - DX8EAQL/gAABDAEQAABM/4AAAwh1c2VybmFtZQZzdHJpbmcMBgAEdGVzdAhwYXNzd29yZAZzdHJpbmcMBgAEdGVzdApwZXJtaXNzaW9uBnN0cmluZwwEAAJSVw==
-
+    - YWxleA==:7V8VGHNwVTVC7EktlWS8V3kS/xkLvRg/oODmOeIukDY=
+node-reader-size: 2097152
+log-max-lines: 1000
+join-responses: false
+logging: false
 ```
 - nodes - database cluster nodes.  i.e an ip/fqdn + port combination (cluster1.example.com:7682)
 - tls-node - whether the cluster will connect to nodes via tls
@@ -71,21 +75,14 @@ users:
 - port - cluster port
 - key - encoded shared key
 - users - array of database users serialized, and encoded.
-
+- node-reader-size - the max size of a response from a node
+- join-responses - join all node responses and limit based on provided n
+- logging - start logging to file
 
 Let's put in under nodes a local node we will start shortly.
 ``` 
 nodes: 
     - 0.0.0.0:7682
-tls-node: false
-tls-cert: ""
-tls-key: ""
-tls: false
-port: 7681
-key: n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=
-users:
-    - DX8EAQL/gAABDAEQAABM/4AAAwh1c2VybmFtZQZzdHJpbmcMBgAEdGVzdAhwYXNzd29yZAZzdHJpbmcMBgAEdGVzdApwZXJtaXNzaW9uBnN0cmluZwwEAAJSVw==
-
 ```
 
 Now with your .cursusconfig setup let's start our node for the first time.
@@ -295,13 +292,11 @@ curush>select * from users;
 ```
 
 ## Issues 
-Please report issues, enhancements, etc at https://github.com/cursusdb/cursusdb/discussions OR https://github.com/cursusdb/cursusdb/issues
+Please report issues, enhancements, etc at:
+- https://github.com/cursusdb/cursusdb/discussions
+- https://github.com/cursusdb/cursusdb/issues
+
 
 ## Todo
 - REGEX Like query ```select * from users where firstName LIKE 'Alexand';```
 - Create backup nodes which when one node becomes unavailable to start at shutting down nodes state replicating and replacing it's position on the clusters(s). This is a peer-2-peer like activity.
-
-### Notes
-If you write ``select 1 from users;``  This will select 1 from each node then the cluster will depending on the limit provided slice the results, in this case 1.
-A cluster should be public where nodes should be private to the cluster.
-A node can have a private IP whereas the cluster has an address that is external and can be reached by outside applications for example
