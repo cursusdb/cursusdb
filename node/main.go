@@ -1665,11 +1665,11 @@ cont:
 			_, ok := d.(map[string]interface{})[sortKey]
 			if ok {
 				if reflect.TypeOf(d.(map[string]interface{})[sortKey]).Kind().String() == "string" {
-					log.Println("good")
+					// alphabetical sorting based on string[0] value A,B,C asc C,B,A desc
 				} else if reflect.TypeOf(d.(map[string]interface{})[sortKey]).Kind().String() == "float64" {
-					log.Println("good")
+					// numerical sorting based on float64[0] value 1.1,1.0,0.9 desc 0.9,1.0,1.1 asc
 				} else if reflect.TypeOf(d.(map[string]interface{})[sortKey]).Kind().String() == "int" {
-					log.Println("good")
+					// numerical sorting based on int[0] value 1.1,1.0,0.9 desc 0.9,1.0,1.1 asc
 				}
 
 			}
