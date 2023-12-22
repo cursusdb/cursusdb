@@ -71,6 +71,7 @@ type Curode struct {
 
 // Config is the CursusDB cluster config struct
 type Config struct {
+	Twins       []Twin `yaml:"twins"`                   // Twin node of current node for replication
 	TLSCert     string `yaml:"tls-cert"`                // TLS cert path
 	TLSKey      string `yaml:"tls-key"`                 // TLS cert key
 	Host        string `yaml:"host"`                    // Node host i.e 0.0.0.0 usually
@@ -80,6 +81,12 @@ type Config struct {
 	MaxMemory   uint64 `yaml:"max-memory"`              // Default 10240MB = 10 GB (1024 * 10)
 	LogMaxLines int    `yaml:"log-max-lines"`           // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
 	Logging     bool   `default:"false" yaml:"logging"` // Log to file ?
+}
+
+// Twin is a cluster node that current node data will be replicated to
+type Twin struct {
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
 }
 
 // Data is the node data struct

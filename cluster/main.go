@@ -82,7 +82,7 @@ type Connection struct {
 
 // Config is the CursusDB cluster config struct
 type Config struct {
-	Nodes          []string `yaml:"nodes"`                         // Node host/ips
+	Nodes          []Node   `yaml:"nodes"`                         // Node host/ips
 	Host           string   `yaml:"host"`                          // Cluster host
 	TLSNode        bool     `default:"false" yaml:"tls-node"`      // Connects to nodes with tls.  Nodes MUST be using tls in-order to set this to true.
 	TLSCert        string   `yaml:"tls-cert"`                      // Location to TLS cert
@@ -95,6 +95,19 @@ type Config struct {
 	LogMaxLines    int      `yaml:"log-max-lines"`                 // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
 	JoinResponses  bool     `default:"true" yaml:"join-responses"` // Joins all nodes results limiting at n
 	Logging        bool     `default:"false" yaml:"logging"`       // Log to file ?
+}
+
+// Node is a cluster node
+type Node struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Replicas []NodeReplica
+}
+
+// NodeReplica is a replica of original node.  Used in-case active node is not available
+type NodeReplica struct {
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
 }
 
 // Global variables
@@ -366,7 +379,7 @@ func (cursus *Cursus) ConnectToNodes() {
 		for _, n := range cursus.Config.Nodes {
 
 			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
-			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
+			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Host, n.Port))
 			if err != nil {
 				fmt.Println("ConnectToNodes():", err.Error())
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
@@ -421,7 +434,7 @@ func (cursus *Cursus) ConnectToNodes() {
 		for _, n := range cursus.Config.Nodes {
 
 			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
-			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
+			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Host, n.Port))
 			if err != nil {
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
 				os.Exit(1)
