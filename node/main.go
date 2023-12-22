@@ -533,7 +533,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 			switch {
 			case strings.EqualFold(action.(string), "delete"):
 
-				results := curode.Delete(request["collection"].(string), request["keys"], request["values"], int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"], request["lock"].(bool), request["conditions"].([]interface{}))
+				results := curode.Delete(request["collection"].(string), request["keys"], request["values"], int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"], request["lock"].(bool), request["conditions"].([]interface{}), request["sort-pos"].(string), request["sort-key"].(string))
 				r, _ := json.Marshal(results)
 				response["statusCode"] = 2000
 
@@ -550,7 +550,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				continue
 			case strings.EqualFold(action.(string), "select"):
 
-				results := curode.Select(request["collection"].(string), request["keys"], request["values"], int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"], request["lock"].(bool), request["conditions"].([]interface{}), false)
+				results := curode.Select(request["collection"].(string), request["keys"], request["values"], int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"], request["lock"].(bool), request["conditions"].([]interface{}), false, request["sort-pos"].(string), request["sort-key"].(string))
 				r, _ := json.Marshal(results)
 				text.PrintfLine(string(r))
 				continue
@@ -561,7 +561,8 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 					int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"].([]interface{}),
 					request["lock"].(bool),
 					request["conditions"].([]interface{}),
-					request["update-keys"].([]interface{}), request["new-values"].([]interface{}))
+					request["update-keys"].([]interface{}), request["new-values"].([]interface{}),
+					request["sort-pos"].(string), request["sort-key"].(string))
 				r, _ := json.Marshal(results)
 
 				response["statusCode"] = 2000
@@ -674,7 +675,9 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 }
 
 // Select is the node data select method
-func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}, del bool) []interface{} {
+func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}, del bool, sortPos string, sortKey string) []interface{} {
+	// sortPos = desc OR asc
+	// sortKey = createdAt for example a unix timestamp of 1703234712 or firstName with a value of Alex sorting will sort alphabetically
 
 	// If a lock was sent from cluster lock the collection on this read
 	if lock {
@@ -1682,9 +1685,9 @@ cont:
 }
 
 // Delete is the node data delete method
-func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}) []interface{} {
+func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}, sortPos string, sortKey string) []interface{} {
 	var deleted []interface{}
-	for _, doc := range curode.Select(collection, ks, vs, vol, skip, oprs, lock, conditions, true) {
+	for _, doc := range curode.Select(collection, ks, vs, vol, skip, oprs, lock, conditions, true, sortPos, sortKey) {
 		deleted = append(deleted, doc)
 	}
 
@@ -1692,9 +1695,9 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 }
 
 // Update is the node data update method
-func (curode *Curode) Update(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}, uks []interface{}, nvs []interface{}) []interface{} {
+func (curode *Curode) Update(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}, uks []interface{}, nvs []interface{}, sortPos string, sortKey string) []interface{} {
 	var updated []interface{}
-	for i, doc := range curode.Select(collection, ks, vs, vol, skip, oprs, lock, conditions, false) {
+	for i, doc := range curode.Select(collection, ks, vs, vol, skip, oprs, lock, conditions, false, sortPos, sortKey) {
 		for m, _ := range uks {
 
 			curode.Data.Writers[collection].Lock()

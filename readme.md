@@ -196,6 +196,15 @@ Contains Pad
 select * from users where firstName not like 'Alex %Pad%ula'
 ```
 
+### Sorting
+``` 
+select * from users order by createdOn desc;
+```
+
+``` 
+select * from users order by firstName asc;
+```
+
 ### Uniqueness
 using ``key!`` will make sure the value is unique across all nodes!
 ``` 

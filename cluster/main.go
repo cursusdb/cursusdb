@@ -1066,6 +1066,21 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				}
 
 				query = strings.ReplaceAll(query, "not like", "!like")
+
+				sortPos := ""
+				sortKey := ""
+
+				if strings.Contains(query, "order by ") {
+					sortKey = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(query[strings.Index(query, "order by "):], "order by "), "asc;"), "desc;"))
+					if strings.HasPrefix(query, "asc;") {
+						sortPos = "asc"
+					} else {
+						sortPos = "desc"
+					}
+
+					query = query[:strings.Index(query, "order by ")]
+				}
+
 				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
 
 				if !strings.Contains(query, "where ") {
@@ -1083,7 +1098,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["skip"] = 0
 					body["conditions"] = []string{""}
 					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
-
+					body["sort-pos"] = sortPos
+					body["sort-key"] = sortKey
 					if body["limit"].(string) == "*" {
 						body["limit"] = -1
 					} else if strings.Contains(body["limit"].(string), ",") {
@@ -1137,6 +1153,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["collection"] = querySplit[2]
 					body["conditions"] = []string{"*"}
 					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
+					body["sort-pos"] = sortPos
+					body["sort-key"] = sortKey
 
 					var interface1 []interface{}
 					var interface2 []interface{}
@@ -1266,6 +1284,21 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 			case strings.HasPrefix(query, "update "):
 				// update 1 in users where name == 'jackson' set name = 'alex';
 				query = strings.ReplaceAll(query, "not like", "!like")
+
+				sortPos := ""
+				sortKey := ""
+
+				if strings.Contains(query, "order by ") {
+					sortKey = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(query[strings.Index(query, "order by "):], "order by "), "asc;"), "desc;"))
+					if strings.HasPrefix(query, "asc;") {
+						sortPos = "asc"
+					} else {
+						sortPos = "desc"
+					}
+
+					query = query[:strings.Index(query, "order by ")]
+				}
+
 				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
 
 				// update 1 in users where name == 'jackson' && age == 44 set name = 'alex', age = 28;
@@ -1297,6 +1330,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				body["values"] = interface3
 				body["update-keys"] = interface4
 				body["new-values"] = interface5
+				body["sort-pos"] = sortPos
+				body["sort-key"] = sortKey
 
 				if setStartIndex < 4 {
 					text.PrintfLine(fmt.Sprintf("%d Invalid update query missing set", 4011))
@@ -1480,6 +1515,21 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 				}
 				query = strings.ReplaceAll(query, "not like", "!like")
+
+				sortPos := ""
+				sortKey := ""
+
+				if strings.Contains(query, "order by ") {
+					sortKey = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(query[strings.Index(query, "order by "):], "order by "), "asc;"), "desc;"))
+					if strings.HasPrefix(query, "asc;") {
+						sortPos = "asc"
+					} else {
+						sortPos = "desc"
+					}
+
+					query = query[:strings.Index(query, "order by ")]
+				}
+
 				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
 
 				if !strings.Contains(query, "where ") {
@@ -1496,6 +1546,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["values"] = interface3
 					body["conditions"] = []string{""}
 					body["lock"] = false
+					body["sort-pos"] = sortPos
+					body["sort-key"] = sortKey
 
 					if body["limit"].(string) == "*" {
 						body["limit"] = -1
@@ -1558,6 +1610,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["keys"] = interface1
 					body["oprs"] = interface2
 					body["values"] = interface3
+					body["sort-pos"] = sortPos
+					body["sort-key"] = sortKey
 
 					for k, s := range andOrSplit {
 						re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
