@@ -29,6 +29,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/google/uuid"
 	"golang.org/x/term"
@@ -216,6 +217,10 @@ func main() {
 	}
 
 	signal.Notify(cursus.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
+
+	// If port provided as flag use it instead of whats on config file
+	flag.IntVar(&cursus.Config.Port, "port", cursus.Config.Port, "port for cluster")
+	flag.Parse()
 
 	cursus.ConnectToNodes() // Connect to configured nodes for fast communication
 

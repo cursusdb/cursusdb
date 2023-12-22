@@ -31,6 +31,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/term"
@@ -243,6 +244,10 @@ func main() {
 		}
 		curode.Printl(fmt.Sprintf("main(): Collection mutexes created."), "INFO")
 	}
+
+	// Parse flags
+	flag.IntVar(&curode.Config.Port, "port", curode.Config.Port, "port for node")
+	flag.Parse()
 
 	curode.Wg.Add(1)
 	go curode.SignalListener() // Listen for system signals
