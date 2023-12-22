@@ -212,8 +212,13 @@ delete user USERNAME;
 - ``4009`` Invalid insert query missing 'insert into'
 - ``4010`` Invalid insert query is missing parentheses
 - ``4011`` Invalid update query missing set
+- ``4012`` Could not marshal JSON
 ### Node / Cluster 
 - ``500`` - Unknown error (with description)
+- ``501`` - Limit skip must be an integer (with description)
+- ``502`` - Could not convert limit value to integer (with description)
+- ``503`` - Invalid limiting slice value (with description)
+- ``504`` - Invalid limiting value (with description)
 - ``100`` - Node is at peak allocation.
 - ``101`` - Invalid permission.
 - ``102`` - User does not exist.

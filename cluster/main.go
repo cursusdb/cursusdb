@@ -1,7 +1,8 @@
 /*
 * CursusDB
-* Node
+* Cluster
 * ******************************************************************
+* Originally authored by Alex Gaetano Padula
 * Copyright (C) 2023 CursusDB
 *
 * This program is free software: you can redistribute it and/or modify
@@ -28,7 +29,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"github.com/google/uuid"
 	"golang.org/x/term"
@@ -49,7 +49,6 @@ import (
 	"unicode/utf8"
 )
 
-// Cursus is the CursusDB Cluster struct
 type Cursus struct {
 	TCPAddr         *net.TCPAddr       // TCPAddr represents the address of the clusters TCP end point
 	TCPListener     *net.TCPListener   // TCPListener is the cluster TCP network listener.
@@ -61,8 +60,8 @@ type Cursus struct {
 	ContextCancel   context.CancelFunc // For gracefully shutting down
 	ConfigMu        *sync.RWMutex      // Cluster config mutex
 	Context         context.Context    // Main looped go routine context.  This is for listeners, event loops and so forth
-	LogMu           *sync.Mutex        // Log file mutex
-	LogFile         *os.File           // Opened log file
+	LogMu           *sync.Mutex        // Log file mutex (only if logging enabled)
+	LogFile         *os.File           // Opened log file (only if logging enabled)
 }
 
 // NodeConnection is the cluster connected to a node as a client.
@@ -70,7 +69,7 @@ type NodeConnection struct {
 	Conn       *net.TCPConn    // Net connection
 	SecureConn *tls.Conn       // Secure connection with TLS
 	Text       *textproto.Conn // For writing and reading
-	Mu         *sync.Mutex
+	Mu         *sync.Mutex     // Multiple connections shouldn't hit the same node without the node being locked
 }
 
 // Connection is the main TCP connection struct for cluster
@@ -93,57 +92,140 @@ type Config struct {
 	Users          []string `yaml:"users"`                         // Array of encoded users
 	NodeReaderSize int      `yaml:"node-reader-size"`              // How large of a response buffer can the cluster handle
 	LogMaxLines    int      `yaml:"log-max-lines"`                 // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
-	JoinResponses  bool     `default:"true" yaml:"join-responses"` // Joins all nodes results
-	// select 1 from users;
-	// the query above has no condition thus it will grab one from each
-	// configured node but the cluster will respond with the first result on the first queried node
-
+	JoinResponses  bool     `default:"true" yaml:"join-responses"` // Joins all nodes results limiting at n
+	Logging        bool     `default:"false" yaml:"logging"`       // Log to file ?
 }
 
-// Printl prints a line to the cursus.log file also will clear at LogMaxLines.
-// Appropriate levels: ERROR, INFO, FATAL, WARN
-func (cursus *Cursus) Printl(data string, level string) {
-	if cursus.CountLog(cursus.LogFile)+1 >= cursus.Config.LogMaxLines {
-		cursus.LogMu.Lock()
-		defer cursus.LogMu.Unlock()
-		cursus.LogFile.Close()
-		err := os.Truncate(cursus.LogFile.Name(), 0)
+// Global variables
+var (
+	cursus *Cursus
+)
+
+// main cluster starts here
+func main() {
+	cursus = &Cursus{}                                                              // Set cluster variable
+	cursus.Wg = &sync.WaitGroup{}                                                   // create waitgroup
+	cursus.SignalChannel = make(chan os.Signal, 1)                                  // make signal channel
+	cursus.Context, cursus.ContextCancel = context.WithCancel(context.Background()) // Create context for shutdown
+	cursus.ConfigMu = &sync.RWMutex{}                                               // Cluster config mutex
+
+	// We check if a .cursusconfig file exists
+	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
+		// .cursusconfig does not exist..
+
+		cursus.Config.Port = 7681              // Default CursusDB cluster port
+		cursus.Config.NodeReaderSize = 2097152 // Default node reader size of 2097152 bytes (2MB).. Pretty large json response
+		cursus.Config.Host = "0.0.0.0"         // Default host of 0.0.0.0
+		cursus.Config.LogMaxLines = 1000       // Default of 1000 lines then truncate/clear
+
+		// Get initial database user credentials
+		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
+		fmt.Print("username> ")
+		username, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
-			return
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
+			fmt.Println("main():", err.Error())
+			os.Exit(1)
 		}
 
-		cursus.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
+		// Relay entry with asterisks
+		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(username)))) // Relay input with *
+		fmt.Println("")
+		fmt.Print("password> ")
+		password, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			return
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
+			fmt.Println("main():", err.Error())
+			os.Exit(1)
 		}
-		cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), fmt.Sprintf("Log truncated at %d", cursus.Config.LogMaxLines))))
-		cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
-	} else {
-		cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
+
+		// Relay entry with asterisks
+		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(password)))) // Relay input with *
+		fmt.Println("")
+		fmt.Print("key> ")
+		key, err := term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
+			fmt.Println("main():", err.Error())
+			os.Exit(1)
+		}
+
+		// Relay entry with asterisks
+		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key)))) // Relay input with *
+		fmt.Println("")
+
+		// Hash shared key
+		hashedKey := sha256.Sum256(key)
+		cursus.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...)) // Encode hashed key
+
+		cursus.NewUser(string(username), string(password), "RW") // Create new user with RW permissions
+
+		fmt.Println("")
+
+		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777) // Create .cursusconfig yaml file
+		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
+			fmt.Println("main():", err.Error())
+			os.Exit(1)
+		}
+
+		defer clusterConfigFile.Close()
+
+		// Marshal config to yaml
+		yamlData, err := yaml.Marshal(&cursus.Config)
+		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
+			fmt.Println("main():", err.Error())
+			os.Exit(1)
+		}
+
+		clusterConfigFile.Write(yamlData) // Write to yaml config
+	} else { // .cursusconfig exists
+
+		// Read .cursus config
+		clusterConfigFile, err := os.ReadFile("./.cursusconfig")
+		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
+			fmt.Println("main():", err.Error())
+			os.Exit(1)
+		}
+
+		// Unmarshal config into cluster.config
+		err = yaml.Unmarshal(clusterConfigFile, &cursus.Config)
+		if err != nil {
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
+			fmt.Println("main():", err.Error())
+			os.Exit(1)
+		}
+
+		if cursus.Config.Logging {
+			cursus.LogMu = &sync.Mutex{} // Cluster log mutex
+			cursus.LogFile, err = os.OpenFile("cursus.log", os.O_CREATE|os.O_RDWR, 0777)
+			if err != nil {
+				fmt.Println("Could not open log file - ", err.Error())
+				os.Exit(1)
+			}
+		}
+
 	}
 
-}
-
-// CountLog counts amount of lines within log file
-func (cursus *Cursus) CountLog(r io.Reader) int {
-	buf := make([]byte, 32*1024)
-	count := 0
-	lineSep := []byte{'\n'}
-
-	for {
-		c, err := r.Read(buf)
-		count += bytes.Count(buf[:c], lineSep)
-
-		switch {
-		case err == io.EOF:
-			return count
-
-		case err != nil:
-			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
-			return 99999999
-		}
+	// If cluster configured cluster nodes == 0, inform user to add a node
+	if len(cursus.Config.Nodes) == 0 {
+		fmt.Println("You must setup nodes for the Cursus to read from in your .cursusconfig file.")
+		os.Exit(0)
 	}
+
+	signal.Notify(cursus.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
+
+	cursus.ConnectToNodes()
+
+	cursus.Wg.Add(1)
+	go cursus.SignalListener()
+
+	cursus.Wg.Add(1)
+	go cursus.StartTCP_TLS()
+
+	cursus.Wg.Wait()
 }
 
 // ValidatePermission validates cluster permissions aka R or RW
@@ -175,6 +257,7 @@ func (cursus *Cursus) NewUser(username, password, permission string) (string, ma
 
 	permission = strings.TrimSpace(permission) // trim any space
 
+	// validate permission
 	if cursus.ValidatePermission(permission) {
 		user["permission"] = permission
 		b, err := json.Marshal(user)
@@ -196,61 +279,213 @@ func (cursus *Cursus) NewUser(username, password, permission string) (string, ma
 	}
 }
 
-// StartTCPListener starts the cluster's TCP/TLS listener based on configurations
-func (cursus *Cursus) StartTCPListener() {
-	var err error          // Local to go routine error variable
-	defer cursus.Wg.Done() // Defer go routine completion
+// CountLog counts amount of lines within log file
+func (cursus *Cursus) CountLog(r io.Reader) int {
+	buf := make([]byte, 32*1024)
+	count := 0
+	lineSep := []byte{'\n'}
 
-	// Resolve the string address to a TCP address
-	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", cursus.Config.Host, cursus.Config.Port)) // Setting configured host and port
-	if err != nil {
-		cursus.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
-		cursus.SignalChannel <- os.Interrupt // Send signal
-		return
+	for {
+		c, err := r.Read(buf)
+		count += bytes.Count(buf[:c], lineSep)
+
+		switch {
+		case err == io.EOF:
+			return count
+
+		case err != nil:
+			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
+			return 99999999
+		}
+	}
+}
+
+// Printl prints a line to the cursus.log file also will clear at LogMaxLines.
+// Appropriate levels: ERROR, INFO, FATAL, WARN
+func (cursus *Cursus) Printl(data string, level string) {
+	if cursus.Config.Logging {
+		if cursus.CountLog(cursus.LogFile)+1 >= cursus.Config.LogMaxLines {
+			cursus.LogMu.Lock()
+			defer cursus.LogMu.Unlock()
+			cursus.LogFile.Close()
+			err := os.Truncate(cursus.LogFile.Name(), 0)
+			if err != nil {
+				cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
+				return
+			}
+
+			cursus.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
+			if err != nil {
+				return
+			}
+			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), fmt.Sprintf("Log truncated at %d", cursus.Config.LogMaxLines))))
+			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
+		} else {
+			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
+		}
+	} else {
+		log.Println(fmt.Sprintf("[%s] %s", level, data))
 	}
 
-	if cursus.Config.TLS {
+}
 
-		// Check if TLS cert and key is provided within config
-		if cursus.Config.TLSCert == "" || cursus.Config.TLSKey == "" {
-			cursus.Printl(fmt.Sprintf("StartTCPListener(): %s", "TLS cert and key missing."), "ERROR")
-			cursus.SignalChannel <- os.Interrupt // Send interrupt to signal channel
+// ConnectToNodes connects to configured nodes
+func (cursus *Cursus) ConnectToNodes() {
+	// Is the cluster connecting to nodes via TLS?
+	if cursus.Config.TLSNode {
+
+		// Iterate over configured nodes and connect
+		for _, n := range cursus.Config.Nodes {
+
+			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
+			if err != nil {
+				fmt.Println("ConnectToNodes():", err.Error())
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+				os.Exit(1)
+			}
+
+			// Dial tcp address up
+			conn, err := net.DialTCP("tcp", nil, tcpAddr)
+			if err != nil {
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+				os.Exit(1)
+			}
+
+			// We will keep the node connection alive until shutdown
+			conn.SetKeepAlive(true) // forever
+
+			// Configure TLS
+			config := tls.Config{InsecureSkipVerify: false}
+
+			// Create TLS client connection
+			secureConn := tls.Client(conn, &config)
+
+			// Authenticate with node passing shared key wrapped in base64
+			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
+
+			// Authentication response buffer
+			authBuf := make([]byte, 1024)
+
+			// Read response back from node
+			r, _ := conn.Read(authBuf[:])
+
+			// Did response start with a 0?  This indicates successful authentication
+			if strings.HasPrefix(string(authBuf[:r]), "0") {
+
+				// Add new node connection to slice
+				cursus.NodeConnections = append(cursus.NodeConnections, &NodeConnection{
+					Conn:       conn,
+					SecureConn: secureConn,
+					Text:       textproto.NewConn(secureConn),
+				})
+
+				// Report back successful connection
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", conn.RemoteAddr().String()), "INFO")
+			} else {
+				// Report back invalid key.
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")
+				fmt.Println("ConnectToNodes():", "Invalid key.")
+				os.Exit(1)
+			}
+		}
+	} else {
+		for _, n := range cursus.Config.Nodes {
+
+			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
+			if err != nil {
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+				os.Exit(1)
+			}
+
+			// Dial tcp address up
+			conn, err := net.DialTCP("tcp", nil, tcpAddr)
+			if err != nil {
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+				os.Exit(1)
+			}
+
+			// We will keep the node connection alive until shutdown
+			conn.SetKeepAlive(true) // forever
+
+			// Authenticate with node passing shared key wrapped in base64
+			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
+
+			// Authentication response buffer
+			authBuf := make([]byte, 1024)
+
+			// Read response back from node
+			r, _ := conn.Read(authBuf[:])
+
+			// Did response start with a 0?  This indicates successful authentication
+			if strings.HasPrefix(string(authBuf[:r]), "0") {
+
+				// Add new node connection to slice
+				cursus.NodeConnections = append(cursus.NodeConnections, &NodeConnection{
+					Conn: conn,
+					Mu:   &sync.Mutex{},
+					Text: textproto.NewConn(conn),
+				})
+
+				// Report back successful connection
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", conn.RemoteAddr().String()), "INFO")
+			} else {
+				// Report back invalid key
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")
+				fmt.Println("ConnectToNodes():", "Invalid key.")
+				os.Exit(1)
+			}
+
+		}
+
+	}
+}
+
+// SignalListener listens for system signals
+func (cursus *Cursus) SignalListener() {
+	defer cursus.Wg.Done()
+	for {
+		select {
+		case sig := <-cursus.SignalChannel:
+			cursus.Printl(fmt.Sprintf("Received signal %s starting database cluster shutdown.", sig), "INFO")
+			cursus.TCPListener.Close()
+			cursus.ContextCancel()
 			return
+		default:
+			time.Sleep(time.Nanosecond * 1000000)
 		}
+	}
+}
 
-		// Load cert
-		cer, err := tls.LoadX509KeyPair(cursus.Config.TLSCert, cursus.Config.TLSKey)
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
-			cursus.SignalChannel <- os.Interrupt // Send interrupt to signal channel
-			return                               // close up go routine
-		}
+// StartTCP_TLS starts listening on tcp/tls on configured host and port
+func (cursus *Cursus) StartTCP_TLS() {
+	var err error
+	defer cursus.Wg.Done()
 
-		cursus.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
-
+	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", cursus.Config.Host, cursus.Config.Port))
+	if err != nil {
+		cursus.Printl(err.Error(), "FATAL")
+		cursus.SignalChannel <- os.Interrupt
+		return
 	}
 
 	// Start listening for TCP connections on the given address
 	cursus.TCPListener, err = net.ListenTCP("tcp", cursus.TCPAddr)
 	if err != nil {
-		cursus.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
-		cursus.SignalChannel <- os.Interrupt // Send signal
-		return
+		cursus.Printl(err.Error(), "FATAL")
+		cursus.SignalChannel <- os.Interrupt
 	}
 
 	for {
-		if cursus.Context.Err() != nil {
-			cursus.Printl(fmt.Sprintf("StartTCPListener(): %s", "closing"), "INFO")
-			cursus.TCPListener.Close()
+
+		conn, err := cursus.TCPListener.Accept()
+		if err != nil {
+			cursus.SignalChannel <- os.Interrupt
 			return
 		}
 
-		cursus.TCPListener.SetDeadline(time.Now().Add(time.Nanosecond * 1000))
-		conn, err := cursus.TCPListener.Accept()
-		if errors.Is(err, os.ErrDeadlineExceeded) {
-			continue
-		}
-
+		// If TLS is set to true within config let's make the connection secure
 		// If TLS is set to true within config let's make the connection secure
 		if cursus.Config.TLS {
 			conn = tls.Server(conn, cursus.TLSConfig)
@@ -297,10 +532,8 @@ func (cursus *Cursus) StartTCPListener() {
 		// Write back to client that authentication was a success
 		conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 0, "Authentication successful.")))
 
-		// Add to cluster waitgroup
 		cursus.Wg.Add(1)
-		go cursus.HandleConnection(conn, u) // Handle connection in go routine
-
+		go cursus.HandleClientConnection(conn, u)
 	}
 }
 
@@ -346,28 +579,180 @@ func (cursus *Cursus) AuthenticateUser(username string, password string) (string
 	return "", nil, errors.New("No user exists")
 }
 
-// HandleConnection handles a client connection after authentication.  A client provides queries and this method will read up to a semi-colon then forming JSON the node will understand and sending it off to every node.
-func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{}) {
-	cursus.Printl(fmt.Sprintf("HandleConnection(): New client connection %s", conn.RemoteAddr().String()), "INFO")
-	defer cursus.Wg.Done() // Defer waitgroup removal/finish
-	defer conn.Close()     // Close connection on return of method
+// InsertIntoNode selects one node within cluster nodes and inserts json document.
+func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, collection string, id string) {
 
-	text := textproto.NewConn(conn) // Connection write and read
-	defer text.Close()              // Defer textproto close
+	var node *NodeConnection // Node connection which will be chosen randomly
+	nodeRetries := 3         // Amount of times to retry another node if the chosen node is at peak allocation
 
-	query := "" // Current client query
+	// Setting up document hashmap
+	doc := make(map[string]interface{})
 
-	for {
-		if cursus.Context.Err() != nil { // When receiving a signal we return.
+	// Unmarshal insert json into hashmap
+	err := json.Unmarshal([]byte(insert), &doc)
+	if err != nil {
+		connection.Text.PrintfLine("%d Unmarsharable JSON insert", 4000)
+		return
+	}
+
+	doc["$id"] = id // We have already verified the id to not exist
+
+	jsonMap := make(map[string]interface{}) // Return JSON
+
+	jsonMap["document"] = doc
+	jsonMap["action"] = "insert"
+
+	jsonMap["collection"] = collection
+
+	jsonString, err := json.Marshal(jsonMap)
+	if err != nil {
+		connection.Text.PrintfLine("Cannot insert. %s", err.Error())
+		return
+	}
+
+	goto query
+query:
+	rand.Seed(time.Now().UnixNano())
+
+	node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Select a random node
+
+	node.Text.PrintfLine("%s", string(jsonString)) // Send the query over
+
+	response, err := node.Text.ReadLine()
+	if err != nil {
+		connection.Text.PrintfLine("%d Unknown error %s", 500, err.Error())
+		return
+	}
+
+	if strings.HasPrefix(response, "100") {
+		// Node was at peak allocation.
+		// Picking another node and trying again
+		if nodeRetries > 0 {
+			nodeRetries -= 1
+			goto query
+		} else {
+			connection.Text.PrintfLine("%d No node was available for insert.", 104)
 			return
 		}
-		conn.SetReadDeadline(time.Now().Add(time.Second * 5))
-		// Read line
+	}
+
+	connection.Text.PrintfLine(response)
+
+}
+
+// QueryNodes queries all nodes in parallel and gets responses
+func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interface{}) error {
+
+	jsonString, _ := json.Marshal(body)
+
+	responses := make(map[string]string)
+
+	wgPara := &sync.WaitGroup{}
+	muPara := &sync.RWMutex{}
+	for _, n := range cursus.NodeConnections {
+		wgPara.Add(1)
+		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
+	}
+
+	wgPara.Wait()
+
+	if cursus.Config.JoinResponses {
+		var f []interface{}
+		for _, res := range responses {
+			var x []interface{}
+			json.Unmarshal([]byte(res), &x)
+			f = append(f, x...)
+		}
+
+		response, _ := json.Marshal(f)
+
+		connection.Text.PrintfLine(string(response))
+	} else {
+		var response string
+		for key, res := range responses {
+			response += fmt.Sprintf(`{"%s": %s},`, key, res)
+		}
+
+		// If a client select 1 for example we can call body["limit"] this will contain either * OR n,n OR n
+		// We should splice this to the required limit set by query
+		connection.Text.PrintfLine(fmt.Sprintf("[%s]", strings.TrimSuffix(response, ",")))
+	}
+
+	return nil
+}
+
+// QueryNodesRet queries all nodes and combines responses
+func (cursus *Cursus) QueryNodesRet(body map[string]interface{}) map[string]string {
+	jsonString, _ := json.Marshal(body)
+
+	responses := make(map[string]string)
+
+	wgPara := &sync.WaitGroup{}
+	muPara := &sync.RWMutex{}
+	for _, n := range cursus.NodeConnections {
+		wgPara.Add(1)
+		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
+	}
+
+	wgPara.Wait()
+
+	return responses
+}
+
+// QueryNode queries a specific node
+func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGroup, mu *sync.RWMutex, responses *map[string]string) {
+	defer wg.Done()
+	n.Mu.Lock()
+	defer n.Mu.Unlock()
+
+	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cursus.Config.NodeReaderSize)
+	n.Conn.SetReadDeadline(time.Now().Add(6 * time.Second))
+
+	n.Text.PrintfLine("%s", string(body))
+
+	line, err := n.Text.ReadLine()
+	if err != nil {
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+
+			goto unavailable
+		} else if errors.Is(err, io.EOF) {
+			goto unavailable
+		}
+	}
+	mu.Lock()
+	(*responses)[n.Conn.RemoteAddr().String()] = line
+	mu.Unlock()
+	goto fin
+unavailable:
+	mu.Lock()
+	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
+	mu.Unlock()
+	goto fin
+fin:
+	return
+}
+
+// HandleClientConnection handles tcp/tls client connection
+func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]interface{}) {
+	defer cursus.Wg.Done()
+	defer conn.Close()
+	text := textproto.NewConn(conn)
+	defer text.Close()
+
+	query := "" // clients current query
+
+	for {
+		conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 1000000))
 		read, err := text.ReadLine()
-		if e, ok := err.(net.Error); ok && e.Timeout() {
-			continue
-		} else if err != nil {
-			return
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				if cursus.Context.Err() != nil {
+					break
+				}
+				continue
+			} else {
+				break
+			}
 		}
 
 		// Does line end with a semicolon?
@@ -382,13 +767,19 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 		} else if strings.HasSuffix(query, ";") { // Does line end with a semicolon?
 			cursus.Printl(fmt.Sprintf("HandleConnection(): %s query(%s)", conn.RemoteAddr().String(), query), "INFO")
 
-			// Check user permission and check if their allowed to use the specific action
+			//Check user permission and check if their allowed to use the specific action
 			switch user["permission"] {
 			case "R":
 			case strings.HasPrefix(query, "update"):
 				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
 				goto continueOn // User not allowed
 			case strings.HasPrefix(query, "insert"):
+				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+				goto continueOn // User not allowed
+			case strings.HasPrefix(query, "new user"):
+				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+				goto continueOn // User not allowed
+			case strings.HasPrefix(query, "delete user"):
 				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
 				goto continueOn // User not allowed
 			case strings.HasPrefix(query, "delete"):
@@ -409,7 +800,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 			switch {
 			// Query starts with insert
 			case strings.HasPrefix(query, "insert "):
-
+				retries := 3 // how many times to retry if node is not available for uniqueness isnt met
 				// query is not valid
 				// must have a full prefix of 'insert into '
 				if !strings.HasPrefix(query, "insert into ") {
@@ -448,10 +839,10 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					// body map for node submission
 					body := make(map[string]interface{})
 					body["action"] = "select"       // We will select 1 from all nodes with provided key value
-					body["limit"] = "1"             // limit of 1 of course
+					body["limit"] = 1               // limit of 1 of course
 					body["collection"] = collection // collection is provided collection
 					body["conditions"] = []string{""}
-
+					body["skip"] = 0
 					var interface1 []interface{} // In-order to have an interface slice in go you must set them up prior to using them.
 					var interface2 []interface{} // ^
 					var interface3 []interface{} // ^
@@ -572,7 +963,8 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				var interface2 []interface{}
 				var interface3 []interface{}
 				body["action"] = "select"
-				body["limit"] = "1"
+				body["limit"] = 1
+				body["skip"] = 0
 				body["collection"] = collection
 				body["conditions"] = []string{""}
 
@@ -588,7 +980,12 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				res := cursus.QueryNodesRet(body)
 				for _, r := range res {
 					if !strings.EqualFold(r, "null") {
-						goto retry // $id already exists
+						if retries != 0 {
+							retries -= 1
+							goto retry // $id already exist
+						} else {
+							goto cont
+						}
 					}
 				}
 
@@ -597,25 +994,27 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				body["values"].([]interface{})[0] = uuid.New().String()
 
 				res = cursus.QueryNodesRet(body)
-				log.Println("WEIRD", res)
 				for _, r := range res {
 					if !strings.EqualFold(r, "null") {
-						goto retry // $id already exists
+						if retries != 0 {
+							retries -= 1
+							goto retry // $id already exist
+						} else {
+							goto cont
+						}
 					}
 				}
 
 				goto insert
 
 			insert:
-				cursus.InsertIntoNode(&Connection{Conn: conn, Text: text, User: user}, strings.ReplaceAll(insertJson[1], "!\":", "\":"), collection, body["values"].([]interface{})[0].(string))
+				cursus.InsertIntoNode(&Connection{Conn: conn, Text: text, User: nil}, strings.ReplaceAll(insertJson[1], "!\":", "\":"), collection, body["values"].([]interface{})[0].(string))
 
 				query = ""
 				continue
 			case strings.HasPrefix(query, "select "):
-
 				if !strings.Contains(query, "from ") {
 					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
-					query = ""
 					continue
 				}
 
@@ -633,10 +1032,44 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					body["keys"] = interface1
 					body["oprs"] = interface2
 					body["values"] = interface3
+					body["skip"] = 0
 					body["conditions"] = []string{""}
 					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
 
-					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: user}, body)
+					if body["limit"].(string) == "*" {
+						body["limit"] = -1
+					} else if strings.Contains(body["limit"].(string), ",") {
+						if len(strings.Split(body["limit"].(string), ",")) == 2 {
+							var err error
+							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								continue
+							}
+
+							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
+								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
+									continue
+								}
+							} else {
+								body["limit"] = -1
+							}
+						} else {
+							text.PrintfLine("%d Invalid limiting value", 504)
+							continue
+						}
+					} else {
+						var err error
+						body["limit"], err = strconv.Atoi(body["limit"].(string))
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+							continue
+						}
+					}
+
+					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
 						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
@@ -645,6 +1078,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 					query = ""
 					continue
+
 				} else {
 					r, _ := regexp.Compile("[\\&&\\||]+")
 					andOrSplit := r.Split(query, -1)
@@ -654,6 +1088,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					body["limit"] = querySplit[1]
 					body["collection"] = querySplit[2]
 					body["conditions"] = []string{"*"}
+					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
 
 					var interface1 []interface{}
 					var interface2 []interface{}
@@ -662,6 +1097,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					body["keys"] = interface1
 					body["oprs"] = interface2
 					body["values"] = interface3
+					body["skip"] = 0
 
 					for k, s := range andOrSplit {
 						querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
@@ -680,13 +1116,8 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 						default:
 							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
-							query = ""
-							goto cont2
+							continue
 						}
-
-						goto skip
-
-					skip:
 
 						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
 
@@ -710,7 +1141,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-								query = ""
 								continue
 							}
 
@@ -720,7 +1150,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-								query = ""
 								continue
 							}
 
@@ -729,7 +1158,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-								query = ""
 								continue
 							}
 
@@ -739,7 +1167,40 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 					}
 
-					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: user}, body)
+					if body["limit"].(string) == "*" {
+						body["limit"] = -1
+					} else if strings.Contains(body["limit"].(string), ",") {
+						if len(strings.Split(body["limit"].(string), ",")) == 2 {
+							var err error
+							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								continue
+							}
+
+							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
+								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									continue
+								}
+							} else {
+								body["limit"] = -1
+							}
+						} else {
+							text.PrintfLine("%d Invalid limiting value", 504)
+							continue
+						}
+					} else {
+						var err error
+						body["limit"], err = strconv.Atoi(body["limit"].(string))
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+							continue
+						}
+					}
+
+					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
 						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
@@ -750,7 +1211,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					continue
 
 				}
-
 			case strings.HasPrefix(query, "update "):
 				// update 1 in users where name == 'jackson' set name = 'alex';
 				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
@@ -766,8 +1226,13 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				body := make(map[string]interface{})
 				body["action"] = querySplit[0]
 				body["limit"] = querySplit[1]
+				body["skip"] = 0
 				body["collection"] = querySplit[2]
-				body["conditions"] = []string{}
+				if !strings.Contains(query, "where ") {
+					body["conditions"] = []string{""}
+				} else {
+					body["conditions"] = []string{"*"}
+				}
 
 				var interface1 []interface{}
 				var interface2 []interface{}
@@ -782,8 +1247,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 				if setStartIndex < 4 {
 					text.PrintfLine(fmt.Sprintf("%d Invalid update query missing set", 4011))
-					query = ""
-					goto cont2
+					continue
 				}
 				conditions := querySplit[4:setStartIndex]
 				newValues := strings.Split(strings.ReplaceAll(strings.Join(querySplit[setStartIndex:], " "), "set ", ""), ",")
@@ -794,8 +1258,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					var val interface{}
 					if len(spl) != 2 {
 						text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
-						query = ""
-						goto cont2
+						continue
 					}
 
 					val = strings.TrimSuffix(spl[1], ";")
@@ -812,7 +1275,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						b, err := strconv.ParseBool(val.(string))
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-							query = ""
 							continue
 						}
 
@@ -822,7 +1284,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						f, err := strconv.ParseFloat(val.(string), 64)
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-							query = ""
 							continue
 						}
 
@@ -831,7 +1292,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						i, err := strconv.Atoi(val.(string))
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-							query = ""
 							continue
 						}
 
@@ -840,10 +1300,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					}
 					body["new-values"] = append(body["new-values"].([]interface{}), val)
 				}
-
-				goto skip3
-
-			skip3:
 
 				r, _ := regexp.Compile("[\\&&\\||]+")
 				andOrSplit := r.Split(strings.Join(conditions, " "), -1)
@@ -864,17 +1320,9 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 					default:
 						text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
-						query = ""
-						goto cont3
+						continue
 					}
 
-					goto skip2
-
-				cont3:
-					query = ""
-					continue
-
-				skip2:
 					var val interface{}
 					val = strings.TrimSuffix(strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"), ";")
 					if strings.EqualFold(val.(string), "null") {
@@ -890,7 +1338,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						b, err := strconv.ParseBool(val.(string))
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-							query = ""
 							continue
 						}
 
@@ -900,7 +1347,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						f, err := strconv.ParseFloat(val.(string), 64)
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-							query = ""
 							continue
 						}
 
@@ -909,7 +1355,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						i, err := strconv.Atoi(val.(string))
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-							query = ""
 							continue
 						}
 
@@ -926,7 +1371,40 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					}
 				}
 
-				err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: user}, body)
+				if body["limit"].(string) == "*" {
+					body["limit"] = -1
+				} else if strings.Contains(body["limit"].(string), ",") {
+					if len(strings.Split(body["limit"].(string), ",")) == 2 {
+						var err error
+						body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+							continue
+						}
+
+						if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
+							body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								continue
+							}
+						} else {
+							body["limit"] = -1
+						}
+					} else {
+						text.PrintfLine("%d Invalid limiting value", 504)
+						continue
+					}
+				} else {
+					var err error
+					body["limit"], err = strconv.Atoi(body["limit"].(string))
+					if err != nil {
+						text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+						continue
+					}
+				}
+
+				err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 				if err != nil {
 					text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 					query = ""
@@ -937,11 +1415,11 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				continue
 
 			case strings.HasPrefix(query, "delete "):
+
 				// delete 1 from users where name == 'alex' && last == 'padula';
 
 				if !strings.Contains(query, "from ") {
 					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
-					query = ""
 					continue
 				}
 
@@ -962,7 +1440,40 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					body["conditions"] = []string{""}
 					body["lock"] = false
 
-					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: user}, body)
+					if body["limit"].(string) == "*" {
+						body["limit"] = -1
+					} else if strings.Contains(body["limit"].(string), ",") {
+						if len(strings.Split(body["limit"].(string), ",")) == 2 {
+							var err error
+							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("Limit skip must be an integer. %s", err.Error()))
+								continue
+							}
+
+							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
+								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("Something went wrong. %s", err.Error()))
+									continue
+								}
+							} else {
+								body["limit"] = -1
+							}
+						} else {
+							text.PrintfLine("invalid limiting value.")
+							continue
+						}
+					} else {
+						var err error
+						body["limit"], err = strconv.Atoi(body["limit"].(string))
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("Something went wrong. %s", err.Error()))
+							continue
+						}
+					}
+
+					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
 						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
@@ -971,6 +1482,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 					query = ""
 					continue
+
 				} else {
 					r, _ := regexp.Compile("[\\&&\\||]+")
 					andOrSplit := r.Split(query, -1)
@@ -979,6 +1491,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 					body["action"] = querySplit[0]
 					body["limit"] = querySplit[1]
 					body["collection"] = querySplit[2]
+					body["skip"] = 0
 					body["conditions"] = []string{"*"}
 
 					var interface1 []interface{}
@@ -1006,17 +1519,8 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 						default:
 							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
-							query = ""
-							goto cont5
+							continue
 						}
-
-						goto skip4
-
-					cont5:
-						query = ""
-						continue
-
-					skip4:
 
 						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
 
@@ -1040,7 +1544,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-								query = ""
 								continue
 							}
 
@@ -1050,7 +1553,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-								query = ""
 								continue
 							}
 
@@ -1059,7 +1561,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
-								query = ""
 								continue
 							}
 
@@ -1071,11 +1572,43 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 					if len(body["values"].([]interface{})) == 0 {
 						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, "No values found."))
-						query = ""
 						continue
 					}
 
-					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: user}, body)
+					if body["limit"].(string) == "*" {
+						body["limit"] = -1
+					} else if strings.Contains(body["limit"].(string), ",") {
+						if len(strings.Split(body["limit"].(string), ",")) == 2 {
+							var err error
+							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								continue
+							}
+
+							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
+								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									continue
+								}
+							} else {
+								body["limit"] = -1
+							}
+						} else {
+							text.PrintfLine("%d Invalid limiting value", 504)
+							continue
+						}
+					} else {
+						var err error
+						body["limit"], err = strconv.Atoi(body["limit"].(string))
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+							continue
+						}
+					}
+
+					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
 						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
@@ -1084,7 +1617,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 
 					query = ""
 					continue
-
 				}
 			case strings.HasPrefix(query, "delete user "):
 				splQ := strings.Split(query, "delete user ")
@@ -1134,7 +1666,6 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 				text.PrintfLine(fmt.Sprintf("%d New database user %s created successfully.", 200, strings.TrimSpace(splQComma[0])))
 				query = ""
 				continue
-
 			default:
 				text.PrintfLine("%d Invalid command/query.", 4005)
 				query = ""
@@ -1143,127 +1674,7 @@ func (cursus *Cursus) HandleConnection(conn net.Conn, user map[string]interface{
 			}
 
 		}
-
-	cont2:
-		query = ""
-		continue
-
 	}
-
-}
-
-// RemoveUser removes a user by username
-func (cursus *Cursus) RemoveUser(username string) error {
-
-	for j := 0; j < 50; j++ { // retry as gorm will serialize the bytes a bit different sometimes
-		encodeUsername := base64.StdEncoding.EncodeToString([]byte(username))
-		for i, user := range cursus.Config.Users {
-			if strings.Split(user, ":")[0] == encodeUsername {
-				cursus.ConfigMu.Lock()
-				cursus.Config.Users[i] = cursus.Config.Users[len(cursus.Config.Users)-1]
-				cursus.Config.Users[len(cursus.Config.Users)-1] = ""
-				cursus.Config.Users = cursus.Config.Users[:len(cursus.Config.Users)-1]
-				cursus.ConfigMu.Unlock()
-				return nil
-			}
-		}
-	}
-
-	return errors.New("No user found")
-}
-
-// InsertIntoNode selects one node within cluster nodes and inserts json document.
-func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, collection string, id string) {
-
-	var node *NodeConnection // Node connection which will be chosen randomly
-	nodeRetries := 3         // Amount of times to retry another node if the chosen node is at peak allocation
-
-	// Setting up document hashmap
-	doc := make(map[string]interface{})
-
-	// Unmarshal insert json into hashmap
-	err := json.Unmarshal([]byte(insert), &doc)
-	if err != nil {
-		connection.Text.PrintfLine("%d Unmarsharable JSON insert", 4000)
-		return
-	}
-
-	doc["$id"] = id // We have already verified the id to not exist
-
-	jsonMap := make(map[string]interface{}) // Return JSON
-
-	jsonMap["document"] = doc
-	jsonMap["action"] = "insert"
-
-	jsonMap["collection"] = collection
-
-	jsonString, err := json.Marshal(jsonMap)
-	if err != nil {
-		connection.Text.PrintfLine("Cannot insert. %s", err.Error())
-		return
-	}
-
-	goto query
-query:
-	rand.Seed(time.Now().UnixNano())
-
-	node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Select a random node
-
-	node.Text.PrintfLine("%s", string(jsonString)) // Send the query over
-
-	response, err := node.Text.ReadLine()
-	if err != nil {
-		connection.Text.PrintfLine("%d Unknown error %s", 500, err.Error())
-		return
-	}
-
-	if strings.HasPrefix(response, "100") {
-		// Node was at peak allocation.
-		// Picking another node and trying again
-		if nodeRetries > 0 {
-			nodeRetries -= 1
-			goto query
-		} else {
-			connection.Text.PrintfLine("%d No node was available for insert.", 104)
-			return
-		}
-	}
-
-	connection.Text.PrintfLine(response)
-
-}
-
-// QueryNode queries a specific node
-func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGroup, mu *sync.RWMutex, responses *map[string]string) {
-	defer wg.Done()
-	n.Mu.Lock()
-	defer n.Mu.Unlock()
-
-	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cursus.Config.NodeReaderSize)
-	n.Conn.SetReadDeadline(time.Now().Add(6 * time.Second))
-
-	n.Text.PrintfLine("%s", string(body))
-
-	line, err := n.Text.ReadLine()
-	if err != nil {
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-
-			goto unavailable
-		} else if errors.Is(err, io.EOF) {
-			goto unavailable
-		}
-	}
-	mu.Lock()
-	(*responses)[n.Conn.RemoteAddr().String()] = line
-	mu.Unlock()
-	goto fin
-unavailable:
-	mu.Lock()
-	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
-	mu.Unlock()
-	goto fin
-fin:
-	return
 }
 
 // IsString is a provided string a string literal?  "hello world"  OR 'hello world'
@@ -1306,331 +1717,22 @@ func (cursus *Cursus) IsBool(str string) bool {
 	return false
 }
 
-// QueryNodes queries all nodes in parallel and gets responses
-func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interface{}) error {
+// RemoveUser removes a user by username
+func (cursus *Cursus) RemoveUser(username string) error {
 
-	jsonString, _ := json.Marshal(body)
-
-	responses := make(map[string]string)
-
-	wgPara := &sync.WaitGroup{}
-	muPara := &sync.RWMutex{}
-	for _, n := range cursus.NodeConnections {
-		wgPara.Add(1)
-		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
-	}
-
-	wgPara.Wait()
-
-	if cursus.Config.JoinResponses {
-		var f []interface{}
-		for _, res := range responses {
-			var x []interface{}
-			json.Unmarshal([]byte(res), &x)
-			f = append(f, x...)
-		}
-
-		response, _ := json.Marshal(f)
-
-		connection.Text.PrintfLine(string(response))
-	} else {
-		var response string
-		for key, res := range responses {
-			response += fmt.Sprintf(`{"%s": %s},`, key, res)
-		}
-
-		// If a client select 1 for example we can call body["limit"] this will contain either * OR n,n OR n
-		// We should splice this to the required limit set by query
-		connection.Text.PrintfLine(fmt.Sprintf("[%s]", strings.TrimSuffix(response, ",")))
-	}
-
-	return nil
-}
-
-// QueryNodesRet queries all nodes and combines responses
-func (cursus *Cursus) QueryNodesRet(body map[string]interface{}) map[string]string {
-	jsonString, _ := json.Marshal(body)
-
-	responses := make(map[string]string)
-
-	wgPara := &sync.WaitGroup{}
-	muPara := &sync.RWMutex{}
-	for _, n := range cursus.NodeConnections {
-		wgPara.Add(1)
-		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
-	}
-
-	wgPara.Wait()
-
-	return responses
-}
-
-// SignalListener listeners for system signals are does a graceful shutdown
-func (cursus *Cursus) SignalListener() {
-	defer cursus.Wg.Done()
-	for {
-		select {
-		case sig := <-cursus.SignalChannel:
-			cursus.Printl(fmt.Sprintf("Received signal %s starting cluster shutdown.", sig), "INFO")
-
-			// Close node connections
-			for _, n := range cursus.NodeConnections {
-				n.Text.Close()
-				n.Conn.Close()
-			}
-			cursus.ContextCancel()
-
-			return
-
-		default:
-			time.Sleep(time.Nanosecond * 1000000)
-		}
-	}
-}
-
-// ConnectToNodes connects to configured nodes
-func (cursus *Cursus) ConnectToNodes() {
-	// Is the cluster connecting to nodes via TLS?
-	if cursus.Config.TLSNode {
-
-		// Iterate over configured nodes and connect
-		for _, n := range cursus.Config.Nodes {
-
-			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
-			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
-			if err != nil {
-				fmt.Println("ConnectToNodes():", err.Error())
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
-				os.Exit(1)
-			}
-
-			// Dial tcp address up
-			conn, err := net.DialTCP("tcp", nil, tcpAddr)
-			if err != nil {
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
-				os.Exit(1)
-			}
-
-			// We will keep the node connection alive until shutdown
-			conn.SetKeepAlive(true) // forever
-
-			// Configure TLS
-			config := tls.Config{InsecureSkipVerify: false}
-
-			// Create TLS client connection
-			secureConn := tls.Client(conn, &config)
-
-			// Authenticate with node passing shared key wrapped in base64
-			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
-
-			// Authentication response buffer
-			authBuf := make([]byte, 1024)
-
-			// Read response back from node
-			r, _ := conn.Read(authBuf[:])
-
-			// Did response start with a 0?  This indicates successful authentication
-			if strings.HasPrefix(string(authBuf[:r]), "0") {
-
-				// Add new node connection to slice
-				cursus.NodeConnections = append(cursus.NodeConnections, &NodeConnection{
-					Conn:       conn,
-					SecureConn: secureConn,
-					Text:       textproto.NewConn(secureConn),
-				})
-
-				// Report back successful connection
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", conn.RemoteAddr().String()), "INFO")
-			} else {
-				// Report back invalid key.
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")
-				fmt.Println("ConnectToNodes():", "Invalid key.")
-				os.Exit(1)
+	for j := 0; j < 50; j++ { // retry as gorm will serialize the bytes a bit different sometimes
+		encodeUsername := base64.StdEncoding.EncodeToString([]byte(username))
+		for i, user := range cursus.Config.Users {
+			if strings.Split(user, ":")[0] == encodeUsername {
+				cursus.ConfigMu.Lock()
+				cursus.Config.Users[i] = cursus.Config.Users[len(cursus.Config.Users)-1]
+				cursus.Config.Users[len(cursus.Config.Users)-1] = ""
+				cursus.Config.Users = cursus.Config.Users[:len(cursus.Config.Users)-1]
+				cursus.ConfigMu.Unlock()
+				return nil
 			}
 		}
-	} else {
-		for _, n := range cursus.Config.Nodes {
-
-			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
-			tcpAddr, err := net.ResolveTCPAddr("tcp", n)
-			if err != nil {
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
-				os.Exit(1)
-			}
-
-			// Dial tcp address up
-			conn, err := net.DialTCP("tcp", nil, tcpAddr)
-			if err != nil {
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
-				os.Exit(1)
-			}
-
-			// We will keep the node connection alive until shutdown
-			conn.SetKeepAlive(true) // forever
-
-			// Authenticate with node passing shared key wrapped in base64
-			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
-
-			// Authentication response buffer
-			authBuf := make([]byte, 1024)
-
-			// Read response back from node
-			r, _ := conn.Read(authBuf[:])
-
-			// Did response start with a 0?  This indicates successful authentication
-			if strings.HasPrefix(string(authBuf[:r]), "0") {
-
-				// Add new node connection to slice
-				cursus.NodeConnections = append(cursus.NodeConnections, &NodeConnection{
-					Conn: conn,
-					Mu:   &sync.Mutex{},
-					Text: textproto.NewConn(conn),
-				})
-
-				// Report back successful connection
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", conn.RemoteAddr().String()), "INFO")
-			} else {
-				// Report back invalid key
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")
-				fmt.Println("ConnectToNodes():", "Invalid key.")
-				os.Exit(1)
-			}
-
-		}
-
-	}
-}
-
-func main() {
-	var cursus Cursus
-	var err error
-	cursus.SignalChannel = make(chan os.Signal, 1)
-	cursus.Wg = &sync.WaitGroup{}
-
-	cursus.Context, cursus.ContextCancel = context.WithCancel(context.Background())
-
-	cursus.ConfigMu = &sync.RWMutex{} // Cluster config mutex
-	cursus.LogMu = &sync.Mutex{}      // Cluster log mutex
-	cursus.Config.LogMaxLines = 1000
-
-	cursus.LogFile, err = os.OpenFile("cursus.log", os.O_CREATE|os.O_RDWR, 0777)
-	if err != nil {
-		fmt.Println("Could not open log file - ", err.Error())
-		os.Exit(1)
 	}
 
-	// We check if a .cursusconfig file exists
-	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
-		// .cursusconfig does not exist..
-
-		cursus.Config.Port = 7681              // Default CursusDB cluster port
-		cursus.Config.NodeReaderSize = 2097152 // Default node reader size of 2097152 bytes (2MB).. Pretty large json response
-		cursus.Config.Host = "0.0.0.0"
-
-		// Get initial database user credentials
-		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
-		fmt.Print("username> ")
-		username, err := term.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
-			os.Exit(1)
-		}
-
-		// Relay entry with asterisks
-		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(username)))) // Relay input with *
-		fmt.Println("")
-		fmt.Print("password> ")
-		password, err := term.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
-			os.Exit(1)
-		}
-
-		// Relay entry with asterisks
-		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(password)))) // Relay input with *
-		fmt.Println("")
-		fmt.Print("key> ")
-		key, err := term.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
-			os.Exit(1)
-		}
-
-		// Relay entry with asterisks
-		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key)))) // Relay input with *
-		fmt.Println("")
-
-		// Hash shared key
-		hashedKey := sha256.Sum256(key)
-		cursus.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...)) // Encode hashed key
-
-		cursus.NewUser(string(username), string(password), "RW") // Create new user with RW permissions
-
-		fmt.Println("")
-
-		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777) // Create .cursusconfig yaml file
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
-			os.Exit(1)
-		}
-
-		defer clusterConfigFile.Close()
-
-		// Marshal config to yaml
-		yamlData, err := yaml.Marshal(&cursus.Config)
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
-			os.Exit(1)
-		}
-
-		clusterConfigFile.Write(yamlData) // Write to yaml config
-	} else { // .cursusconfig exists
-
-		// Read .cursus config
-		clusterConfigFile, err := os.ReadFile("./.cursusconfig")
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
-			os.Exit(1)
-		}
-
-		// Unmarshal config into cluster.config
-		err = yaml.Unmarshal(clusterConfigFile, &cursus.Config)
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
-			os.Exit(1)
-		}
-
-	}
-
-	// If cluster configured cluster nodes == 0, inform user to add a node
-	if len(cursus.Config.Nodes) == 0 {
-		fmt.Println("You must setup nodes for the Cursus to read from in your .cursusconfig file.")
-		os.Exit(0)
-	}
-
-	// If port provided as flag use it instead of whats on config file
-	flag.IntVar(&cursus.Config.Port, "port", cursus.Config.Port, "port for cluster")
-	flag.Parse()
-
-	cursus.ConnectToNodes()
-
-	signal.Notify(cursus.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
-
-	cursus.Wg.Add(1)
-	go cursus.SignalListener()
-
-	cursus.Wg.Add(1)
-	go cursus.StartTCPListener()
-
-	cursus.Wg.Wait()
-
-	os.Exit(0)
-
+	return errors.New("No user found")
 }

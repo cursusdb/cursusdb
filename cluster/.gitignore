@@ -1,5 +1,5 @@
 bin
-.cursusconfig
+../cursusbup/cluster/.cursusconfig
 cursus
 cursus.exe
 *.pem
