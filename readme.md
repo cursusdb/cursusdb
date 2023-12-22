@@ -351,6 +351,23 @@ curush>select * from users;
 
 ```
 
+By default though you wont see above..
+``` 
+join-responses: false
+```
+
+is required to see results for each node.
+
+
+``join-responses`` joins all documents from nodes and limits based on limit.  For example..
+
+``` 
+select 3 from posts order by createdOn desc;
+```
+
+The ``select 3`` portion the cluster will get depending on set amount of nodes say you have 5 nodes setup, you will get back 3 * 5 but the cluster will limit to 3 as that what was requested!
+
+
 ## Issues 
 Please report issues, enhancements, etc at:
 - https://github.com/cursusdb/cursusdb/discussions
