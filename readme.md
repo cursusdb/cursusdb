@@ -195,6 +195,20 @@ delete user USERNAME;
 - ``2`` Invalid authentication value.
 - ``3`` No user exists
 - ``4`` User not authorized
+#### Node / Cluster
+- ``500`` - Unknown error (with description)
+- ``501`` - Limit skip must be an integer (with description)
+- ``502`` - Could not convert limit value to integer (with description)
+- ``503`` - Invalid limiting slice value (with description)
+- ``504`` - Invalid limiting value (with description)
+- ``100`` - Node is at peak allocation.
+- ``101`` - Invalid permission.
+- ``102`` - User does not exist.
+- ``103`` - Database user already exists.
+- ``104`` - No node was available for insert.
+- ``105`` - Node unavailable
+- ``200`` - New database user created successfully.
+- ``201`` - Database user removed successfully.
 #### Document
 - ``2000`` Document inserted/updated/deleted
 - ``4000`` Unmarsharable JSON insert
@@ -211,20 +225,6 @@ delete user USERNAME;
 - ``4011`` Invalid update query missing set
 - ``4012`` Could not marshal JSON
 - ``4013`` Unmarsharable JSON
-### Node / Cluster 
-- ``500`` - Unknown error (with description)
-- ``501`` - Limit skip must be an integer (with description)
-- ``502`` - Could not convert limit value to integer (with description)
-- ``503`` - Invalid limiting slice value (with description)
-- ``504`` - Invalid limiting value (with description)
-- ``100`` - Node is at peak allocation.
-- ``101`` - Invalid permission.
-- ``102`` - User does not exist.
-- ``103`` - Database user already exists.
-- ``104`` - No node was available for insert.
-- ``105`` - Node unavailable
-- ``200`` - New database user created successfully.
-- ``201`` - Database user removed successfully.
 
 ### Ports
 Default cluster port: ``7681``
