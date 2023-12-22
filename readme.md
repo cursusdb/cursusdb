@@ -120,9 +120,9 @@ If we try and insert the same document we will get an error stating an existing 
 nodes:
 - host: 0.0.0.0
   port: 7682
-replicas:
-- host: 0.0.0.0
-  port: 7683
+  replicas:
+  - host: 0.0.0.0
+    port: 7683
 ```
 
 Node at ``0.0.0.0:7682`` has a configured replica at ``0.0.0.0:7682``
