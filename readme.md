@@ -12,6 +12,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Parallel search.  Searching collections within multiple nodes simultaneously.
 - Database Users with basic (R, RW) permissions
 - Cluster and node authentication.
+- Node data replication
 - JSON object insert.
 - Cluster and client authentication.
 - Unique values across all nodes based on key using "key!" on insert.
