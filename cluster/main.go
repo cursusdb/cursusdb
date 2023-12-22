@@ -283,7 +283,7 @@ func (cursus *Cursus) NewUser(username, password, permission string) (string, ma
 		}
 	}
 
-	permission = strings.TrimSpace(permission) // trim any space
+	permission = strings.TrimSpace(strings.TrimSuffix(permission, ";")) // trim any space
 
 	// validate permission
 	if cursus.ValidatePermission(permission) {
@@ -816,23 +816,24 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 			//Check user permission and check if their allowed to use the specific action
 			switch user["permission"] {
 			case "R":
-			case strings.HasPrefix(query, "update"):
-				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
-				goto continueOn // User not allowed
-			case strings.HasPrefix(query, "insert"):
-				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
-				goto continueOn // User not allowed
-			case strings.HasPrefix(query, "new user"):
-				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
-				goto continueOn // User not allowed
-			case strings.HasPrefix(query, "delete user"):
-				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
-				goto continueOn // User not allowed
-			case strings.HasPrefix(query, "delete"):
-				text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
-				goto continueOn // User not allowed, ret
-			case strings.HasPrefix(query, "select"):
-				goto allowed // Goto allowed
+				if strings.HasPrefix(query, "update") {
+					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+					goto continueOn // User not allowed
+				} else if strings.HasPrefix(query, "insert") {
+					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+					goto continueOn // User not allowed
+				} else if strings.HasPrefix(query, "new user") {
+					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+					goto continueOn // User not allowed
+				} else if strings.HasPrefix(query, "delete user") {
+					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+					goto continueOn // User not allowed
+				} else if strings.HasPrefix(query, "delete") {
+					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+					goto continueOn // User not allowed, ret
+				} else if strings.HasPrefix(query, "select") {
+					goto allowed // Goto allowed
+				}
 			case "RW":
 				goto allowed // Goto allowed
 			}
