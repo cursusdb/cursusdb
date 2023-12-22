@@ -890,6 +890,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["collection"] = collection // collection is provided collection
 					body["conditions"] = []string{""}
 					body["skip"] = 0
+					body["sort-pos"] = ""
+					body["sort-key"] = ""
 					var interface1 []interface{} // In-order to have an interface slice in go you must set them up prior to using them.
 					var interface2 []interface{} // ^
 					var interface3 []interface{} // ^
@@ -1014,6 +1016,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				body["skip"] = 0
 				body["collection"] = collection
 				body["conditions"] = []string{""}
+				body["sort-pos"] = ""
+				body["sort-key"] = ""
 
 				body["keys"] = interface1
 				body["keys"] = append(body["keys"].([]interface{}), "$id")
