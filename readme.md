@@ -196,11 +196,6 @@ delete user USERNAME;
 - ``3`` No user exists
 - ``4`` User not authorized
 #### Node / Cluster
-- ``500`` - Unknown error (with description)
-- ``501`` - Limit skip must be an integer (with description)
-- ``502`` - Could not convert limit value to integer (with description)
-- ``503`` - Invalid limiting slice value (with description)
-- ``504`` - Invalid limiting value (with description)
 - ``100`` - Node is at peak allocation.
 - ``101`` - Invalid permission.
 - ``102`` - User does not exist.
@@ -209,6 +204,11 @@ delete user USERNAME;
 - ``105`` - Node unavailable
 - ``200`` - New database user created successfully.
 - ``201`` - Database user removed successfully.
+- ``500`` - Unknown error (with description)
+- ``501`` - Limit skip must be an integer (with description)
+- ``502`` - Could not convert limit value to integer (with description)
+- ``503`` - Invalid limiting slice value (with description)
+- ``504`` - Invalid limiting value (with description)
 #### Document
 - ``2000`` Document inserted/updated/deleted
 - ``4000`` Unmarsharable JSON insert
