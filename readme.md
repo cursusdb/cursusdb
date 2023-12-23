@@ -323,6 +323,7 @@ delete user USERNAME;
 - ``502`` - Could not convert limit value to integer (with description)
 - ``503`` - Invalid limiting slice value (with description)
 - ``504`` - Invalid limiting value (with description)
+- ``505`` - Key cannot use reserved word
 #### Document
 - ``2000`` Document inserted/updated/deleted
 - ``4000`` Unmarsharable JSON insert

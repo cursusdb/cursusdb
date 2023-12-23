@@ -1029,6 +1029,12 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 				}
 
+				if strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"count":`) {
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word", 505))
+					query = ""
+					continue
+				}
+
 				// Checking if there are any !s to process
 				var indexed = regexp.MustCompile(`"([^"]+!)"`) // "email!":
 				// "key!" means check all nodes if this key and value exists
@@ -1226,6 +1232,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 			case strings.HasPrefix(query, "select "):
 				if !strings.Contains(query, "from ") {
 					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
+					query = ""
 					continue
 				}
 
@@ -1275,6 +1282,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 								if err != nil {
 									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									query = ""
 									continue
 								}
 
@@ -1282,6 +1290,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 									body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 									if err != nil {
 										text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
+										query = ""
 										continue
 									}
 								} else {
@@ -1289,6 +1298,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								}
 							} else {
 								text.PrintfLine("%d Invalid limiting value", 504)
+								query = ""
 								continue
 							}
 						} else {
@@ -1296,6 +1306,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["limit"], err = strconv.Atoi(body["limit"].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								query = ""
 								continue
 							}
 						}
@@ -1357,6 +1368,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "not like"):
 						default:
 							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
+							query = ""
 							continue
 						}
 
@@ -1382,6 +1394,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
 								continue
 							}
 
@@ -1391,6 +1404,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
 								continue
 							}
 
@@ -1399,6 +1413,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
 								continue
 							}
 
@@ -1418,6 +1433,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 								if err != nil {
 									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									query = ""
 									continue
 								}
 
@@ -1425,6 +1441,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 									body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 									if err != nil {
 										text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+										query = ""
 										continue
 									}
 								} else {
@@ -1432,6 +1449,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								}
 							} else {
 								text.PrintfLine("%d Invalid limiting value", 504)
+								query = ""
 								continue
 							}
 						} else {
@@ -1439,6 +1457,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["limit"], err = strconv.Atoi(body["limit"].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								query = ""
 								continue
 							}
 						}
@@ -1513,6 +1532,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				if setStartIndex < 4 {
 					text.PrintfLine(fmt.Sprintf("%d Invalid update query missing set", 4011))
+					query = ""
 					continue
 				}
 				conditions := querySplit[4:setStartIndex]
@@ -1524,6 +1544,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					var val interface{}
 					if len(spl) != 2 {
 						text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
+						query = ""
 						continue
 					}
 
@@ -1541,6 +1562,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						b, err := strconv.ParseBool(val.(string))
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
 							continue
 						}
 
@@ -1550,6 +1572,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						f, err := strconv.ParseFloat(val.(string), 64)
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
 							continue
 						}
 
@@ -1558,6 +1581,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						i, err := strconv.Atoi(val.(string))
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
 							continue
 						}
 
@@ -1590,6 +1614,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "not like"):
 					default:
 						text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
+						query = ""
 						continue
 					}
 
@@ -1608,6 +1633,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						b, err := strconv.ParseBool(val.(string))
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
 							continue
 						}
 
@@ -1617,6 +1643,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						f, err := strconv.ParseFloat(val.(string), 64)
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
 							continue
 						}
 
@@ -1625,6 +1652,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						i, err := strconv.Atoi(val.(string))
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							query = ""
 							continue
 						}
 
@@ -1649,6 +1677,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+							query = ""
 							continue
 						}
 
@@ -1656,6 +1685,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								query = ""
 								continue
 							}
 						} else {
@@ -1663,6 +1693,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						}
 					} else {
 						text.PrintfLine("%d Invalid limiting value", 504)
+						query = ""
 						continue
 					}
 				} else {
@@ -1670,6 +1701,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["limit"], err = strconv.Atoi(body["limit"].(string))
 					if err != nil {
 						text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+						query = ""
 						continue
 					}
 				}
@@ -1690,6 +1722,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				if !strings.Contains(query, "from ") {
 					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
+					query = ""
 					continue
 				}
 				query = strings.ReplaceAll(query, "not like", "!like")
@@ -1735,6 +1768,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("Limit skip must be an integer. %s", err.Error()))
+								query = ""
 								continue
 							}
 
@@ -1742,6 +1776,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 								if err != nil {
 									text.PrintfLine(fmt.Sprintf("Something went wrong. %s", err.Error()))
+									query = ""
 									continue
 								}
 							} else {
@@ -1749,6 +1784,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							}
 						} else {
 							text.PrintfLine("invalid limiting value.")
+							query = ""
 							continue
 						}
 					} else {
@@ -1756,6 +1792,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						body["limit"], err = strconv.Atoi(body["limit"].(string))
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("Something went wrong. %s", err.Error()))
+							query = ""
 							continue
 						}
 					}
@@ -1812,6 +1849,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "not like"):
 						default:
 							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
+							query = ""
 							continue
 						}
 
@@ -1837,6 +1875,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
 								continue
 							}
 
@@ -1846,6 +1885,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
 								continue
 							}
 
@@ -1854,6 +1894,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								query = ""
 								continue
 							}
 
@@ -1865,6 +1906,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 					if len(body["values"].([]interface{})) == 0 {
 						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, "No values found."))
+						query = ""
 						continue
 					}
 
@@ -1876,6 +1918,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								query = ""
 								continue
 							}
 
@@ -1883,6 +1926,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 								if err != nil {
 									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									query = ""
 									continue
 								}
 							} else {
@@ -1890,6 +1934,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							}
 						} else {
 							text.PrintfLine("%d Invalid limiting value", 504)
+							query = ""
 							continue
 						}
 					} else {
@@ -1897,6 +1942,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						body["limit"], err = strconv.Atoi(body["limit"].(string))
 						if err != nil {
 							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+							query = ""
 							continue
 						}
 					}
