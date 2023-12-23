@@ -71,6 +71,9 @@ type NodeConnection struct {
 	SecureConn *tls.Conn       // Secure connection with TLS
 	Text       *textproto.Conn // For writing and reading
 	Mu         *sync.Mutex     // Multiple connections shouldn't hit the same node without the node being locked
+	Replica    bool            // is node replica?
+	MainNode   string
+	Node       Node
 }
 
 // Connection is the main TCP connection struct for cluster
@@ -420,7 +423,62 @@ func (cursus *Cursus) ConnectToNodes() {
 					Conn:       conn,
 					SecureConn: secureConn,
 					Text:       textproto.NewConn(secureConn),
+					Node:       n,
 				})
+
+				for _, rep := range n.Replicas {
+
+					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Host, n.Port))
+					if err != nil {
+						fmt.Println("ConnectToNodes():", err.Error())
+						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+						os.Exit(1)
+					}
+
+					// Dial tcp address up
+					connReplica, err := net.DialTCP("tcp", nil, tcpAddrReplica)
+					if err != nil {
+						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+
+						os.Exit(1)
+					}
+
+					// We will keep the node connection alive until shutdown
+					connReplica.SetKeepAlive(true) // forever
+
+					// Configure TLS
+					configReplica := tls.Config{InsecureSkipVerify: false}
+
+					// Create TLS client connection
+					secureConnReplica := tls.Client(conn, &configReplica)
+
+					// Authenticate with node passing shared key wrapped in base64
+					connReplica.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
+
+					// Authentication response buffer
+					authBufReplica := make([]byte, 1024)
+
+					// Read response back from node
+					rReplica, _ := conn.Read(authBufReplica[:])
+
+					// Did response start with a 0?  This indicates successful authentication
+					if strings.HasPrefix(string(authBuf[:rReplica]), "0") {
+						cursus.NodeConnections = append(cursus.NodeConnections, &NodeConnection{
+							Conn:       conn,
+							SecureConn: secureConnReplica,
+							Text:       textproto.NewConn(secureConnReplica),
+							Replica:    true,
+							MainNode:   rep.Host,
+							Node: Node{
+								Host: rep.Host,
+								Port: rep.Port,
+							},
+						})
+					}
+
+					cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", connReplica.RemoteAddr().String()), "INFO")
+				}
 
 				// Report back successful connection
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", conn.RemoteAddr().String()), "INFO")
@@ -468,7 +526,55 @@ func (cursus *Cursus) ConnectToNodes() {
 					Conn: conn,
 					Mu:   &sync.Mutex{},
 					Text: textproto.NewConn(conn),
+					Node: n,
 				})
+
+				for _, rep := range n.Replicas {
+
+					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Host, n.Port))
+					if err != nil {
+						fmt.Println("ConnectToNodes():", err.Error())
+						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+						os.Exit(1)
+					}
+
+					// Dial tcp address up
+					connReplica, err := net.DialTCP("tcp", nil, tcpAddrReplica)
+					if err != nil {
+						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+
+						os.Exit(1)
+					}
+
+					// We will keep the node connection alive until shutdown
+					connReplica.SetKeepAlive(true) // forever
+
+					// Authenticate with node passing shared key wrapped in base64
+					connReplica.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
+
+					// Authentication response buffer
+					authBufReplica := make([]byte, 1024)
+
+					// Read response back from node
+					rReplica, _ := conn.Read(authBufReplica[:])
+
+					// Did response start with a 0?  This indicates successful authentication
+					if strings.HasPrefix(string(authBuf[:rReplica]), "0") {
+						cursus.NodeConnections = append(cursus.NodeConnections, &NodeConnection{
+							Conn:     connReplica,
+							Text:     textproto.NewConn(connReplica),
+							Replica:  true,
+							MainNode: rep.Host,
+							Node: Node{
+								Host: rep.Host,
+								Port: rep.Port,
+							},
+						})
+					}
+
+					cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", connReplica.RemoteAddr().String()), "INFO")
+				}
 
 				// Report back successful connection
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", conn.RemoteAddr().String()), "INFO")
@@ -765,8 +871,12 @@ func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGro
 	n.Mu.Lock()
 	defer n.Mu.Unlock()
 
+	goto query
+
+query:
+
 	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cursus.Config.NodeReaderSize)
-	n.Conn.SetReadDeadline(time.Now().Add(6 * time.Second))
+	n.Conn.SetReadDeadline(time.Now().Add(4 * time.Second))
 
 	n.Text.PrintfLine("%s", string(body))
 
@@ -786,6 +896,17 @@ func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGro
 unavailable:
 	mu.Lock()
 	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
+
+	// Retry on a node replica if configured
+	for _, r := range n.Node.Replicas {
+		for _, nc := range cursus.NodeConnections {
+			if nc.Node.Host == r.Host {
+				n = nc
+				goto query
+			}
+		}
+	}
+
 	mu.Unlock()
 	goto fin
 fin:
