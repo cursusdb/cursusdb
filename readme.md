@@ -284,14 +284,17 @@ delete user USERNAME;
 - ``3`` No user exists
 - ``4`` User not authorized
 #### Node / Cluster
-- ``100`` - Node is at peak allocation.
-- ``101`` - Invalid permission.
-- ``102`` - User does not exist.
-- ``103`` - Database user already exists.
-- ``104`` - No node was available for insert.
+- ``100`` - Node is at peak allocation
+- ``101`` - Invalid permission
+- ``102`` - User does not exist
+- ``103`` - Database user already exists
+- ``104`` - No node was available for insert
 - ``105`` - Node unavailable
-- ``200`` - New database user created successfully.
-- ``201`` - Database user removed successfully.
+- ``106`` - Node ready for sync
+- ``107`` - Node replica synced successfully
+- ``108`` - Could not decode serialized sync data into hashmap
+- ``200`` - New database user created successfully
+- ``201`` - Database user removed successfully
 - ``500`` - Unknown error (with description)
 - ``501`` - Limit skip must be an integer (with description)
 - ``502`` - Could not convert limit value to integer (with description)

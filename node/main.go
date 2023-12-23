@@ -144,7 +144,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Repear key with * so Alex would be ****
+		// Repeat key with * so Alex would be ****
 		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key))))
 		fmt.Println("")
 
@@ -259,6 +259,12 @@ func main() {
 	flag.IntVar(&curode.Config.Port, "port", curode.Config.Port, "port for node")
 	flag.Parse()
 
+	// If replicas are configured only then sync
+	if len(curode.Config.Replicas) > 0 {
+		curode.Wg.Add(1)
+		go curode.SyncOut()
+	}
+
 	curode.Wg.Add(1)
 	go curode.SignalListener() // Listen for system signals
 
@@ -319,29 +325,90 @@ func (curode *Curode) SignalListener() {
 	}
 }
 
-// SyncOut syncs current data to replicas
+// SyncOut syncs current data to replicas at configured interval
 func (curode *Curode) SyncOut() {
-	for _, r := range curode.Config.Replicas {
-		// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
-		tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", r.Host, r.Port))
-		if err != nil {
-			fmt.Println("Sync():", err.Error())
-			curode.Printl(fmt.Sprintf("Sync(): %s", err.Error()), "ERROR")
+	defer curode.Wg.Done()
+	for {
+		if curode.Context.Err() != nil {
 			break
 		}
 
-		// Dial tcp address up
-		conn, err := net.DialTCP("tcp", nil, tcpAddr)
-		if err != nil {
-			curode.Printl(fmt.Sprintf("Sync(): %s", err.Error()), "ERROR")
-			break
+		for _, r := range curode.Config.Replicas {
+			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", r.Host, r.Port))
+			if err != nil {
+				fmt.Println("SyncOut():", err.Error())
+				curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
+				break
+			}
+
+			// Dial tcp address up
+			conn, err := net.DialTCP("tcp", nil, tcpAddr)
+			if err != nil {
+				curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
+				break
+			}
+
+			// Authenticate with node passing shared key wrapped in base64
+			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
+
+			// Authentication response buffer
+			authBuf := make([]byte, 1024)
+
+			// Read response back from node
+			re, _ := conn.Read(authBuf[:])
+
+			// Did response start with a 0?  This indicates successful authentication
+			if strings.HasPrefix(string(authBuf[:re]), "0") {
+
+				conn.Write([]byte(fmt.Sprintf("SYNC DATA")))
+				syncDataResponseBuf := make([]byte, 1024)
+
+				// Read response back from node
+				syncDataResponse, _ := conn.Read(syncDataResponseBuf[:])
+				if strings.HasPrefix(string(authBuf[:syncDataResponse]), "0") {
+
+					// Handle sync after auth
+
+					// Serialize current data
+					b := new(bytes.Buffer)
+
+					e := gob.NewEncoder(b)
+
+					err = e.Encode(curode.Data.Map)
+					if err != nil {
+						conn.Close()
+						curode.Printl(fmt.Sprintf("Sync(): %s", err.Error()), "ERROR")
+						break
+					}
+
+					rdbuf := make([]byte, 8192)
+					for {
+						_, err = b.Read(rdbuf)
+						if err != nil {
+							break
+						}
+
+						conn.Write(rdbuf)
+
+					}
+
+					conn.Write([]byte(fmt.Sprintf("SYNC FINISHED")))
+					syncFinishResponseBuf := make([]byte, 1024)
+
+					// Read response back from node
+					syncFinishResponse, _ := conn.Read(syncFinishResponseBuf[:])
+
+					curode.Printl(string(syncFinishResponseBuf[:syncFinishResponse]), "INFO")
+
+					conn.Close()
+				}
+			}
+
 		}
 
-		// Handle sync
-
+		time.Sleep(time.Minute * time.Duration(curode.Config.ReplicationSyncTime))
 	}
-
-	time.Sleep(time.Minute * time.Duration(curode.Config.ReplicationSyncTime))
 }
 
 // CountLog counts amount of lines within log file
@@ -536,6 +603,9 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 	text := textproto.NewConn(conn)
 	defer text.Close()
 
+	syncStarted := false                     // Whether a sync has started
+	serializedToMarshal := new(bytes.Buffer) // incoming serialized data for replica sync
+
 	for {
 		conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 1000000))
 		read, err := text.ReadLine()
@@ -553,6 +623,26 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 		// Only another node would send SYNC DATA after passing shared node-cluster key at which point the current node will start to consume serialized data to marshal into database hashmap
 		if strings.HasPrefix(read, "SYNC DATA") {
 			// Handle sync
+			conn.Write([]byte(fmt.Sprintf("%d Node ready for sync", 106)))
+
+			syncStarted = true
+
+			continue
+		} else if strings.HasPrefix(read, "SYNC FINISHED") {
+			b := new(bytes.Buffer)
+			d := gob.NewDecoder(b)
+
+			err = d.Decode(&curode.Data.Map)
+			if err != nil {
+				conn.Write([]byte(fmt.Sprintf("%d Could not decode serialized sync data into hashmap.", 108)))
+				continue
+			}
+
+			conn.Write([]byte(fmt.Sprintf("%d Node replica synced successfully.", 107)))
+			continue
+		} else if syncStarted {
+			serializedToMarshal.Write([]byte(read))
+			continue
 		}
 
 		response := make(map[string]interface{}) // response back to cluster
