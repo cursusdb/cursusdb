@@ -316,8 +316,8 @@ func (curode *Curode) SignalListener() {
 		case sig := <-curode.SignalChannel:
 			curode.Printl(fmt.Sprintf("Received signal %s starting database shutdown.", sig), "INFO")
 			curode.TCPListener.Close() // Close up TCP/TLS listener
-			curode.ContextCancel()     // Cancel context, used for loops and so forth
 			curode.WriteToFile()       // Write database data to file
+			curode.ContextCancel()     // Cancel context, used for loops and so forth
 			return
 		default:
 			time.Sleep(time.Nanosecond * 1000000)
@@ -329,99 +329,120 @@ func (curode *Curode) SignalListener() {
 func (curode *Curode) SyncOut() {
 	defer curode.Wg.Done()
 
-	curode.Wg.Add(1)
-	go func(wg *sync.WaitGroup, c *Curode) {
-		defer wg.Done()
+	stateCh := make(chan int)
+	// 0 - continue
+	// 1 - sleep
+	// 2 - cancel
+
+	go func(c *Curode, sc chan int) {
+		f := time.Now().Add(time.Second * 10)
 		for {
 			if c.Context.Err() != nil {
-				os.Exit(0)
+				sc <- 2
+				return
 			}
 
-			time.Sleep(time.Nanosecond * 1000000)
+			if time.Now().After(f) {
+				f = time.Now().Add(time.Second * 10)
+				sc <- 0
+				time.Sleep(time.Nanosecond * 1000000)
+			} else {
+				sc <- 1
+				time.Sleep(time.Nanosecond * 1000000)
+			}
 		}
-	}(curode.Wg, curode)
+	}(curode, stateCh)
 
 	for {
-		if curode.Context.Err() != nil {
-			return
-		}
+		select {
+		case sc := <-stateCh:
 
-		for _, r := range curode.Config.Replicas {
-			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
-			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", r.Host, r.Port))
-			if err != nil {
-				fmt.Println("SyncOut():", err.Error())
-				curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
-				continue
-			}
-
-			// Dial tcp address up
-			conn, err := net.DialTCP("tcp", nil, tcpAddr)
-			if err != nil {
-				curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
-				continue
-			}
-
-			// Authenticate with node passing shared key wrapped in base64
-			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
-
-			// Authentication response buffer
-			authBuf := make([]byte, 1024)
-
-			// Read response back from node
-			re, _ := conn.Read(authBuf[:])
-
-			// Did response start with a 0?  This indicates successful authentication
-			if strings.HasPrefix(string(authBuf[:re]), "0") {
-
-				conn.Write([]byte(fmt.Sprintf("SYNC DATA\r\n")))
-				syncDataResponseBuf := make([]byte, 1024)
-
-				// Read response back from node
-				syncDataResponse, _ := conn.Read(syncDataResponseBuf[:])
-				if strings.HasPrefix(string(syncDataResponseBuf[:syncDataResponse]), "106") {
-
-					// Handle sync after auth
-					// Serialize current data
-					b := new(bytes.Buffer)
-
-					e := gob.NewEncoder(b)
-
-					err = e.Encode(curode.Data.Map)
+			if sc == 0 {
+				for _, r := range curode.Config.Replicas {
+					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+					tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", r.Host, r.Port))
 					if err != nil {
-						conn.Close()
+						fmt.Println("SyncOut():", err.Error())
 						curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
-						break
+						continue
 					}
 
-					rdbuf := make([]byte, 8192)
-					for {
-						_, err = b.Read(rdbuf)
-						if err != nil {
-							break
-						}
-
-						conn.Write(append(rdbuf, []byte("\r\n")...))
-
+					// Dial tcp address up
+					conn, err := net.DialTCP("tcp", nil, tcpAddr)
+					if err != nil {
+						curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
+						continue
 					}
 
-					conn.Write([]byte(fmt.Sprintf("SYNC FINISHED\r\n")))
-					syncFinishResponseBuf := make([]byte, 1024)
+					// Authenticate with node passing shared key wrapped in base64
+					conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
+
+					// Authentication response buffer
+					authBuf := make([]byte, 1024)
 
 					// Read response back from node
-					syncFinishResponse, _ := conn.Read(syncFinishResponseBuf[:])
+					re, _ := conn.Read(authBuf[:])
 
-					curode.Printl(string(syncFinishResponseBuf[:syncFinishResponse]), "INFO")
+					// Did response start with a 0?  This indicates successful authentication
+					if strings.HasPrefix(string(authBuf[:re]), "0") {
 
-					conn.Close()
+						conn.Write([]byte(fmt.Sprintf("SYNC DATA\r\n")))
+						syncDataResponseBuf := make([]byte, 1024)
+
+						// Read response back from node
+						syncDataResponse, _ := conn.Read(syncDataResponseBuf[:])
+						if strings.HasPrefix(string(syncDataResponseBuf[:syncDataResponse]), "106") {
+
+							// Handle sync after auth
+							// Serialize current data
+							b := new(bytes.Buffer)
+
+							e := gob.NewEncoder(b)
+
+							err = e.Encode(curode.Data.Map)
+							if err != nil {
+								conn.Close()
+								curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
+								break
+							}
+
+							rdbuf := make([]byte, 8192)
+							for {
+								_, err = b.Read(rdbuf)
+								if err != nil {
+									break
+								}
+
+								conn.Write(append(rdbuf, []byte("\r\n")...))
+
+							}
+
+							conn.Write([]byte(fmt.Sprintf("SYNC FINISHED\r\n")))
+							syncFinishResponseBuf := make([]byte, 1024)
+
+							// Read response back from node
+							syncFinishResponse, _ := conn.Read(syncFinishResponseBuf[:])
+
+							curode.Printl(string(syncFinishResponseBuf[:syncFinishResponse]), "INFO")
+
+							conn.Close()
+						}
+					} else {
+						curode.Printl(fmt.Sprintf("%d Failed node sync auth %s", 5, string(authBuf[:re])), "ERROR")
+					}
+
 				}
-			} else {
-				curode.Printl(fmt.Sprintf("%d Failed node sync auth %s", 5, string(authBuf[:re])), "ERROR")
+
+				//time.Sleep(time.Minute * time.Duration(curode.Config.ReplicationSyncTime))
+			} else if sc == 2 {
+				return
+			} else if sc == 1 {
+				time.Sleep(time.Nanosecond * 1000000)
+				continue
 			}
-
+		default:
+			time.Sleep(time.Nanosecond * 1000000)
 		}
-
-		time.Sleep(time.Second * 10) //time.Minute * time.Duration(curode.Config.ReplicationSyncTime))
 	}
 }
 
