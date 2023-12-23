@@ -330,7 +330,7 @@ func (curode *Curode) SyncOut() {
 	defer curode.Wg.Done()
 	for {
 		if curode.Context.Err() != nil {
-			break
+			return
 		}
 
 		for _, r := range curode.Config.Replicas {
@@ -339,14 +339,14 @@ func (curode *Curode) SyncOut() {
 			if err != nil {
 				fmt.Println("SyncOut():", err.Error())
 				curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
-				break
+				return
 			}
 
 			// Dial tcp address up
 			conn, err := net.DialTCP("tcp", nil, tcpAddr)
 			if err != nil {
 				curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
-				break
+				return
 			}
 
 			// Authenticate with node passing shared key wrapped in base64
@@ -403,6 +403,8 @@ func (curode *Curode) SyncOut() {
 
 					conn.Close()
 				}
+			} else {
+				log.Println("failed sync auth", string(authBuf[:re]))
 			}
 
 		}
