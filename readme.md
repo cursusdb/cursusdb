@@ -441,11 +441,13 @@ Read skipping 1000 selecting 1 where first is James
 ``Connection time: 170ms``
 
 Inserting 1002 records sequentially
+
 ```INSERT INTO users (first, last, age, active) VALUES ("James", "Jones", 22, true);```
 
 ```Insertion time: 38234ms```
 
 Read skipping 1000 selecting 1 where first is James
+
 ```SELECT * FROM users where first = "James" LIMIT 1 OFFSET 1000;```
 
 
