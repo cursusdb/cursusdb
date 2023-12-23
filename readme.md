@@ -134,8 +134,8 @@ On the nodes end you need to configure a replica so the node you're configuring 
 .curodeconfig
 ``` 
 replicas:
-- host: 0.0.0.0
-  port: 1111
+  - host: 0.0.0.0
+    port: 7683
 tls-cert: ""
 tls-key: ""
 ..
