@@ -178,147 +178,81 @@ func main() {
 
 	}
 
-	if len(curode.Config.Replicas) == 0 {
-
-		// Read rested data from .cdat file
-		if _, err := os.Stat("./.cdat"); errors.Is(err, os.ErrNotExist) { // Not exists we create it
-			curode.Printl(fmt.Sprintf("main(): No previous data to read.  Creating new .cdat file."), "INFO")
-		} else {
-			curode.Printl(fmt.Sprintf("main(): Node data read into memory."), "INFO")
-			dataFile, err := os.Open("./.cdat") // Open .cdat
-
-			// Temporary decrypted data file.. to be unserialized into map
-			fDFTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
-			if err != nil {
-				fmt.Println("main():", err.Error())
-				os.Exit(1)
-			}
-
-			// Read encrypted data file
-			reader := bufio.NewReader(dataFile)
-			buf := make([]byte, 1024)
-
-			defer dataFile.Close()
-
-			for {
-				read, err := reader.Read(buf)
-
-				if err != nil {
-					if err != io.EOF {
-						fmt.Println("main():", err.Error())
-						os.Exit(1)
-					}
-					break
-				}
-
-				if read > 0 {
-					decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
-					if err != nil {
-						fmt.Println("main():", err.Error())
-						os.Exit(1)
-						return
-					}
-
-					serialized, err := curode.Decrypt(decodedKey[:], buf[:read])
-					if err != nil {
-						fmt.Println("main():", err.Error())
-						os.Exit(1)
-						return
-					}
-
-					fDFTmp.Write(serialized) // Decrypt serialized
-				}
-			}
-			fDFTmp.Close()
-
-			fDFTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
-			if err != nil {
-				curode.Printl(fmt.Sprintf(err.Error()), "ERROR")
-				os.Exit(1)
-			}
-
-			d := gob.NewDecoder(fDFTmp)
-
-			// Now with all serialized data we encode into data hashmap
-			err = d.Decode(&curode.Data.Map)
-			if err != nil {
-				fmt.Println("main():", err.Error())
-				os.Exit(1)
-			}
-
-			fDFTmp.Close()
-
-			os.Remove(".cdat.tmp") // Remove temp
-
-			// Setup collection mutexes
-			for c, _ := range curode.Data.Map {
-				curode.Data.Writers[c] = &sync.RWMutex{}
-			}
-			curode.Printl(fmt.Sprintf("main(): Collection mutexes created."), "INFO")
-		}
+	// Read rested data from .cdat file
+	if _, err := os.Stat("./.cdat"); errors.Is(err, os.ErrNotExist) { // Not exists we create it
+		curode.Printl(fmt.Sprintf("main(): No previous data to read.  Creating new .cdat file."), "INFO")
 	} else {
-		// Because the node was shutdown the latest state for the node would be available on a configured replica which we will connect to and sync data back to the main node.
+		curode.Printl(fmt.Sprintf("main(): Node data read into memory."), "INFO")
+		dataFile, err := os.Open("./.cdat") // Open .cdat
 
-		serializedToMarshal := new(bytes.Buffer) // incoming serialized data for replica sync
+		// Temporary decrypted data file.. to be unserialized into map
+		fDFTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
+		if err != nil {
+			fmt.Println("main():", err.Error())
+			os.Exit(1)
+		}
 
-		// use first available replica and break
-		for _, r := range curode.Config.Replicas {
-			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
-			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", r.Host, r.Port))
+		// Read encrypted data file
+		reader := bufio.NewReader(dataFile)
+		buf := make([]byte, 1024)
+
+		defer dataFile.Close()
+
+		for {
+			read, err := reader.Read(buf)
+
 			if err != nil {
-				fmt.Println("main():", err.Error())
-				curode.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-				break
-			}
-
-			// Dial tcp address up
-			conn, err := net.DialTCP("tcp", nil, tcpAddr)
-			if err != nil {
-				curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
-				break
-			}
-
-			// Authenticate with node passing shared key wrapped in base64
-			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
-
-			// Authentication response buffer
-			authBuf := make([]byte, 1024)
-
-			// Read response back from node
-			re, _ := conn.Read(authBuf[:])
-
-			// Did response start with a 0?  This indicates successful authentication
-			if strings.HasPrefix(string(authBuf[:re]), "0") {
-				conn.Write([]byte(fmt.Sprintf("ABSORB DATA")))
-
-				for {
-					absordBuf := make([]byte, 8192)
-					n, err := conn.Read(absordBuf)
-					if err != nil {
-						break
-					}
-
-					if string(absordBuf[:n]) == "ABSORB DATA FINISHED" {
-						break
-					}
-
-					serializedToMarshal.Write(absordBuf[:n])
-
+				if err != io.EOF {
+					fmt.Println("main():", err.Error())
+					os.Exit(1)
 				}
+				break
+			}
 
-				b := new(bytes.Buffer)
-				d := gob.NewDecoder(b)
-
-				err = d.Decode(&curode.Data.Map)
+			if read > 0 {
+				decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
 				if err != nil {
-					conn.Write([]byte(fmt.Sprintf("%d Could not decode serialized sync data into hashmap.", 108)))
-					continue
+					fmt.Println("main():", err.Error())
+					os.Exit(1)
+					return
 				}
 
-				curode.Printl("Main node loaded from replica", "INFO")
-				conn.Close()
+				serialized, err := curode.Decrypt(decodedKey[:], buf[:read])
+				if err != nil {
+					fmt.Println("main():", err.Error())
+					os.Exit(1)
+					return
+				}
+
+				fDFTmp.Write(serialized) // Decrypt serialized
 			}
 		}
+		fDFTmp.Close()
+
+		fDFTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
+		if err != nil {
+			curode.Printl(fmt.Sprintf(err.Error()), "ERROR")
+			os.Exit(1)
+		}
+
+		d := gob.NewDecoder(fDFTmp)
+
+		// Now with all serialized data we encode into data hashmap
+		err = d.Decode(&curode.Data.Map)
+		if err != nil {
+			fmt.Println("main():", err.Error())
+			os.Exit(1)
+		}
+
+		fDFTmp.Close()
+
+		os.Remove(".cdat.tmp") // Remove temp
+
+		// Setup collection mutexes
+		for c, _ := range curode.Data.Map {
+			curode.Data.Writers[c] = &sync.RWMutex{}
+		}
+		curode.Printl(fmt.Sprintf("main(): Collection mutexes created."), "INFO")
 	}
 
 	// Parse flags
@@ -687,33 +621,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 		}
 
 		// Only another node would send SYNC DATA after passing shared node-cluster key at which point the current node will start to consume serialized data to marshal into database hashmap
-		if strings.HasPrefix(read, "ABSORB DATA") { // Send data back to main node
-			// Serialize current data
-			b := new(bytes.Buffer)
-
-			e := gob.NewEncoder(b)
-
-			err = e.Encode(curode.Data.Map)
-			if err != nil {
-				conn.Close()
-				curode.Printl(fmt.Sprintf("HandleClientConnection(): %s", err.Error()), "ERROR")
-				break
-			}
-
-			rdbuf := make([]byte, 8192)
-			for {
-				n, err := b.Read(rdbuf)
-				if err != nil {
-					break
-				}
-
-				conn.Write(rdbuf[:n])
-
-			}
-
-			conn.Write([]byte("ABSORB DATA FINISHED"))
-			continue
-		} else if strings.HasPrefix(read, "SYNC DATA") {
+		if strings.HasPrefix(read, "SYNC DATA") {
 			// Handle sync
 			conn.Write([]byte(fmt.Sprintf("%d Node ready for sync", 106)))
 

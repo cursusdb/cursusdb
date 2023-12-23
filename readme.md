@@ -12,7 +12,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Parallel search.  Searching collections within multiple nodes simultaneously.
 - Database Users with basic (R, RW) permissions
 - Cluster and node authentication.
-- Cluster node data replication and synchronization
+- Cluster node data replication and synchronization specifically for reads
 - JSON object insert.
 - Cluster and client authentication.
 - SQL like query language (CDQL - Cursus Document Query Language)
@@ -295,6 +295,7 @@ delete user USERNAME;
 - ``106`` - Node ready for sync
 - ``107`` - Node replica synced successfully
 - ``108`` - Could not decode serialized sync data into hashmap
+- ``109`` - No available nodes to insert into
 - ``200`` - New database user created successfully
 - ``201`` - Database user removed successfully
 - ``500`` - Unknown error (with description)

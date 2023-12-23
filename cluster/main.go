@@ -734,7 +734,7 @@ func (cursus *Cursus) AuthenticateUser(username string, password string) (string
 func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, collection string, id string) {
 
 	var node *NodeConnection // Node connection which will be chosen randomly
-	nodeRetries := 3         // Amount of times to retry another node if the chosen node is at peak allocation
+	nodeRetries := 3         // Amount of times to retry another node if the chosen node is at peak allocation or unavailable
 
 	// Setting up document hashmap
 	doc := make(map[string]interface{})
@@ -765,7 +765,17 @@ func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, coll
 query:
 	rand.Seed(time.Now().UnixNano())
 
-	node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Select a random node
+	for i := 0; i < len(cursus.NodeConnections); i++ {
+		node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Select a random node that is not a replica
+		if !node.Replica {
+			goto ok
+		}
+	}
+
+	connection.Text.PrintfLine(fmt.Sprintf("%d No available nodes to insert into.", 109))
+	return
+
+ok:
 
 	node.Text.PrintfLine("%s", string(jsonString)) // Send the query over
 
