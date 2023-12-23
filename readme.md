@@ -239,6 +239,22 @@ select * from users order by createdOn desc;
 select * from users order by firstName asc;
 ```
 
+### Counting
+Example
+``` 
+select count from users where $id == "099ade86-93a8-4703-abdd-d1ccc1078b1d";
+```
+
+Response not joined
+``` 
+[{"127.0.0.1:7682": [{"count":1}]}]
+```
+
+Response joined if each node has 1 match and there is 5 nodes
+``` 
+{"count":5} 
+```
+
 ### Uniqueness
 using ``key!`` will make sure the value is unique across all nodes!
 ``` 
