@@ -1,5 +1,5 @@
 ## Cursus Database System
-CursusDB is a fast open source in-memory document oriented database offering security,persistence, distribution, availability and an SQL like query language.
+CursusDB is a fast open source in-memory document oriented database offering security, persistence, distribution, availability and an SQL like query language.
 
 https://cursusdb.com/documentation
 
