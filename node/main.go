@@ -319,8 +319,29 @@ func (curode *Curode) SignalListener() {
 	}
 }
 
-func (curode *Curode) Sync() {
+// SyncOut syncs current data to replicas
+func (curode *Curode) SyncOut() {
+	for _, r := range curode.Config.Replicas {
+		// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+		tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", r.Host, r.Port))
+		if err != nil {
+			fmt.Println("Sync():", err.Error())
+			curode.Printl(fmt.Sprintf("Sync(): %s", err.Error()), "ERROR")
+			break
+		}
 
+		// Dial tcp address up
+		conn, err := net.DialTCP("tcp", nil, tcpAddr)
+		if err != nil {
+			curode.Printl(fmt.Sprintf("Sync(): %s", err.Error()), "ERROR")
+			break
+		}
+
+		// Handle sync
+
+	}
+
+	time.Sleep(time.Minute * time.Duration(curode.Config.ReplicationSyncTime))
 }
 
 // CountLog counts amount of lines within log file
