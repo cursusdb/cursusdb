@@ -15,7 +15,6 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Cluster node data replication and synchronization
 - JSON object insert.
 - Cluster and client authentication.
-- Unique values across all nodes based on key using "key!" on insert.
 - SQL like query language (CDQL - Cursus Document Query Language)
 - Low-latency
 - Highly available
