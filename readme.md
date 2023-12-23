@@ -12,12 +12,13 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Parallel search.  Searching collections within multiple nodes simultaneously.
 - Database Users with basic (R, RW) permissions
 - Cluster and node authentication.
-- Node data replication
+- Cluster node data replication and synchronization
 - JSON object insert.
 - Cluster and client authentication.
 - Unique values across all nodes based on key using "key!" on insert.
 - SQL like query language (CDQL - Cursus Document Query Language)
-- Super low-latency
+- Low-latency
+- Highly available
 - Unique k:v across all nodes using exclamation at end of key name ``email!``
 - Secure by default with shared key and users
 - Highly configurable
