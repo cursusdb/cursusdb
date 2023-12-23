@@ -1264,37 +1264,44 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
 					body["sort-pos"] = sortPos
 					body["sort-key"] = sortKey
-					if body["limit"].(string) == "*" {
-						body["limit"] = -1
-					} else if strings.Contains(body["limit"].(string), ",") {
-						if len(strings.Split(body["limit"].(string), ",")) == 2 {
+
+					if body["limit"].(string) != "count" {
+
+						if body["limit"].(string) == "*" {
+							body["limit"] = -1
+						} else if strings.Contains(body["limit"].(string), ",") {
+							if len(strings.Split(body["limit"].(string), ",")) == 2 {
+								var err error
+								body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									continue
+								}
+
+								if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
+									body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+									if err != nil {
+										text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
+										continue
+									}
+								} else {
+									body["limit"] = -1
+								}
+							} else {
+								text.PrintfLine("%d Invalid limiting value", 504)
+								continue
+							}
+						} else {
 							var err error
-							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
+							body["limit"], err = strconv.Atoi(body["limit"].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
 								continue
 							}
-
-							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
-								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
-								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
-									continue
-								}
-							} else {
-								body["limit"] = -1
-							}
-						} else {
-							text.PrintfLine("%d Invalid limiting value", 504)
-							continue
 						}
 					} else {
-						var err error
-						body["limit"], err = strconv.Atoi(body["limit"].(string))
-						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
-							continue
-						}
+						body["limit"] = -2
+						body["count"] = true
 					}
 
 					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
@@ -1401,37 +1408,44 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 					}
 
-					if body["limit"].(string) == "*" {
-						body["limit"] = -1
-					} else if strings.Contains(body["limit"].(string), ",") {
-						if len(strings.Split(body["limit"].(string), ",")) == 2 {
-							var err error
-							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
-							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
-								continue
-							}
+					if body["limit"].(string) != "count" {
 
-							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
-								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+						if body["limit"].(string) == "*" {
+							body["limit"] = -1
+						} else if strings.Contains(body["limit"].(string), ",") {
+							if len(strings.Split(body["limit"].(string), ",")) == 2 {
+								var err error
+								body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 								if err != nil {
 									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
 									continue
 								}
+
+								if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
+									body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+									if err != nil {
+										text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+										continue
+									}
+								} else {
+									body["limit"] = -1
+								}
 							} else {
-								body["limit"] = -1
+								text.PrintfLine("%d Invalid limiting value", 504)
+								continue
 							}
 						} else {
-							text.PrintfLine("%d Invalid limiting value", 504)
-							continue
+							var err error
+							body["limit"], err = strconv.Atoi(body["limit"].(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								continue
+							}
 						}
+
 					} else {
-						var err error
-						body["limit"], err = strconv.Atoi(body["limit"].(string))
-						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
-							continue
-						}
+						body["limit"] = -2
+						body["count"] = true
 					}
 
 					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
