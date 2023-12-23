@@ -821,6 +821,10 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 	if cursus.Config.JoinResponses {
 		var docs []interface{}
+
+		count := 0 // if count
+		isCount := false
+
 		for _, res := range responses {
 			var x []interface{}
 			err := json.Unmarshal([]byte(res), &x)
@@ -828,26 +832,52 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 				fmt.Sprintf("%d Unmarsharable JSON", 4013)
 				return nil
 			}
-			docs = append(docs, x...)
-		}
 
-		if body["limit"] != -1 {
-			for i, _ := range docs {
-				if i > body["limit"].(int) {
-					docs[i] = docs[len(docs)-1]
-					docs[len(docs)-1] = nil
-					docs = docs[:len(docs)-1]
+			c, ok := x[0].(map[string]interface{})["count"]
+			if ok {
+				if !isCount {
+					isCount = true
 				}
+
+				count += int(c.(float64))
+			}
+
+			if !isCount {
+				docs = append(docs, x...)
 			}
 		}
 
-		docsJson, err := json.Marshal(docs)
-		if err != nil {
-			connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
-			return nil
-		}
+		if !isCount {
 
-		connection.Text.PrintfLine(string(docsJson))
+			if body["limit"] != -1 {
+				for i, _ := range docs {
+					if i > body["limit"].(int) {
+						docs[i] = docs[len(docs)-1]
+						docs[len(docs)-1] = nil
+						docs = docs[:len(docs)-1]
+					}
+				}
+			}
+
+			docsJson, err := json.Marshal(docs)
+			if err != nil {
+				connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
+				return nil
+			}
+
+			connection.Text.PrintfLine(string(docsJson))
+		} else {
+			countResponse := make(map[string]interface{})
+			countResponse["count"] = count
+
+			countJson, err := json.Marshal(countResponse)
+			if err != nil {
+				connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
+				return nil
+			}
+
+			connection.Text.PrintfLine(string(countJson))
+		}
 
 	} else {
 		var response string
