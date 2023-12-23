@@ -285,6 +285,7 @@ delete user USERNAME;
 - ``2`` Invalid authentication value.
 - ``3`` No user exists
 - ``4`` User not authorized
+- ``5`` Failed node sync auth
 #### Node / Cluster
 - ``100`` - Node is at peak allocation
 - ``101`` - Invalid permission
