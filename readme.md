@@ -27,11 +27,6 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 
 ![drawing.png](images/drawing2.png)
 
-
-### Replication example
-
-![replicating-cluster-nodes.png](images/replicating-cluster-nodes.png)
-
 ## Cluster & Node Building & Initial Setup
 Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
 
@@ -148,6 +143,8 @@ tls-key: ""
 
 Default sync time is 10 minutes and can be configured with yaml config ``replication-sync-time`` the node will sync its data to its configured “replicas”. 
 If original node shuts down or is not available a replica will be used, if a replica is not available another available replica will be used(a node can configure multiple replicas). On original node startup will sync with the latest used replica. 
+
+![replicating-cluster-nodes.png](images/replicating-cluster-nodes.png)
 
 ## Query Language
 Case-sensitive.. Keep it lowercase as the example.
