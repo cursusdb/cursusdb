@@ -316,6 +316,7 @@ func main() {
 				}
 
 				curode.Printl("Main node loaded from replica", "INFO")
+				conn.Close()
 			}
 		}
 	}
@@ -711,6 +712,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 			}
 
 			conn.Write([]byte("ABSORB DATA FINISHED"))
+			continue
 		} else if strings.HasPrefix(read, "SYNC DATA") {
 			// Handle sync
 			conn.Write([]byte(fmt.Sprintf("%d Node ready for sync", 106)))
