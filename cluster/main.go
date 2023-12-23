@@ -390,6 +390,7 @@ func (cursus *Cursus) ConnectToNodes() {
 			conn, err := net.DialTCP("tcp", nil, tcpAddr)
 			if err != nil {
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+
 				os.Exit(1)
 			}
 

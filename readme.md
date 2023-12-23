@@ -127,17 +127,20 @@ nodes:
 
 Node at ``0.0.0.0:7682`` has a configured replica at ``0.0.0.0:7682``
 
-On the nodes end you need to configure a twin so the node you're configuring knows to replicate the data over.
+On the nodes end you need to configure a replica so the node you're configuring knows to replicate the data over.
 
 .curodeconfig
 ``` 
-twins:
+replicas:
 - host: 0.0.0.0
   port: 1111
 tls-cert: ""
 tls-key: ""
 ..
 ```
+
+Default sync time is 10 minutes and can be configured with yaml config ``replication-sync-time`` the node will sync its data to its configured “replicas”. 
+If original node shuts down or is not available a replica will be used, if a replica is not available another available replica will be used(a node can configure multiple replicas). On original node startup will sync with the latest used replica. Simple. I’m drawing it out, I’ve started the implementation of it and well it should all be set with documentation and more shortly. Whats your thoughts?
 
 ## Query Language
 Case-sensitive.. Keep it lowercase as the example.
