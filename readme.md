@@ -142,7 +142,7 @@ tls-key: ""
 ```
 
 Default sync time is 10 minutes and can be configured with yaml config ``replication-sync-time`` the node will sync its data to its configured “replicas”. 
-If original node shuts down or is not available a replica will be used, if a replica is not available another available replica will be used(a node can configure multiple replicas). On original node startup will sync with the latest used replica. Simple. I’m drawing it out, I’ve started the implementation of it and well it should all be set with documentation and more shortly. Whats your thoughts?
+If original node shuts down or is not available a replica will be used, if a replica is not available another available replica will be used(a node can configure multiple replicas). On original node startup will sync with the latest used replica. 
 
 ## Query Language
 Case-sensitive.. Keep it lowercase as the example.
