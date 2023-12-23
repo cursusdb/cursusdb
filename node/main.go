@@ -335,7 +335,7 @@ func (curode *Curode) SyncOut() {
 	// 2 - cancel
 
 	go func(c *Curode, sc chan int) {
-		f := time.Now().Add(time.Second * 10)
+		f := time.Now().Add(time.Minute * time.Duration(curode.Config.ReplicationSyncTime))
 		for {
 			if c.Context.Err() != nil {
 				sc <- 2
@@ -343,7 +343,7 @@ func (curode *Curode) SyncOut() {
 			}
 
 			if time.Now().After(f) {
-				f = time.Now().Add(time.Second * 10)
+				f = time.Now().Add(time.Minute * time.Duration(curode.Config.ReplicationSyncTime))
 				sc <- 0
 				time.Sleep(time.Nanosecond * 1000000)
 			} else {
@@ -432,8 +432,6 @@ func (curode *Curode) SyncOut() {
 					}
 
 				}
-
-				//time.Sleep(time.Minute * time.Duration(curode.Config.ReplicationSyncTime))
 			} else if sc == 2 {
 				return
 			} else if sc == 1 {
