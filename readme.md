@@ -141,8 +141,8 @@ tls-key: ""
 ..
 ```
 
-Default sync time is 10 minutes and can be configured with yaml config ``replication-sync-time`` the node will sync its data to its configured “replicas”. 
-If original node shuts down or is not available a replica will be used, if a replica is not available another available replica will be used(a node can configure multiple replicas). On original node startup will sync with the latest used replica. 
+Default sync time is 10 minutes and can be configured with yaml config ``replication-sync-time`` the node will sync its data to its configured replicas.
+If original node shuts down or is not available a replica will be used for reads, if a replica is not available another available replica will be used(a node can configure multiple replicas).
 
 ![replicating-cluster-nodes.png](images/replicating-cluster-nodes.png)
 
