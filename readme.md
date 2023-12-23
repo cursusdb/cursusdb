@@ -27,6 +27,9 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 
 ![drawing.png](images/drawing2.png)
 
+## Docker
+https://hub.docker.com/repositories/cursusdb
+
 ## Cluster & Node Building & Initial Setup
 Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
 
