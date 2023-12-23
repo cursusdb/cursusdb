@@ -411,6 +411,5 @@ Please report issues, enhancements, etc at:
 
 
 ## Todo
-- Before v1.7.7 Node read replication to be thoroughly tested.
 - Allow SQL inserts ```insert into coll (key, key, key, ...)
   VALUES (value1, value2, value3, ...); ```
