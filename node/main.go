@@ -550,6 +550,11 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 			}
 		}
 
+		// Only another node would send SYNC DATA after passing shared node-cluster key at which point the current node will start to consume serialized data to marshal into database hashmap
+		if strings.HasPrefix(read, "SYNC DATA") {
+			// Handle sync
+		}
+
 		response := make(map[string]interface{}) // response back to cluster
 
 		request := make(map[string]interface{}) // request incoming from cluster
