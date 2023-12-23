@@ -429,7 +429,7 @@ func (cursus *Cursus) ConnectToNodes() {
 				for _, rep := range n.Replicas {
 
 					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
-					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Host, n.Port))
+					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", rep.Host, rep.Port))
 					if err != nil {
 						fmt.Println("ConnectToNodes():", err.Error())
 						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
@@ -460,7 +460,7 @@ func (cursus *Cursus) ConnectToNodes() {
 					authBufReplica := make([]byte, 1024)
 
 					// Read response back from node
-					rReplica, _ := conn.Read(authBufReplica[:])
+					rReplica, _ := connReplica.Read(authBufReplica[:])
 
 					// Did response start with a 0?  This indicates successful authentication
 					if strings.HasPrefix(string(authBuf[:rReplica]), "0") {
@@ -532,7 +532,7 @@ func (cursus *Cursus) ConnectToNodes() {
 				for _, rep := range n.Replicas {
 
 					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
-					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Host, n.Port))
+					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", rep.Host, rep.Port))
 					if err != nil {
 						fmt.Println("ConnectToNodes():", err.Error())
 						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
@@ -557,7 +557,7 @@ func (cursus *Cursus) ConnectToNodes() {
 					authBufReplica := make([]byte, 1024)
 
 					// Read response back from node
-					rReplica, _ := conn.Read(authBufReplica[:])
+					rReplica, _ := connReplica.Read(authBufReplica[:])
 
 					// Did response start with a 0?  This indicates successful authentication
 					if strings.HasPrefix(string(authBuf[:rReplica]), "0") {
