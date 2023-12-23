@@ -902,17 +902,15 @@ query:
 	goto fin
 unavailable:
 	mu.Lock()
-	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
 
 	// Retry on a node replica if configured
 	for _, r := range n.Node.Replicas {
 		for _, nc := range cursus.NodeConnections {
-			if nc.Node.Host == r.Host {
+			if nc.Node.Host == r.Host && nc.Replica == true {
 				n = nc
-
 				retries -= 1
 
-				if retries > 0 {
+				if retries != -1 {
 					mu.Unlock()
 					goto query
 				} else {
@@ -921,6 +919,8 @@ unavailable:
 			}
 		}
 	}
+
+	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
 
 	mu.Unlock()
 	goto fin
