@@ -416,3 +416,46 @@ Please report issues, enhancements, etc at:
 ## Todo
 - Allow SQL inserts ```insert into coll (key, key, key, ...)
   VALUES (value1, value2, value3, ...); ```
+
+## CursusDB v MySQL
+Most basic setup.  CursusDB cluster and node hosted same instance no TLS.
+MySQL setup exact same specification of an instance no TLS.
+
+### CursusDB
+```Connection time: 64ms```
+
+Inserting 1002 records sequentially
+
+```insert into users({"first": "James", "last": "Jones", "age": 22, "active": true});```
+
+```Insertion time: 33928 ms```
+
+Read skipping 1000 selecting 1 where first is James
+
+```select 1000,1 from users where first == "James";```
+
+``Read time: 32ms``
+
+
+### MySQL
+``Connection time: 170ms``
+
+Inserting 1002 records sequentially
+```INSERT INTO users (first, last, age, active) VALUES ("James", "Jones", 22, true);```
+
+```Insertion time: 38234ms```
+
+Read skipping 1000 selecting 1 where first is James
+```SELECT * FROM users where first = "James" LIMIT 1 OFFSET 1000;```
+
+
+``Read time: 44ms``
+
+Table used
+
+``CREATE TABLE users (
+first varchar(255),
+last varchar(255),
+age int,
+active BOOLEAN
+);``
