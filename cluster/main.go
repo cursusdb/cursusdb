@@ -424,6 +424,7 @@ func (cursus *Cursus) ConnectToNodes() {
 					SecureConn: secureConn,
 					Text:       textproto.NewConn(secureConn),
 					Node:       n,
+					Mu:         &sync.Mutex{},
 				})
 
 				for _, rep := range n.Replicas {
@@ -474,6 +475,7 @@ func (cursus *Cursus) ConnectToNodes() {
 								Host: rep.Host,
 								Port: rep.Port,
 							},
+							Mu: &sync.Mutex{},
 						})
 					}
 
@@ -570,6 +572,7 @@ func (cursus *Cursus) ConnectToNodes() {
 								Host: rep.Host,
 								Port: rep.Port,
 							},
+							Mu: &sync.Mutex{},
 						})
 					}
 
@@ -798,8 +801,10 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 	wgPara := &sync.WaitGroup{}
 	muPara := &sync.RWMutex{}
 	for _, n := range cursus.NodeConnections {
-		wgPara.Add(1)
-		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
+		if !n.Replica {
+			wgPara.Add(1)
+			go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
+		}
 	}
 
 	wgPara.Wait()
