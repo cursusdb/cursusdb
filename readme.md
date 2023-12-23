@@ -116,6 +116,7 @@ If we try and insert the same document we will get an error stating an existing 
 ![img_9.png](images/img_9.png)
 
 ## Node Replicating
+.cursusconfig
 ```
 nodes:
 - host: 0.0.0.0
@@ -123,6 +124,7 @@ nodes:
   replicas:
   - host: 0.0.0.0
     port: 7683
+..
 ```
 
 Node at ``0.0.0.0:7682`` has a configured replica at ``0.0.0.0:7682``
