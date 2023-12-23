@@ -876,6 +876,8 @@ func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGro
 	n.Mu.Lock()
 	defer n.Mu.Unlock()
 
+	retries := len(n.Node.Replicas)
+
 	goto query
 
 query:
@@ -907,7 +909,15 @@ unavailable:
 		for _, nc := range cursus.NodeConnections {
 			if nc.Node.Host == r.Host {
 				n = nc
-				goto query
+
+				retries -= 1
+
+				if retries > 0 {
+					mu.Unlock()
+					goto query
+				} else {
+					break
+				}
 			}
 		}
 	}
