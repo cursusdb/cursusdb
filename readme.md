@@ -27,6 +27,11 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 
 ![drawing.png](images/drawing2.png)
 
+
+### Replication example
+
+![replicating-cluster-nodes.png](images/replicating-cluster-nodes.png)
+
 ## Cluster & Node Building & Initial Setup
 Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
 
