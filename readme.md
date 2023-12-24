@@ -24,6 +24,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - User permissions ``RW`` ``R``
 - Lightweight core code under 3,000 lines of code in total
 - File logging and automatic log truncation based on ``log-max-lines`` config
+- Automatic reconnect of any lost node or node replica
 
 ![drawing.png](images/drawing2.png)
 
