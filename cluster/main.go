@@ -821,8 +821,10 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 	wgPara := &sync.WaitGroup{}
 	muPara := &sync.RWMutex{}
 	for _, n := range cursus.NodeConnections {
-		wgPara.Add(1)
-		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
+		if !n.Replica {
+			wgPara.Add(1)
+			go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
+		}
 	}
 
 	wgPara.Wait()
@@ -969,7 +971,7 @@ unavailable:
 				n = nc
 				retries -= 1
 
-				if retries > 0 {
+				if retries > -1 {
 					mu.Unlock()
 					goto query
 				} else {
