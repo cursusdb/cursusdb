@@ -1766,6 +1766,12 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 				}
 
+				if len(body["values"].([]interface{})) == 0 {
+					text.PrintfLine(fmt.Sprintf("%d Where is missing values", 506))
+					query = ""
+					continue
+				}
+
 				err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 				if err != nil {
 					text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
@@ -1966,7 +1972,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 
 					if len(body["values"].([]interface{})) == 0 {
-						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, "No values found."))
+						text.PrintfLine(fmt.Sprintf("%d Where is missing values", 506))
 						query = ""
 						continue
 					}
