@@ -1280,13 +1280,16 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				query = ""
 				continue
 			case strings.HasPrefix(query, "select "):
+
 				if !strings.Contains(query, "from ") {
 					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
 					query = ""
 					continue
 				}
 
-				query = strings.ReplaceAll(query, "not like", "!like")
+				if strings.Contains(query, "not like") {
+					query = strings.ReplaceAll(query, "not like", "!like")
+				}
 
 				sortPos := ""
 				sortKey := ""
@@ -1328,7 +1331,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["limit"] = -1
 						} else if strings.Contains(body["limit"].(string), ",") {
 							if len(strings.Split(body["limit"].(string), ",")) == 2 {
-								var err error
 								body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 								if err != nil {
 									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
@@ -1352,7 +1354,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								continue
 							}
 						} else {
-							var err error
 							body["limit"], err = strconv.Atoi(body["limit"].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
@@ -1364,6 +1365,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						body["limit"] = -2
 						body["count"] = true
 					}
+
+					log.Println(body)
 
 					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
@@ -1415,11 +1418,11 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "like"):
-						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "not like"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!like"):
 						default:
 							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 							query = ""
-							continue
+							goto extCont
 						}
 
 						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
@@ -1479,7 +1482,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["limit"] = -1
 						} else if strings.Contains(body["limit"].(string), ",") {
 							if len(strings.Split(body["limit"].(string), ",")) == 2 {
-								var err error
 								body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 								if err != nil {
 									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
@@ -1503,7 +1505,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								continue
 							}
 						} else {
-							var err error
 							body["limit"], err = strconv.Atoi(body["limit"].(string))
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
@@ -1517,7 +1518,13 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						body["count"] = true
 					}
 
-					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
+					if len(body["values"].([]interface{})) == 0 {
+						text.PrintfLine(fmt.Sprintf("%d Where is missing values", 506))
+						query = ""
+						continue
+					}
+
+					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
 						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
@@ -1525,6 +1532,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 
 					query = ""
+					continue
+
+				extCont:
 					continue
 
 				}
@@ -1661,11 +1671,11 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "like"):
-					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "not like"):
+					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!like"):
 					default:
 						text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 						query = ""
-						continue
+						goto extCont2
 					}
 
 					var val interface{}
@@ -1756,7 +1766,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 				}
 
-				err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
+				err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 				if err != nil {
 					text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 					query = ""
@@ -1765,7 +1775,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				query = ""
 				continue
-
+			extCont2:
+				continue
 			case strings.HasPrefix(query, "delete "):
 
 				// delete 1 from users where name == 'alex' && last == 'padula';
@@ -1896,11 +1907,11 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
 						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "like"):
-						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "not like"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!like"):
 						default:
 							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
 							query = ""
-							continue
+							goto extCont3
 						}
 
 						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
@@ -1997,7 +2008,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						}
 					}
 
-					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
+					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
 						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
@@ -2005,6 +2016,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 
 					query = ""
+					continue
+				extCont3:
 					continue
 				}
 			case strings.HasPrefix(query, "delete user "):

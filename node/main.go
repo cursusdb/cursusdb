@@ -857,6 +857,9 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 	}
 
+	log.Println(oprs)
+	log.Println(vs)
+
 	// Unlock when completed, by defering
 	defer func() {
 		if lock {
@@ -1178,6 +1181,13 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 							} else {
 								// string
 								if oprs.([]interface{})[m] == "like" {
+									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
+									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
+									vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
+									vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
+									vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
+									vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
+									log.Println(vs.([]interface{})[m])
 									if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
 										// Get index of % and check if on left or right of string
 										percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
@@ -1194,7 +1204,8 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 											for _, p := range patterns {
 												// does value start with p
-												if strings.HasPrefix(vs.([]interface{})[m].(string), p) {
+
+												if strings.HasPrefix(dd.(string), p) {
 													if skip != 0 {
 														skip = skip - 1
 														goto s
@@ -1215,7 +1226,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 											for _, p := range patterns {
 												// does value end with p
-												if strings.HasSuffix(vs.([]interface{})[m].(string), p) {
+												if strings.HasSuffix(dd.(string), p) {
 													if skip != 0 {
 														skip = skip - 1
 														goto s2
@@ -1238,7 +1249,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 										for _, p := range patterns {
 											// does value contain p
-											if strings.Count(vs.([]interface{})[m].(string), p) > 0 {
+											if strings.Count(dd.(string), p) > 0 {
 												if skip != 0 {
 													skip = skip - 1
 													goto s3
@@ -1251,8 +1262,15 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 										}
 									}
 								} else if oprs.([]interface{})[m] == "!like" {
-									// select * from users where firstName like 'alex%'
-									if strings.Count(vs.([]interface{})[m].(string), "%") == 0 {
+									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
+									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
+									vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
+									vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
+									vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
+									vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
+
+									// select * from users where firstName not like 'alex%'
+									if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
 										// Get index of % and check if on left or right of string
 										percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
 										sMiddle := len(vs.([]interface{})[m].(string)) / 2
@@ -1268,7 +1286,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 											for _, p := range patterns {
 												// does value start with p
-												if !strings.HasPrefix(vs.([]interface{})[m].(string), p) {
+												if !strings.HasPrefix(dd.(string), p) {
 													if skip != 0 {
 														skip = skip - 1
 														goto s4
@@ -1289,7 +1307,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 											for _, p := range patterns {
 												// does value end with p
-												if !strings.HasSuffix(vs.([]interface{})[m].(string), p) {
+												if !strings.HasSuffix(dd.(string), p) {
 													if skip != 0 {
 														skip = skip - 1
 														goto s5
@@ -1312,7 +1330,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 										for _, p := range patterns {
 											// does value contain p
-											if strings.Count(vs.([]interface{})[m].(string), p) == 0 {
+											if strings.Count(dd.(string), p) == 0 {
 												if skip != 0 {
 													skip = skip - 1
 													goto s6
@@ -1573,6 +1591,13 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 					} else { // string
 
 						if oprs.([]interface{})[m] == "like" {
+							vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
+							vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
+							vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
+							vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
+							vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
+							vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
+
 							// select * from users where firstName like 'alex%'
 							if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
 								// Get index of % and check if on left or right of string
@@ -1590,7 +1615,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 									for _, p := range patterns {
 										// does value start with p
-										if strings.HasPrefix(vs.([]interface{})[m].(string), p) {
+										if strings.HasPrefix(d[k.(string)].(string), p) {
 											if skip != 0 {
 												skip = skip - 1
 												goto sk
@@ -1611,7 +1636,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 									for _, p := range patterns {
 										// does value end with p
-										if strings.HasSuffix(vs.([]interface{})[m].(string), p) {
+										if strings.HasSuffix(d[k.(string)].(string), p) {
 											if skip != 0 {
 												skip = skip - 1
 												goto sk2
@@ -1634,7 +1659,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 								for _, p := range patterns {
 									// does value contain p
-									if strings.Count(vs.([]interface{})[m].(string), p) > 0 {
+									if strings.Count(d[k.(string)].(string), p) > 0 {
 										if skip != 0 {
 											skip = skip - 1
 											goto sk3
@@ -1647,8 +1672,15 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 								}
 							}
 						} else if oprs.([]interface{})[m] == "!like" {
-							// select * from users where firstName like 'alex%'
-							if strings.Count(vs.([]interface{})[m].(string), "%") == 0 {
+							vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
+							vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
+							vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
+							vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
+							vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
+							vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
+
+							// select * from users where firstName not like 'alex%'
+							if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
 								// Get index of % and check if on left or right of string
 								percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
 								sMiddle := len(vs.([]interface{})[m].(string)) / 2
@@ -1664,7 +1696,8 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 									for _, p := range patterns {
 										// does value start with p
-										if !strings.HasPrefix(vs.([]interface{})[m].(string), p) {
+										log.Println(d[k.(string)].(string), p)
+										if !strings.HasPrefix(d[k.(string)].(string), p) {
 											if skip != 0 {
 												skip = skip - 1
 												goto sk4
@@ -1685,7 +1718,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 									for _, p := range patterns {
 										// does value end with p
-										if !strings.HasSuffix(vs.([]interface{})[m].(string), p) {
+										if !strings.HasSuffix(d[k.(string)].(string), p) {
 											if skip != 0 {
 												skip = skip - 1
 												goto sk5
@@ -1708,7 +1741,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 								for _, p := range patterns {
 									// does value contain p
-									if strings.Count(vs.([]interface{})[m].(string), p) == 0 {
+									if strings.Count(d[k.(string)].(string), p) == 0 {
 										if skip != 0 {
 											skip = skip - 1
 											goto sk6
