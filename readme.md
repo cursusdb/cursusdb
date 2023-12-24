@@ -38,7 +38,7 @@ Getting started with CursusDB is extremely easy!  First you  must build a cluste
 
 You must make sure you have GO installed minimum version 1.21.3, once installed follow below.
 ``` 
-git clone git@github.com:cursusdb/cursus.git
+git clone git@github.com:cursusdb/cursusdb.git
 cd cluster
 go build .
 cd ..
