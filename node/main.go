@@ -857,9 +857,6 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 	}
 
-	log.Println(oprs)
-	log.Println(vs)
-
 	// Unlock when completed, by defering
 	defer func() {
 		if lock {
@@ -1187,7 +1184,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 									vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
 									vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
 									vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
-									log.Println(vs.([]interface{})[m])
+
 									if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
 										// Get index of % and check if on left or right of string
 										percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
@@ -1696,7 +1693,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 									for _, p := range patterns {
 										// does value start with p
-										log.Println(d[k.(string)].(string), p)
+
 										if !strings.HasPrefix(d[k.(string)].(string), p) {
 											if skip != 0 {
 												skip = skip - 1

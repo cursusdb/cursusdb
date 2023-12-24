@@ -1366,9 +1366,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						body["count"] = true
 					}
 
-					log.Println(body)
-
-					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
+					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
 						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
@@ -1864,7 +1862,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						}
 					}
 
-					err := cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
+					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
 						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 						query = ""
@@ -2035,7 +2033,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 				}
 
-				err := cursus.RemoveUser(splQ[1])
+				err = cursus.RemoveUser(splQ[1])
 				if err != nil {
 					text.PrintfLine("%d Database user %s removed successfully.", 201, splQ[1])
 					query = ""
@@ -2064,7 +2062,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 				}
 
-				_, _, err := cursus.NewUser(strings.TrimSpace(splQComma[0]), strings.TrimSpace(splQComma[1]), strings.TrimSpace(splQComma[2]))
+				_, _, err = cursus.NewUser(strings.TrimSpace(splQComma[0]), strings.TrimSpace(splQComma[1]), strings.TrimSpace(splQComma[2]))
 				if err != nil {
 					text.PrintfLine(err.Error())
 					query = ""
