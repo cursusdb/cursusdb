@@ -26,7 +26,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - File logging and automatic log truncation based on ``log-max-lines`` config
 - Automatic reconnect of any lost node or node replica
 
-![drawing.png](images/drawing2.png)
+![drawing3.png](images/drawing3.png)
 
 ## Docker
 https://hub.docker.com/repositories/cursusdb
