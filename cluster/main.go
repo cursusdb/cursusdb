@@ -50,6 +50,7 @@ import (
 	"unicode/utf8"
 )
 
+// Cursus is the main CursusDB cluster struct
 type Cursus struct {
 	TCPAddr         *net.TCPAddr       // TCPAddr represents the address of the clusters TCP end point
 	TCPListener     *net.TCPListener   // TCPListener is the cluster TCP network listener.
@@ -73,6 +74,7 @@ type NodeConnection struct {
 	Mu         *sync.Mutex     // Multiple connections shouldn't hit the same node without the node being locked
 	Replica    bool            // is node replica?
 	MainNode   string
+	Ok         bool // Is node ok?
 	Node       Node
 }
 
@@ -245,6 +247,9 @@ func main() {
 
 	cursus.Wg.Add(1)
 	go cursus.StartTCP_TLS() // Start listening tcp/tls with setup configuration
+
+	cursus.Wg.Add(1)
+	go cursus.LostReconnect() // Always attempt to reconnect to lost nodes if unavailable
 
 	cursus.Wg.Wait() // Wait for all go routines to finish up
 
@@ -425,6 +430,7 @@ func (cursus *Cursus) ConnectToNodes() {
 					Text:       textproto.NewConn(secureConn),
 					Node:       n,
 					Mu:         &sync.Mutex{},
+					Ok:         true,
 				})
 
 				for _, rep := range n.Replicas {
@@ -475,6 +481,7 @@ func (cursus *Cursus) ConnectToNodes() {
 								Host: rep.Host,
 								Port: rep.Port,
 							},
+							Ok: true,
 							Mu: &sync.Mutex{},
 						})
 					}
@@ -528,6 +535,7 @@ func (cursus *Cursus) ConnectToNodes() {
 					Conn: conn,
 					Mu:   &sync.Mutex{},
 					Text: textproto.NewConn(conn),
+					Ok:   true,
 					Node: n,
 				})
 
@@ -572,6 +580,7 @@ func (cursus *Cursus) ConnectToNodes() {
 								Host: rep.Host,
 								Port: rep.Port,
 							},
+							Ok: true,
 							Mu: &sync.Mutex{},
 						})
 					}
@@ -792,6 +801,7 @@ ok:
 			nodeRetries -= 1
 			goto query
 		} else {
+			node.Ok = false
 			connection.Text.PrintfLine("%d No node was available for insert.", 104)
 			return
 		}
@@ -811,10 +821,8 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 	wgPara := &sync.WaitGroup{}
 	muPara := &sync.RWMutex{}
 	for _, n := range cursus.NodeConnections {
-		if !n.Replica {
-			wgPara.Add(1)
-			go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
-		}
+		wgPara.Add(1)
+		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
 	}
 
 	wgPara.Wait()
@@ -826,20 +834,27 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 		isCount := false
 
 		for _, res := range responses {
+			if strings.Contains(res, "\"statusCode\": 105") {
+				cursus.Printl(res, "INFO")
+				continue
+			}
+
 			var x []interface{}
 			err := json.Unmarshal([]byte(res), &x)
 			if err != nil {
-				fmt.Sprintf("%d Unmarsharable JSON", 4013)
+				connection.Text.PrintfLine(fmt.Sprintf("%d Unmarsharable JSON", 4013))
 				return nil
 			}
 
-			c, ok := x[0].(map[string]interface{})["count"]
-			if ok {
-				if !isCount {
-					isCount = true
-				}
+			if len(x) > 0 {
+				c, ok := x[0].(map[string]interface{})["count"]
+				if ok {
+					if !isCount {
+						isCount = true
+					}
 
-				count += int(c.(float64))
+					count += int(c.(float64))
+				}
 			}
 
 			if !isCount {
@@ -935,13 +950,17 @@ query:
 		} else if errors.Is(err, io.EOF) {
 			goto unavailable
 		}
+		goto unavailable
 	}
 	mu.Lock()
 	(*responses)[n.Conn.RemoteAddr().String()] = line
 	mu.Unlock()
 	goto fin
+
 unavailable:
 	mu.Lock()
+
+	n.Ok = false
 
 	// Retry on a node replica if configured
 	for _, r := range n.Node.Replicas {
@@ -950,7 +969,7 @@ unavailable:
 				n = nc
 				retries -= 1
 
-				if retries != -1 {
+				if retries > 0 {
 					mu.Unlock()
 					goto query
 				} else {
@@ -961,9 +980,8 @@ unavailable:
 	}
 
 	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
-
 	mu.Unlock()
-	goto fin
+	return
 fin:
 	return
 }
@@ -2104,4 +2122,115 @@ func (cursus *Cursus) RemoveUser(username string) error {
 	}
 
 	return errors.New("No user found")
+}
+
+// LostReconnect connects to lost node or replica connections, or will try to.
+func (cursus *Cursus) LostReconnect() {
+	defer cursus.Wg.Done()
+
+	for {
+		if cursus.Context.Err() != nil {
+			break
+		}
+
+		for i, nc := range cursus.NodeConnections {
+			if !nc.Ok {
+				if cursus.Config.TLSNode {
+					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+					tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port))
+					if err != nil {
+						fmt.Println("LostReconnect():", err.Error())
+						time.Sleep(time.Nanosecond * 1000000)
+						continue
+					}
+
+					// Dial tcp address up
+					conn, err := net.DialTCP("tcp", nil, tcpAddr)
+					if err != nil {
+						time.Sleep(time.Nanosecond * 1000000)
+						continue
+					}
+
+					// We will keep the node connection alive until shutdown
+					conn.SetKeepAlive(true) // forever
+
+					// Configure TLS
+					config := tls.Config{InsecureSkipVerify: false}
+
+					// Create TLS client connection
+					secureConn := tls.Client(conn, &config)
+
+					// Authenticate with node passing shared key wrapped in base64
+					conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
+
+					// Authentication response buffer
+					authBuf := make([]byte, 1024)
+
+					// Read response back from node
+					r, _ := conn.Read(authBuf[:])
+
+					// Did response start with a 0?  This indicates successful authentication
+					if strings.HasPrefix(string(authBuf[:r]), "0") {
+
+						cursus.NodeConnections[i] = &NodeConnection{
+							Conn:       conn,
+							SecureConn: secureConn,
+							Text:       textproto.NewConn(secureConn),
+							Node:       nc.Node,
+							Mu:         &sync.Mutex{},
+							Ok:         true,
+						}
+
+					}
+
+					cursus.Printl("Reconnected to lost connection "+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
+					time.Sleep(time.Nanosecond * 1000000)
+				} else {
+					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+					tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port))
+					if err != nil {
+						time.Sleep(time.Nanosecond * 1000000)
+						continue
+					}
+
+					// Dial tcp address up
+					conn, err := net.DialTCP("tcp", nil, tcpAddr)
+					if err != nil {
+						time.Sleep(time.Nanosecond * 1000000)
+						continue
+					}
+
+					// We will keep the node connection alive until shutdown
+					conn.SetKeepAlive(true) // forever
+
+					// Authenticate with node passing shared key wrapped in base64
+					conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
+
+					// Authentication response buffer
+					authBuf := make([]byte, 1024)
+
+					// Read response back from node
+					r, _ := conn.Read(authBuf[:])
+
+					// Did response start with a 0?  This indicates successful authentication
+					if strings.HasPrefix(string(authBuf[:r]), "0") {
+
+						cursus.NodeConnections[i] = &NodeConnection{
+							Conn: conn,
+							Text: textproto.NewConn(conn),
+							Node: nc.Node,
+							Mu:   &sync.Mutex{},
+							Ok:   true,
+						}
+					}
+
+					cursus.Printl("Reconnected to lost connection "+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
+					time.Sleep(time.Nanosecond * 1000000)
+				}
+
+			}
+		}
+		time.Sleep(time.Nanosecond * 1000000)
+	}
+
 }

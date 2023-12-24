@@ -54,6 +54,7 @@ import (
 	"unicode/utf8"
 )
 
+// Curode is the main CursusDB cluster node struct
 type Curode struct {
 	TCPAddr       *net.TCPAddr       // TCPAddr represents the address of the nodes TCP end point
 	TCPListener   *net.TCPListener   // TCPListener is the node TCP network listener.
