@@ -347,7 +347,6 @@ delete user USERNAME;
 - ``106`` - Node ready for sync
 - ``107`` - Node replica synced successfully
 - ``108`` - Could not decode serialized sync data into hashmap
-- ``109`` - No available nodes to insert into
 - ``200`` - New database user created successfully
 - ``201`` - Database user removed successfully
 - ``202`` - Could not decode user username

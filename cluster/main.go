@@ -144,7 +144,7 @@ func main() {
 		username, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			fmt.Println("main(): ", err.Error())
 			os.Exit(1)
 		}
 
@@ -155,7 +155,7 @@ func main() {
 		password, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			fmt.Println("main(): ", err.Error())
 			os.Exit(1)
 		}
 
@@ -166,7 +166,7 @@ func main() {
 		key, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			fmt.Println("main(): ", err.Error())
 			os.Exit(1)
 		}
 
@@ -185,7 +185,7 @@ func main() {
 		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777) // Create .cursusconfig yaml file
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			fmt.Println("main(): ", err.Error())
 			os.Exit(1)
 		}
 
@@ -195,7 +195,7 @@ func main() {
 		yamlData, err := yaml.Marshal(&cursus.Config)
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			fmt.Println("main(): ", err.Error())
 			os.Exit(1)
 		}
 
@@ -206,7 +206,7 @@ func main() {
 		clusterConfigFile, err := os.ReadFile("./.cursusconfig")
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			fmt.Println("main(): ", err.Error())
 			os.Exit(1)
 		}
 
@@ -214,7 +214,7 @@ func main() {
 		err = yaml.Unmarshal(clusterConfigFile, &cursus.Config)
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			fmt.Println("main(): ", err.Error())
 			os.Exit(1)
 		}
 
@@ -222,7 +222,7 @@ func main() {
 			cursus.LogMu = &sync.Mutex{} // Cluster log mutex
 			cursus.LogFile, err = os.OpenFile("cursus.log", os.O_CREATE|os.O_RDWR, 0777)
 			if err != nil {
-				fmt.Println("main():", "Could not open log file - ", err.Error())
+				fmt.Println("main(): ", "Could not open log file - ", err.Error())
 				os.Exit(1)
 			}
 		}
@@ -271,7 +271,7 @@ func (cursus *Cursus) SaveConfig() {
 	yamlConfig, err := yaml.Marshal(&cursus.Config)
 	if err != nil {
 		cursus.Printl(fmt.Sprintf("SaveConfig(): %s", err.Error()), "ERROR")
-		fmt.Println("SaveConfig():", err.Error())
+		fmt.Println("SaveConfig(): ", err.Error())
 		os.Exit(1)
 	}
 
@@ -390,7 +390,7 @@ func (cursus *Cursus) ConnectToNodes() {
 			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
 			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Host, n.Port))
 			if err != nil {
-				fmt.Println("ConnectToNodes():", err.Error())
+				fmt.Println("ConnectToNodes(): ", err.Error())
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
 				os.Exit(1)
 			}
@@ -439,7 +439,7 @@ func (cursus *Cursus) ConnectToNodes() {
 					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
 					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", rep.Host, rep.Port))
 					if err != nil {
-						fmt.Println("ConnectToNodes():", err.Error())
+						fmt.Println("ConnectToNodes(): ", err.Error())
 						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
 						os.Exit(1)
 					}
@@ -495,7 +495,7 @@ func (cursus *Cursus) ConnectToNodes() {
 			} else {
 				// Report back invalid key.
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")
-				fmt.Println("ConnectToNodes():", "Invalid key.")
+				fmt.Println("ConnectToNodes(): ", "Invalid key.")
 				os.Exit(1)
 			}
 		}
@@ -545,7 +545,7 @@ func (cursus *Cursus) ConnectToNodes() {
 					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
 					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", rep.Host, rep.Port))
 					if err != nil {
-						fmt.Println("ConnectToNodes():", err.Error())
+						fmt.Println("ConnectToNodes(): ", err.Error())
 						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
 						os.Exit(1)
 					}
@@ -594,7 +594,7 @@ func (cursus *Cursus) ConnectToNodes() {
 			} else {
 				// Report back invalid key
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")
-				fmt.Println("ConnectToNodes():", "Invalid key.")
+				fmt.Println("ConnectToNodes(): ", "Invalid key.")
 				os.Exit(1)
 			}
 
@@ -749,7 +749,7 @@ func (cursus *Cursus) AuthenticateUser(username string, password string) (string
 
 	bRW, err := json.Marshal(userRW)
 	if err != nil {
-		return "", userRW, errors.New(fmt.Sprintf("%d Unknown error %s", err.Error()))
+		return "", userRW, errors.New(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
 	}
 	hRW := sha256.New()
 	hRW.Write(bRW)
@@ -764,14 +764,14 @@ func (cursus *Cursus) AuthenticateUser(username string, password string) (string
 
 	}
 
-	return "", nil, errors.New("No user exists")
+	return "", nil, errors.New(fmt.Sprintf("%d User does not exist.", 102))
 }
 
 // InsertIntoNode selects one node within cluster nodes and inserts json document.
 func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, collection string, id string) {
 
-	var node *NodeConnection                // Node connection which will be chosen randomly
-	nodeRetries := len(cursus.Config.Nodes) // Amount of times to retry another node if the chosen node is at peak allocation or unavailable
+	var node *NodeConnection // Node connection which will be chosen randomly
+	nodeRetries := 10        // Amount of times to retry another node if the chosen node is at peak allocation or unavailable
 
 	// Setting up document hashmap
 	doc := make(map[string]interface{})
@@ -809,17 +809,22 @@ query:
 		}
 	}
 
-	connection.Text.PrintfLine(fmt.Sprintf("%d No available nodes to insert into.", 109))
+	connection.Text.PrintfLine(fmt.Sprintf("%d No node was available for insert", 104))
 	return
 
 ok:
 
 	node.Text.PrintfLine("%s", string(jsonString)) // Send the query over
-	node.Conn.SetReadDeadline(time.Now().Add(time.Second * 2))
+	if !cursus.Config.TLSNode {
+		node.Conn.SetReadDeadline(time.Now().Add(time.Second * 2))
+		node.Conn.SetNoDelay(true)
+	} else {
+		node.SecureConn.SetReadDeadline(time.Now().Add(time.Second * 2))
+	}
 	response, err := node.Text.ReadLine()
 	if err != nil {
 		node.Ok = false
-		if nodeRetries > 0 {
+		if nodeRetries > -1 {
 			nodeRetries -= 1
 			goto query
 		} else {
@@ -830,8 +835,9 @@ ok:
 
 	if strings.HasPrefix(response, "100") {
 		// Node was at peak allocation.
+		cursus.Printl("InsertIntoNode(): %s was at peak allocation.  Consider providing more memory to node.", node.Conn.RemoteAddr().String())
 		// Picking another node and trying again
-		if nodeRetries > 0 {
+		if nodeRetries > -1 {
 			nodeRetries -= 1
 			goto query
 		} else {
@@ -997,7 +1003,7 @@ func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGro
 query:
 
 	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cursus.Config.NodeReaderSize)
-	n.Conn.SetReadDeadline(time.Now().Add(4 * time.Second))
+	n.Conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 
 	n.Text.PrintfLine("%s", string(body))
 
@@ -1148,7 +1154,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				}
 
 				if strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"count":`) {
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
 				}
@@ -1408,7 +1414,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							if len(strings.Split(body["limit"].(string), ",")) == 2 {
 								body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer %s", 501, err.Error()))
 									query = ""
 									continue
 								}
@@ -1416,7 +1422,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
 									body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 									if err != nil {
-										text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
+										text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer %s", 502, err.Error()))
 										query = ""
 										continue
 									}
@@ -1424,14 +1430,14 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 									body["limit"] = -1
 								}
 							} else {
-								text.PrintfLine("%d Invalid limiting value", 504)
+								text.PrintfLine("%d Invalid limiting value.", 504)
 								query = ""
 								continue
 							}
 						} else {
 							body["limit"], err = strconv.Atoi(body["limit"].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer %s", 501, err.Error()))
 								query = ""
 								continue
 							}
@@ -1443,7 +1449,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 					if strings.Contains(query, "where") {
 						if len(body["values"].([]interface{})) == 0 || body["values"] == nil {
-							text.PrintfLine(fmt.Sprintf("%d Where is missing values", 506))
+							text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 506))
 							query = ""
 							continue
 						}
@@ -1586,7 +1592,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 									body["limit"] = -1
 								}
 							} else {
-								text.PrintfLine("%d Invalid limiting value", 504)
+								text.PrintfLine("%d Invalid limiting value.", 504)
 								query = ""
 								continue
 							}
@@ -1759,7 +1765,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["limit"] = -1
 							}
 						} else {
-							text.PrintfLine("%d Invalid limiting value", 504)
+							text.PrintfLine("%d Invalid limiting value.", 504)
 							query = ""
 							continue
 						}
@@ -2003,7 +2009,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["limit"] = -1
 							}
 						} else {
-							text.PrintfLine("%d Invalid limiting value", 504)
+							text.PrintfLine("%d Invalid limiting value.", 504)
 							query = ""
 							continue
 						}
@@ -2018,7 +2024,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 
 					if len(body["values"].([]interface{})) == 0 {
-						text.PrintfLine(fmt.Sprintf("%d Where is missing values", 506))
+						text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 506))
 						query = ""
 						continue
 					}
@@ -2115,7 +2121,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							var err error
 							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer %s", 501, err.Error()))
 								query = ""
 								continue
 							}
@@ -2131,7 +2137,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["limit"] = -1
 							}
 						} else {
-							text.PrintfLine(fmt.Sprintf("%d Invalid limiting value", 504))
+							text.PrintfLine(fmt.Sprintf("%d Invalid limiting value.", 504))
 							query = ""
 							continue
 						}
@@ -2258,7 +2264,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 
 					if len(body["values"].([]interface{})) == 0 {
-						text.PrintfLine(fmt.Sprintf("%d Where is missing values", 506))
+						text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 506))
 						query = ""
 						continue
 					}
@@ -2286,7 +2292,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["limit"] = -1
 							}
 						} else {
-							text.PrintfLine("%d Invalid limiting value", 504)
+							text.PrintfLine("%d Invalid limiting value.", 504)
 							query = ""
 							continue
 						}
@@ -2346,7 +2352,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				for _, u := range cursus.Config.Users {
 					username, err := base64.StdEncoding.DecodeString(strings.Split(u, ":")[0])
 					if err != nil {
-						cursus.Printl("HandleClientConnection(): "+fmt.Sprintf("%d Could not decode user username", 202), "ERROR")
+						cursus.Printl("HandleClientConnection(): "+fmt.Sprintf("%d Could not decode user username.", 202), "ERROR")
 						continue
 					}
 					users = append(users, string(username))
@@ -2356,7 +2362,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				//json.NewEncoder(usersJson).Encode(users)
 				usersJsonArr, err := json.Marshal(users)
 				if err != nil {
-					cursus.Printl(fmt.Sprintf("HandleClientConnection(): "+"%d Could not marshal users list array", 203), "ERROR")
+					cursus.Printl(fmt.Sprintf("HandleClientConnection(): "+"%d Could not marshal users list array.", 203), "ERROR")
 					query = ""
 					continue
 				}
@@ -2420,7 +2426,7 @@ func (cursus *Cursus) IsBool(str string) bool {
 func (cursus *Cursus) RemoveUser(username string) error {
 
 	if len(cursus.Config.Users) == 1 {
-		return errors.New(fmt.Sprintf("%d There must always be one database user available", 204))
+		return errors.New(fmt.Sprintf("%d There must always be one database user available.", 204))
 	}
 
 	username = strings.TrimSuffix(username, ";")
@@ -2457,7 +2463,7 @@ func (cursus *Cursus) LostReconnect() {
 					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
 					tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port))
 					if err != nil {
-						fmt.Println("LostReconnect():", err.Error())
+						fmt.Println("LostReconnect(): ", err.Error())
 						time.Sleep(time.Nanosecond * 1000000)
 						continue
 					}

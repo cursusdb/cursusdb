@@ -741,7 +741,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 		if strings.HasPrefix(read, "SYNC DATA") {
 			curode.Printl("HandleClientConnection(): "+fmt.Sprintf("Node sync starting for replica %s", conn.RemoteAddr().String()), "INFO")
 			// Handle sync
-			conn.Write([]byte(fmt.Sprintf("%d Node ready for sync\r\n", 106)))
+			conn.Write([]byte(fmt.Sprintf("%d Node ready for sync.\r\n", 106)))
 
 			syncStarted = true
 
