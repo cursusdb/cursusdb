@@ -444,6 +444,11 @@ select 3 from posts order by createdOn desc;
 The ``select 3`` portion the cluster will get depending on set amount of nodes say you have 5 nodes setup, you will get back 3 * 5 but the cluster will limit to 3 as that what was requested!
 
 
+## Cluster to Node TLS connectivity & Node to Node replica TLS connectivity 
+If you set ``tls-node`` on the cluster to true the cluster will expect all nodes to be listening on tls.
+
+If you set ``tls-replication`` on a cluster node to true the cluster node will expect all node replicas to be listening on tls.
+
 ## Issues 
 Please report issues, enhancements, etc at:
 - https://github.com/cursusdb/cursusdb/discussions
