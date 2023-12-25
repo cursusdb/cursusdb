@@ -10,7 +10,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - If configured secured node sync replication with TLS using ``tls-replication`` config within ``.curodeconfig``
 - Encrypted data at rest by default with chacha20poly1305.
 - In-memory data during runtime
-- Parallel search.  Searching collections within multiple nodes simultaneously.
+- Parallel search. Searching section of collections within multiple nodes simultaneously at the same time.
 - Database Users with basic (R, RW) permissions
 - Cluster and node authentication.
 - Cluster node data replication and synchronization specifically for reads
