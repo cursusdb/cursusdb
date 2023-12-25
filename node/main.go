@@ -87,8 +87,8 @@ type Config struct {
 
 // Replica is a cluster node that current node data will be replicated/synced to
 type Replica struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
+	Host string `yaml:"host"` // Host of replica i.e an ip or fqdn
+	Port int    `yaml:"port"` // Port of replica
 }
 
 // Data is the node data struct
@@ -99,7 +99,7 @@ type Data struct {
 
 // Global variables
 var (
-	curode *Curode
+	curode *Curode // main cluster node pointer
 )
 
 // Cluster node starts here
@@ -131,9 +131,9 @@ func main() {
 		// Defer close node config
 		defer nodeConfigFile.Close()
 
-		curode.Config.Port = 7682       // Set default CursusDB node port
-		curode.Config.MaxMemory = 10240 // Max memory 10GB default
-		curode.Config.Host = "0.0.0.0"
+		curode.Config.Port = 7682              // Set default CursusDB node port
+		curode.Config.MaxMemory = 10240        // Max memory 10GB default
+		curode.Config.Host = "0.0.0.0"         // Set default host of 0.0.0.0
 		curode.Config.LogMaxLines = 1000       // truncate at 1000 lines as default
 		curode.Config.ReplicationSyncTime = 10 // default of every 10 minutes
 

@@ -117,7 +117,7 @@ type NodeReplica struct {
 
 // Global variables
 var (
-	cursus *Cursus
+	cursus *Cursus // Global cluster pointer
 )
 
 // main cluster starts here
