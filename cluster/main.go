@@ -1707,6 +1707,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				for k, s := range andOrSplit {
 					re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
 					querySplitNested := re.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), "where", ""), "from", "")), -1)
+
 					body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
 					body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
 					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
