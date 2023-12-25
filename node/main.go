@@ -776,8 +776,6 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 			continue
 		}
 
-		log.Println("REQ", request)
-
 		action, ok := request["action"] // An action is insert, select, delete, ect..
 		if ok {
 			switch {
