@@ -281,9 +281,14 @@ curush> new user someusername, somepassword, RW;
 
 Getting all database users.  User with RW permission required.
 
-```list users ```
+```
+list users;
+```
 
 command returns JSON array of database users. 
+``` 
+["alex","daniel"]
+```
 
 #### Removing Database Users
 ``` 
