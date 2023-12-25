@@ -649,6 +649,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 	if err != nil {
 		cursus.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
 		cursus.SignalChannel <- os.Interrupt
+		return
 	}
 
 	for {
@@ -661,7 +662,20 @@ func (cursus *Cursus) StartTCP_TLS() {
 
 		// If TLS is set to true within config let's make the connection secure
 		if cursus.Config.TLS {
-			conn = tls.Server(conn, cursus.TLSConfig)
+			cert, err := tls.LoadX509KeyPair(cursus.Config.TLSCert, cursus.Config.TLSKey)
+			if err != nil {
+				cursus.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
+				cursus.SignalChannel <- os.Interrupt
+				return
+			}
+
+			cursus.TLSConfig = &tls.Config{
+				Certificates: []tls.Certificate{cert},
+			}
+
+			tlsUpgrade := tls.Server(conn, cursus.TLSConfig)
+			tlsUpgrade.Handshake()
+			conn = net.Conn(tlsUpgrade)
 		}
 
 		//Expect Authentication: username\0password\n b64 encoded

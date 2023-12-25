@@ -591,6 +591,7 @@ func (curode *Curode) StartTCP_TLS() {
 	if err != nil {
 		curode.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
 		curode.SignalChannel <- os.Interrupt
+		return
 	}
 
 	for {
@@ -602,7 +603,20 @@ func (curode *Curode) StartTCP_TLS() {
 
 		// If TLS is set to true within config let's make the connection secure
 		if curode.Config.TLS {
-			conn = tls.Server(conn, curode.TLSConfig)
+			cert, err := tls.LoadX509KeyPair(curode.Config.TLSCert, curode.Config.TLSKey)
+			if err != nil {
+				curode.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
+				curode.SignalChannel <- os.Interrupt
+				return
+			}
+
+			curode.TLSConfig = &tls.Config{
+				Certificates: []tls.Certificate{cert},
+			}
+
+			tlsUpgrade := tls.Server(conn, curode.TLSConfig)
+			tlsUpgrade.Handshake()
+			conn = net.Conn(tlsUpgrade)
 		}
 
 		auth, err := bufio.NewReader(conn).ReadString('\n')
