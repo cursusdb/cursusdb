@@ -1672,14 +1672,12 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["new-values"] = interface5
 					body["sort-pos"] = sortPos
 					body["sort-key"] = sortKey
-					log.Println(querySplit)
 
 					if len(strings.Split(query, "set ")) == 1 {
 						text.PrintfLine(fmt.Sprintf("%d Update sets are missing", 4019))
 						query = ""
 						continue
 					}
-					log.Println(strings.Split(query, "set ")[1:])
 
 					for _, s := range strings.Split(query, "set ")[1:] {
 						newValues := strings.Split(strings.ReplaceAll(s, "set ", ""), ",")
@@ -1781,8 +1779,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						continue
 					}
 
-					log.Println(body)
-
 					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
 						text.PrintfLine(err.Error())
@@ -1841,7 +1837,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						query = ""
 						continue
 					}
-					log.Println(strings.Split(query, "set ")[1:])
 
 					for _, s := range strings.Split(query, "set ")[1:] {
 						newValues := strings.Split(strings.ReplaceAll(s, "set ", ""), ",")
@@ -1856,7 +1851,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								continue
 							}
 
-							log.Println(spl)
 							val = strings.TrimSuffix(strings.TrimSpace(spl[1]), ";")
 							if strings.EqualFold(val.(string), "null") {
 								val = nil
