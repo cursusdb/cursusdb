@@ -159,9 +159,11 @@ If original node shuts down or is not available a replica will be used for reads
 ## Ping the cluster
 Using curush or native client
 
-```PING;```
+```
+> ping;
+> pong;
+```
 
-![img22.png](images/img22.png)
 
 ## Query Language
 Case-sensitive.. Keep it lowercase as the example.
