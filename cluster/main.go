@@ -1523,14 +1523,16 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						if k < len(andOrSplit)-1 {
 							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
 
-							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx-2:lindx-1]))
+							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
 						}
 
+						log.Println("c" + body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string) + "x")
 						if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
 							body["values"].([]interface{})[k] = nil
 						} else if cursus.IsString(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
+							log.Println("c" + body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string) + "x")
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
@@ -2218,8 +2220,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						if k < len(andOrSplit)-1 {
 							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
 
-							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx-2:lindx-1]))
+							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
 						}
 
 						if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {

@@ -802,6 +802,8 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 					request["count"] = false
 				}
 
+				log.Println("FUCK", request)
+
 				results := curode.Select(request["collection"].(string), request["keys"], request["values"], int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"], request["lock"].(bool), request["conditions"].([]interface{}), false, request["sort-pos"].(string), request["sort-key"].(string), request["count"].(bool))
 				r, _ := json.Marshal(results)
 				text.PrintfLine(string(r))
@@ -1875,6 +1877,8 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 					}
 				}
 			}
+
+			log.Println(conditions, conditionsMetDocument)
 
 			if slices.Contains(conditions, "&&") {
 				if conditionsMetDocument >= len(conditions) {
