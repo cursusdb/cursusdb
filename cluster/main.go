@@ -1640,12 +1640,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
 
 					// update 1 in users where name == 'jackson' && age == 44 set name = 'alex', age = 28;
-					var setStartIndex uint
-					for seti, t := range querySplit {
-						if t == "set" {
-							setStartIndex = uint(seti)
-						}
-					}
 
 					body := make(map[string]interface{})
 					body["action"] = querySplit[0]
@@ -1680,59 +1674,68 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["sort-key"] = sortKey
 					log.Println(querySplit)
 
-					newValues := strings.Split(strings.ReplaceAll(strings.Join(querySplit[setStartIndex:], " "), "set ", ""), ",")
+					if len(strings.Split(query, "set ")) == 1 {
+						text.PrintfLine(fmt.Sprintf("%d Update sets are missing", 4019))
+						query = ""
+						continue
+					}
+					log.Println(strings.Split(query, "set ")[1:])
 
-					for _, nvSet := range newValues {
-						spl := strings.Split(nvSet, " = ")
-						body["update-keys"] = append(body["update-keys"].([]interface{}), strings.TrimSpace(spl[0]))
-						var val interface{}
-						if len(spl) != 2 {
-							text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
-							query = ""
-							continue
+					for _, s := range strings.Split(query, "set ")[1:] {
+						newValues := strings.Split(strings.ReplaceAll(s, "set ", ""), ",")
+
+						for _, nvSet := range newValues {
+							spl := strings.Split(nvSet, " = ")
+							body["update-keys"] = append(body["update-keys"].([]interface{}), strings.TrimSpace(spl[0]))
+							var val interface{}
+							if len(spl) != 2 {
+								text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
+								query = ""
+								continue
+							}
+
+							val = strings.TrimSuffix(spl[1], ";")
+							if strings.EqualFold(val.(string), "null") {
+								val = nil
+							} else if cursus.IsString(val.(string)) {
+
+								val = strings.TrimSuffix(val.(string), "\"")
+								val = strings.TrimPrefix(val.(string), "\"")
+								val = strings.TrimSuffix(val.(string), "'")
+								val = strings.TrimPrefix(val.(string), "'")
+							} else if cursus.IsBool(val.(string)) {
+
+								b, err := strconv.ParseBool(val.(string))
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+									query = ""
+									continue
+								}
+
+								val = b
+							} else if cursus.IsFloat(val.(string)) {
+
+								f, err := strconv.ParseFloat(val.(string), 64)
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+									query = ""
+									continue
+								}
+
+								val = f
+							} else if cursus.IsInt(val.(string)) {
+								i, err := strconv.Atoi(val.(string))
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
+									query = ""
+									continue
+								}
+
+								val = i
+
+							}
+							body["new-values"] = append(body["new-values"].([]interface{}), val)
 						}
-
-						val = strings.TrimSuffix(spl[1], ";")
-						if strings.EqualFold(val.(string), "null") {
-							val = nil
-						} else if cursus.IsString(val.(string)) {
-
-							val = strings.TrimSuffix(val.(string), "\"")
-							val = strings.TrimPrefix(val.(string), "\"")
-							val = strings.TrimSuffix(val.(string), "'")
-							val = strings.TrimPrefix(val.(string), "'")
-						} else if cursus.IsBool(val.(string)) {
-
-							b, err := strconv.ParseBool(val.(string))
-							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
-								query = ""
-								continue
-							}
-
-							val = b
-						} else if cursus.IsFloat(val.(string)) {
-
-							f, err := strconv.ParseFloat(val.(string), 64)
-							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
-								query = ""
-								continue
-							}
-
-							val = f
-						} else if cursus.IsInt(val.(string)) {
-							i, err := strconv.Atoi(val.(string))
-							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
-								query = ""
-								continue
-							}
-
-							val = i
-
-						}
-						body["new-values"] = append(body["new-values"].([]interface{}), val)
 					}
 
 					if body["limit"].(string) == "*" {

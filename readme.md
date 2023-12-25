@@ -377,6 +377,7 @@ delete user USERNAME;
 - ``4016`` Missing limit value
 - ``4017`` Invalid query operator
 - ``4018`` Unmarsharable JSON
+- ``4019`` Update sets are missing
 
 ### Ports
 Default cluster port: ``7681``
