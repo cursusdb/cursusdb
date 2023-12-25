@@ -770,8 +770,8 @@ func (cursus *Cursus) AuthenticateUser(username string, password string) (string
 // InsertIntoNode selects one node within cluster nodes and inserts json document.
 func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, collection string, id string) {
 
-	var node *NodeConnection // Node connection which will be chosen randomly
-	nodeRetries := 3         // Amount of times to retry another node if the chosen node is at peak allocation or unavailable
+	var node *NodeConnection                // Node connection which will be chosen randomly
+	nodeRetries := len(cursus.Config.Nodes) // Amount of times to retry another node if the chosen node is at peak allocation or unavailable
 
 	// Setting up document hashmap
 	doc := make(map[string]interface{})
@@ -818,11 +818,11 @@ ok:
 	node.Conn.SetReadDeadline(time.Now().Add(time.Second * 2))
 	response, err := node.Text.ReadLine()
 	if err != nil {
+		node.Ok = false
 		if nodeRetries > 0 {
 			nodeRetries -= 1
 			goto query
 		} else {
-			node.Ok = false
 			connection.Text.PrintfLine("%d No node was available for insert.", 104)
 			return
 		}
