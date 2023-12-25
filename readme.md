@@ -7,6 +7,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 
 ### Features
 - Secured cluster and node(s) communication with shared key and OR TLS.
+- If configured secured node sync replication with TLS using ``tls-replication`` config within ``.curodeconfig``
 - Encrypted data at rest by default with chacha20poly1305.
 - In-memory data during runtime
 - Parallel search.  Searching collections within multiple nodes simultaneously.
