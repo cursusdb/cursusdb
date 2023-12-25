@@ -174,6 +174,7 @@ insert into users({"name": "John", "last": "Josh", "age": 28, "tags": ["tag1", "
 
 ### Selects
 ```
+select {LIMIT} from {COLLECTION} where {CONDITIONS} {ORDERING}
 select * from users;
 select 0,2 from users;
 select 1 from users where name == 'Alex' || name == 'John';
@@ -198,14 +199,16 @@ select 1 from users where name = 'Alex' || name = 'John';
 
 ### Updating
 ```
-update 1 in users where age >= 28 set name = 'Josie';
-update * in users where age > 24 && name == 'Alex' set name = 'Josie', age = 52;
+update {LIMIT} in {COLLECTION} where {CONDITIONS} {SETS} {ORDERING}
+update 1 in users where age >= 28 set name = 'Josie' order by createdAt desc;
+update * in users where age > 24 && name == 'Alex' set name = 'Josie' set age = 52;
 update n, n..
 ect..
 ```
 
 ### Deleting
 ```
+delete {LIMIT} from {COLLECTION} where {CONDITIONS} {ORDERING}
 delete * from users where age >= 28 || age < 32;
 delete 0,5 from users where age > 28 && name == 'Alex';
 ect
