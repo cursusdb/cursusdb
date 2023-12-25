@@ -2,5 +2,6 @@ bin
 .cdat
 .curodeconfig
 test/curode
+curode
 curode.exe
 curode.log
