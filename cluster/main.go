@@ -1048,7 +1048,7 @@ unavailable:
 		}
 	}
 
-	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s  and replicas %s unavailable."}`, n.Conn.RemoteAddr().String(), strings.Join(attemptedReplicas, ","))
+	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s and replicas %s unavailable."}`, n.Conn.RemoteAddr().String(), strings.Join(attemptedReplicas, ","))
 	mu.Unlock()
 	return
 fin:
