@@ -232,7 +232,7 @@ func main() {
 
 		fDFTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
 		if err != nil {
-			curode.Printl(fmt.Sprintf(err.Error()), "ERROR")
+			curode.Printl("main(): "+fmt.Sprintf(err.Error()), "ERROR")
 			os.Exit(1)
 		}
 
@@ -315,7 +315,7 @@ func (curode *Curode) SignalListener() {
 	for {
 		select {
 		case sig := <-curode.SignalChannel:
-			curode.Printl(fmt.Sprintf("Received signal %s starting database shutdown.", sig), "INFO")
+			curode.Printl(fmt.Sprintf("SignalListener(): Received signal %s starting database shutdown.", sig), "INFO")
 			curode.TCPListener.Close() // Close up TCP/TLS listener
 			curode.WriteToFile()       // Write database data to file
 			curode.ContextCancel()     // Cancel context, used for loops and so forth
@@ -424,12 +424,12 @@ func (curode *Curode) SyncOut() {
 							// Read response back from node
 							syncFinishResponse, _ := conn.Read(syncFinishResponseBuf[:])
 
-							curode.Printl(string(syncFinishResponseBuf[:syncFinishResponse]), "INFO")
+							curode.Printl("SyncOut(): "+string(syncFinishResponseBuf[:syncFinishResponse]), "INFO")
 
 							conn.Close()
 						}
 					} else {
-						curode.Printl(fmt.Sprintf("%d Failed node sync auth %s", 5, string(authBuf[:re])), "ERROR")
+						curode.Printl("SyncOut():"+fmt.Sprintf("%d Failed node sync auth %s", 5, string(authBuf[:re])), "ERROR")
 					}
 
 				}
@@ -484,7 +484,7 @@ func (curode *Curode) Printl(data string, level string) {
 			if err != nil {
 				return
 			}
-			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), fmt.Sprintf("Log truncated at %d", curode.Config.LogMaxLines))))
+			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), fmt.Sprintf("Printl(): Log truncated at %d", curode.Config.LogMaxLines))))
 			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
 		} else {
 			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
@@ -497,7 +497,7 @@ func (curode *Curode) Printl(data string, level string) {
 
 // WriteToFile will write the current node data to a .cdat file encrypted with your node key.
 func (curode *Curode) WriteToFile() {
-	curode.Printl(fmt.Sprintf("Starting to write node data to file."), "INFO")
+	curode.Printl(fmt.Sprintf("WriteToFile(): Starting to write node data to file."), "INFO")
 
 	// Create temporary .cdat which is all serialized data.  An encryption is performed after the fact to not consume memory.
 	fTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
@@ -580,7 +580,7 @@ func (curode *Curode) StartTCP_TLS() {
 
 	curode.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", curode.Config.Host, curode.Config.Port))
 	if err != nil {
-		curode.Printl(err.Error(), "FATAL")
+		curode.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
 		curode.SignalChannel <- os.Interrupt
 		return
 	}
@@ -588,7 +588,7 @@ func (curode *Curode) StartTCP_TLS() {
 	// Start listening for TCP connections on the given address
 	curode.TCPListener, err = net.ListenTCP("tcp", curode.TCPAddr)
 	if err != nil {
-		curode.Printl(err.Error(), "FATAL")
+		curode.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
 		curode.SignalChannel <- os.Interrupt
 	}
 
@@ -606,7 +606,7 @@ func (curode *Curode) StartTCP_TLS() {
 
 		auth, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
-			curode.Printl(fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
+			curode.Printl("StartTCP_TLS(): "+fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
 			continue
 		}
 
@@ -656,7 +656,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 
 		// Only another node would send SYNC DATA after passing shared node-cluster key at which point the current node will start to consume serialized data to marshal into database hashmap
 		if strings.HasPrefix(read, "SYNC DATA") {
-			curode.Printl(fmt.Sprintf("Node sync starting for replica %s", conn.RemoteAddr().String()), "INFO")
+			curode.Printl("HandleClientConnection(): "+fmt.Sprintf("Node sync starting for replica %s", conn.RemoteAddr().String()), "INFO")
 			// Handle sync
 			conn.Write([]byte(fmt.Sprintf("%d Node ready for sync\r\n", 106)))
 
@@ -664,7 +664,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 
 			continue
 		} else if strings.HasPrefix(read, "SYNC FINISHED") {
-			curode.Printl(fmt.Sprintf("Node sync finished for replica %s", conn.RemoteAddr().String()), "INFO")
+			curode.Printl("HandleClientConnection(): "+fmt.Sprintf("Node sync finished for replica %s", conn.RemoteAddr().String()), "INFO")
 			d := gob.NewDecoder(serializedToMarshal)
 
 			err = d.Decode(&curode.Data.Map)
@@ -672,7 +672,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				conn.Write([]byte(fmt.Sprintf("%d Could not decode serialized sync data into hashmap.\r\n", 108)))
 				continue
 			}
-			curode.Printl(fmt.Sprintf("Node sync was succesful for replica %s", conn.RemoteAddr().String()), "INFO")
+			curode.Printl("HandleClientConnection(): "+fmt.Sprintf("Node sync was succesful for replica %s", conn.RemoteAddr().String()), "INFO")
 			conn.Write([]byte(fmt.Sprintf("%d Node replica synced successfully.\r\n", 107)))
 			continue
 		} else if syncStarted {

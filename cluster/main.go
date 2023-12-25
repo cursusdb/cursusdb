@@ -260,7 +260,7 @@ func main() {
 func (cursus *Cursus) SaveConfig() {
 	config, err := os.OpenFile(".cursusconfig", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0777)
 	if err != nil {
-		cursus.Printl("Could not update config file"+err.Error(), "ERROR")
+		cursus.Printl("SaveConfig(): Could not update config file"+err.Error(), "ERROR")
 		return
 	}
 
@@ -269,8 +269,8 @@ func (cursus *Cursus) SaveConfig() {
 	// Marshal config to yaml
 	yamlConfig, err := yaml.Marshal(&cursus.Config)
 	if err != nil {
-		cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-		fmt.Println("main():", err.Error())
+		cursus.Printl(fmt.Sprintf("SaveConfig(): %s", err.Error()), "ERROR")
+		fmt.Println("SaveConfig():", err.Error())
 		os.Exit(1)
 	}
 
@@ -608,7 +608,7 @@ func (cursus *Cursus) SignalListener() {
 	for {
 		select {
 		case sig := <-cursus.SignalChannel:
-			cursus.Printl(fmt.Sprintf("Received signal %s starting database cluster shutdown.", sig), "INFO")
+			cursus.Printl(fmt.Sprintf("SignalListener(): Received signal %s starting database cluster shutdown.", sig), "INFO")
 			cursus.TCPListener.Close()
 			cursus.ContextCancel()
 			cursus.SaveConfig()
@@ -626,7 +626,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 
 	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", cursus.Config.Host, cursus.Config.Port))
 	if err != nil {
-		cursus.Printl(err.Error(), "FATAL")
+		cursus.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
 		cursus.SignalChannel <- os.Interrupt
 		return
 	}
@@ -634,7 +634,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 	// Start listening for TCP connections on the given address
 	cursus.TCPListener, err = net.ListenTCP("tcp", cursus.TCPAddr)
 	if err != nil {
-		cursus.Printl(err.Error(), "FATAL")
+		cursus.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
 		cursus.SignalChannel <- os.Interrupt
 	}
 
@@ -838,7 +838,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 			for _, res := range responses {
 				if strings.Contains(res, "\"statusCode\": 105") {
-					cursus.Printl(res, "INFO")
+					cursus.Printl("QueryNodes(): "+res, "INFO")
 					continue
 				}
 
@@ -2095,7 +2095,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				for _, u := range cursus.Config.Users {
 					username, err := base64.StdEncoding.DecodeString(strings.Split(u, ":")[0])
 					if err != nil {
-						cursus.Printl(fmt.Sprintf("%d Could not decode user username", 202), "ERROR")
+						cursus.Printl("HandleClientConnection(): "+fmt.Sprintf("%d Could not decode user username", 202), "ERROR")
 						continue
 					}
 					users = append(users, string(username))
@@ -2105,7 +2105,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				//json.NewEncoder(usersJson).Encode(users)
 				usersJsonArr, err := json.Marshal(users)
 				if err != nil {
-					cursus.Printl(fmt.Sprintf("%d Could not marshal users list array", 203), "ERROR")
+					cursus.Printl(fmt.Sprintf("HandleClientConnection(): "+"%d Could not marshal users list array", 203), "ERROR")
 					query = ""
 					continue
 				}
@@ -2250,7 +2250,7 @@ func (cursus *Cursus) LostReconnect() {
 
 					}
 
-					cursus.Printl("Reconnected to lost connection "+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
+					cursus.Printl("LostReconnect(): Reconnected to lost connection "+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
 					time.Sleep(time.Nanosecond * 1000000)
 				} else {
 					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
@@ -2291,7 +2291,7 @@ func (cursus *Cursus) LostReconnect() {
 						}
 					}
 
-					cursus.Printl("Reconnected to lost connection "+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
+					cursus.Printl("LostReconnect(): Reconnected to lost connection "+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
 					time.Sleep(time.Nanosecond * 1000000)
 				}
 
