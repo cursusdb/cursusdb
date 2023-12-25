@@ -72,17 +72,18 @@ type Curode struct {
 
 // Config is the CursusDB cluster config struct
 type Config struct {
-	Replicas            []Replica `yaml:"replicas"`                // Replicas are replica of this current node
-	TLSCert             string    `yaml:"tls-cert"`                // TLS cert path
-	TLSKey              string    `yaml:"tls-key"`                 // TLS cert key
-	Host                string    `yaml:"host"`                    // Node host i.e 0.0.0.0 usually
-	TLS                 bool      `default:"false" yaml:"tls"`     // Use TLS?
-	Port                int       `yaml:"port"`                    // Node port
-	Key                 string    `yaml:"key"`                     // Key for a cluster to communicate with the node and also used to resting data.
-	MaxMemory           uint64    `yaml:"max-memory"`              // Default 10240MB = 10 GB (1024 * 10)
-	LogMaxLines         int       `yaml:"log-max-lines"`           // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
-	Logging             bool      `default:"false" yaml:"logging"` // Log to file ?
-	ReplicationSyncTime int       `yaml:"replication-sync-time"`   // in minutes default is every 10 minutes
+	Replicas            []Replica `yaml:"replicas"`                        // Replicas are replica of this current node
+	TLSCert             string    `yaml:"tls-cert"`                        // TLS cert path
+	TLSKey              string    `yaml:"tls-key"`                         // TLS cert key
+	Host                string    `yaml:"host"`                            // Node host i.e 0.0.0.0 usually
+	TLS                 bool      `default:"false" yaml:"tls"`             // Use TLS?
+	Port                int       `yaml:"port"`                            // Node port
+	Key                 string    `yaml:"key"`                             // Key for a cluster to communicate with the node and also used to resting data.
+	MaxMemory           uint64    `yaml:"max-memory"`                      // Default 10240MB = 10 GB (1024 * 10)
+	LogMaxLines         int       `yaml:"log-max-lines"`                   // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
+	Logging             bool      `default:"false" yaml:"logging"`         // Log to file ?
+	ReplicationSyncTime int       `yaml:"replication-sync-time"`           // in minutes default is every 10 minutes
+	TLSReplication      bool      `default:"false" yaml:"tls-replication"` // If your cluster node replicas are running TLS then configure this to true
 }
 
 // Replica is a cluster node that current node data will be replicated/synced to

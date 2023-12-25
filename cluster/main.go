@@ -611,6 +611,19 @@ func (cursus *Cursus) SignalListener() {
 			cursus.Printl(fmt.Sprintf("SignalListener(): Received signal %s starting database cluster shutdown.", sig), "INFO")
 			cursus.TCPListener.Close()
 			cursus.ContextCancel()
+
+			// Close all node connections
+			for _, nc := range cursus.NodeConnections {
+				if cursus.Config.TLSNode {
+					nc.SecureConn.Close()
+				} else {
+					nc.Conn.Close()
+				}
+
+				nc.Text.Close()
+
+			}
+
 			cursus.SaveConfig()
 			return
 		default:
