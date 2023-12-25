@@ -23,7 +23,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Unique k:v across all nodes using exclamation at end of key name ``email!``
 - Secure by default with shared key and users
 - Highly configurable
-- Lightweight core code under 3,000 lines of code in total
+- Lightweight core code under 4,500 lines of code in total
 - File logging and automatic log truncation based on ``log-max-lines`` config
 - Automatic reconnect of any lost node or node replica
 
