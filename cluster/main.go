@@ -830,70 +830,79 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 	wgPara.Wait()
 
 	if cursus.Config.JoinResponses {
-		var docs []interface{}
+		if body["action"].(string) == "select" {
+			var docs []interface{}
 
-		count := 0 // if count
-		isCount := false
+			count := 0 // if count
+			isCount := false
 
-		for _, res := range responses {
-			if strings.Contains(res, "\"statusCode\": 105") {
-				cursus.Printl(res, "INFO")
-				continue
-			}
+			for _, res := range responses {
+				if strings.Contains(res, "\"statusCode\": 105") {
+					cursus.Printl(res, "INFO")
+					continue
+				}
 
-			var x []interface{}
-			err := json.Unmarshal([]byte(res), &x)
-			if err != nil {
-				connection.Text.PrintfLine(fmt.Sprintf("%d Unmarsharable JSON", 4013))
-				return nil
-			}
+				var x []interface{}
+				err := json.Unmarshal([]byte(res), &x)
+				if err != nil {
+					connection.Text.PrintfLine(fmt.Sprintf("%d Unmarsharable JSON", 4013))
+					return nil
+				}
 
-			if len(x) > 0 {
-				c, ok := x[0].(map[string]interface{})["count"]
-				if ok {
-					if !isCount {
-						isCount = true
+				if len(x) > 0 {
+					c, ok := x[0].(map[string]interface{})["count"]
+					if ok {
+						if !isCount {
+							isCount = true
+						}
+
+						count += int(c.(float64))
 					}
+				}
 
-					count += int(c.(float64))
+				if !isCount {
+					docs = append(docs, x...)
 				}
 			}
 
 			if !isCount {
-				docs = append(docs, x...)
-			}
-		}
 
-		if !isCount {
-
-			if body["limit"] != -1 {
-				for i, _ := range docs {
-					if i > body["limit"].(int) {
-						docs[i] = docs[len(docs)-1]
-						docs[len(docs)-1] = nil
-						docs = docs[:len(docs)-1]
+				if body["limit"] != -1 {
+					for i, _ := range docs {
+						if i > body["limit"].(int) {
+							docs[i] = docs[len(docs)-1]
+							docs[len(docs)-1] = nil
+							docs = docs[:len(docs)-1]
+						}
 					}
 				}
-			}
 
-			docsJson, err := json.Marshal(docs)
-			if err != nil {
-				connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
-				return nil
-			}
+				docsJson, err := json.Marshal(docs)
+				if err != nil {
+					connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
+					return nil
+				}
 
-			connection.Text.PrintfLine(string(docsJson))
+				connection.Text.PrintfLine(string(docsJson))
+			} else {
+				countResponse := make(map[string]interface{})
+				countResponse["count"] = count
+
+				countJson, err := json.Marshal(countResponse)
+				if err != nil {
+					connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
+					return nil
+				}
+
+				connection.Text.PrintfLine(string(countJson))
+			}
 		} else {
-			countResponse := make(map[string]interface{})
-			countResponse["count"] = count
-
-			countJson, err := json.Marshal(countResponse)
-			if err != nil {
-				connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
-				return nil
+			var response string
+			for key, res := range responses {
+				response += fmt.Sprintf(`{"%s": %s},`, key, res)
 			}
 
-			connection.Text.PrintfLine(string(countJson))
+			connection.Text.PrintfLine(fmt.Sprintf("[%s]", strings.TrimSuffix(response, ",")))
 		}
 
 	} else {
