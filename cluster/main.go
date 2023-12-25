@@ -879,7 +879,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 				var x []interface{}
 				err := json.Unmarshal([]byte(res), &x)
 				if err != nil {
-					return errors.New(fmt.Sprintf("%d Unmarsharable JSON", 4013))
+					return errors.New(fmt.Sprintf("%d Unmarsharable JSON", 4018))
 				}
 
 				if len(x) > 0 {
@@ -1636,242 +1636,407 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					query = query[:strings.Index(query, "order by ")]
 				}
 
-				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
-
-				// update 1 in users where name == 'jackson' && age == 44 set name = 'alex', age = 28;
-				var setStartIndex uint
-				for seti, t := range querySplit {
-					if t == "set" {
-						setStartIndex = uint(seti)
-					}
-				}
-
-				body := make(map[string]interface{})
-				body["action"] = querySplit[0]
-				body["limit"] = querySplit[1]
-				body["skip"] = 0
-
-				if len(querySplit) < 3 {
-					text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
-					query = ""
-					continue
-				}
-
-				body["collection"] = querySplit[2]
 				if !strings.Contains(query, "where ") {
-					body["conditions"] = []string{""}
-				} else {
-					body["conditions"] = []string{"*"}
-				}
+					querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
 
-				var interface1 []interface{}
-				var interface2 []interface{}
-				var interface3 []interface{}
-				var interface4 []interface{}
-				var interface5 []interface{}
-				body["keys"] = interface1
-				body["oprs"] = interface2
-				body["values"] = interface3
-				body["update-keys"] = interface4
-				body["new-values"] = interface5
-				body["sort-pos"] = sortPos
-				body["sort-key"] = sortKey
+					// update 1 in users where name == 'jackson' && age == 44 set name = 'alex', age = 28;
+					var setStartIndex uint
+					for seti, t := range querySplit {
+						if t == "set" {
+							setStartIndex = uint(seti)
+						}
+					}
 
-				if setStartIndex < 4 {
-					text.PrintfLine(fmt.Sprintf("%d Invalid update query missing set", 4011))
-					query = ""
-					continue
-				}
+					body := make(map[string]interface{})
+					body["action"] = querySplit[0]
+					body["limit"] = querySplit[1]
+					body["skip"] = 0
+					body["lock"] = false
 
-				conditions := querySplit[4:setStartIndex]
-				newValues := strings.Split(strings.ReplaceAll(strings.Join(querySplit[setStartIndex:], " "), "set ", ""), ",")
-
-				for _, nvSet := range newValues {
-					spl := strings.Split(nvSet, " = ")
-					body["update-keys"] = append(body["update-keys"].([]interface{}), strings.TrimSpace(spl[0]))
-					var val interface{}
-					if len(spl) != 2 {
-						text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
+					if len(querySplit) < 3 {
+						text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
 						query = ""
 						continue
 					}
 
-					val = strings.TrimSuffix(spl[1], ";")
-					if strings.EqualFold(val.(string), "null") {
-						val = nil
-					} else if cursus.IsString(val.(string)) {
-
-						val = strings.TrimSuffix(val.(string), "\"")
-						val = strings.TrimPrefix(val.(string), "\"")
-						val = strings.TrimSuffix(val.(string), "'")
-						val = strings.TrimPrefix(val.(string), "'")
-					} else if cursus.IsBool(val.(string)) {
-
-						b, err := strconv.ParseBool(val.(string))
-						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
-							query = ""
-							continue
-						}
-
-						val = b
-					} else if cursus.IsFloat(val.(string)) {
-
-						f, err := strconv.ParseFloat(val.(string), 64)
-						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
-							query = ""
-							continue
-						}
-
-						val = f
-					} else if cursus.IsInt(val.(string)) {
-						i, err := strconv.Atoi(val.(string))
-						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
-							query = ""
-							continue
-						}
-
-						val = i
-
-					}
-					body["new-values"] = append(body["new-values"].([]interface{}), val)
-				}
-
-				r, _ := regexp.Compile("[\\&&\\||]+")
-				andOrSplit := r.Split(strings.Join(conditions, " "), -1)
-
-				for k, s := range andOrSplit {
-					re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
-					querySplitNested := re.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), "where", ""), "from", "")), -1)
-
-					body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
-					body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
-					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
-
-					switch {
-					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
-					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "="):
-						body["oprs"].([]interface{})[k] = "=="
-					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
-					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
-					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
-					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
-					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
-					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "like"):
-					case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!like"):
-					default:
-						text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
-						query = ""
-						goto extCont2
+					body["collection"] = querySplit[2]
+					if !strings.Contains(query, "where ") {
+						body["conditions"] = []string{""}
+					} else {
+						body["conditions"] = []string{"*"}
 					}
 
-					var val interface{}
-					val = strings.TrimSuffix(strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"), ";")
-					if strings.EqualFold(val.(string), "null") {
-						val = nil
-					} else if cursus.IsString(val.(string)) {
+					var interface1 []interface{}
+					var interface2 []interface{}
+					var interface3 []interface{}
+					var interface4 []interface{}
+					var interface5 []interface{}
+					body["keys"] = interface1
+					body["oprs"] = interface2
+					body["values"] = interface3
+					body["update-keys"] = interface4
+					body["new-values"] = interface5
+					body["sort-pos"] = sortPos
+					body["sort-key"] = sortKey
+					log.Println(querySplit)
 
-						val = strings.TrimSuffix(val.(string), "\"")
-						val = strings.TrimPrefix(val.(string), "\"")
-						val = strings.TrimSuffix(val.(string), "'")
-						val = strings.TrimPrefix(val.(string), "'")
-					} else if cursus.IsBool(val.(string)) {
+					newValues := strings.Split(strings.ReplaceAll(strings.Join(querySplit[setStartIndex:], " "), "set ", ""), ",")
 
-						b, err := strconv.ParseBool(val.(string))
-						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+					for _, nvSet := range newValues {
+						spl := strings.Split(nvSet, " = ")
+						body["update-keys"] = append(body["update-keys"].([]interface{}), strings.TrimSpace(spl[0]))
+						var val interface{}
+						if len(spl) != 2 {
+							text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
 							query = ""
 							continue
 						}
 
-						val = b
-					} else if cursus.IsFloat(val.(string)) {
+						val = strings.TrimSuffix(spl[1], ";")
+						if strings.EqualFold(val.(string), "null") {
+							val = nil
+						} else if cursus.IsString(val.(string)) {
 
-						f, err := strconv.ParseFloat(val.(string), 64)
-						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
-							query = ""
-							continue
+							val = strings.TrimSuffix(val.(string), "\"")
+							val = strings.TrimPrefix(val.(string), "\"")
+							val = strings.TrimSuffix(val.(string), "'")
+							val = strings.TrimPrefix(val.(string), "'")
+						} else if cursus.IsBool(val.(string)) {
+
+							b, err := strconv.ParseBool(val.(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+								query = ""
+								continue
+							}
+
+							val = b
+						} else if cursus.IsFloat(val.(string)) {
+
+							f, err := strconv.ParseFloat(val.(string), 64)
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+								query = ""
+								continue
+							}
+
+							val = f
+						} else if cursus.IsInt(val.(string)) {
+							i, err := strconv.Atoi(val.(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
+								query = ""
+								continue
+							}
+
+							val = i
+
 						}
-
-						val = f
-					} else if cursus.IsInt(val.(string)) {
-						i, err := strconv.Atoi(val.(string))
-						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
-							query = ""
-							continue
-						}
-
-						val = i
-
+						body["new-values"] = append(body["new-values"].([]interface{}), val)
 					}
-					body["values"] = append(body["values"].([]interface{}), val)
 
-					if k < len(andOrSplit)-1 {
-						lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-						valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-
-						body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(query[lindx+valLen:lindx+valLen+4]), "'", ""), "\"", "")))
-					}
-				}
-
-				if body["limit"].(string) == "*" {
-					body["limit"] = -1
-				} else if strings.Contains(body["limit"].(string), ",") {
-					if len(strings.Split(body["limit"].(string), ",")) == 2 {
-						var err error
-						body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
-						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
-							query = ""
-							continue
-						}
-
-						if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
-							body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+					if body["limit"].(string) == "*" {
+						body["limit"] = -1
+					} else if strings.Contains(body["limit"].(string), ",") {
+						if len(strings.Split(body["limit"].(string), ",")) == 2 {
+							var err error
+							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
 								query = ""
 								continue
 							}
+
+							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
+								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									query = ""
+									continue
+								}
+							} else {
+								body["limit"] = -1
+							}
 						} else {
-							body["limit"] = -1
+							text.PrintfLine("%d Invalid limiting value", 504)
+							query = ""
+							continue
 						}
 					} else {
-						text.PrintfLine("%d Invalid limiting value", 504)
+						var err error
+						body["limit"], err = strconv.Atoi(body["limit"].(string))
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+							query = ""
+							continue
+						}
+					}
+
+					if len(body["new-values"].([]interface{})) == 0 {
+						text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
 						query = ""
 						continue
 					}
-				} else {
-					var err error
-					body["limit"], err = strconv.Atoi(body["limit"].(string))
+
+					log.Println(body)
+
+					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
-						text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+						text.PrintfLine(err.Error())
 						query = ""
 						continue
 					}
-				}
 
-				if len(body["values"].([]interface{})) == 0 {
-					text.PrintfLine(fmt.Sprintf("%d Where is missing values", 506))
 					query = ""
 					continue
-				}
 
-				err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
-				if err != nil {
-					text.PrintfLine(err.Error())
+				} else {
+
+					querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
+
+					// update 1 in users where name == 'jackson' && age == 44 set name = 'alex', age = 28;
+					var setStartIndex uint
+					for seti, t := range querySplit {
+						if t == "set" {
+							setStartIndex = uint(seti)
+						}
+					}
+
+					body := make(map[string]interface{})
+					body["action"] = querySplit[0]
+					body["limit"] = querySplit[1]
+					body["skip"] = 0
+
+					if len(querySplit) < 3 {
+						text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
+						query = ""
+						continue
+					}
+
+					body["collection"] = querySplit[2]
+					if !strings.Contains(query, "where ") {
+						body["conditions"] = []string{""}
+					} else {
+						body["conditions"] = []string{"*"}
+					}
+
+					var interface1 []interface{}
+					var interface2 []interface{}
+					var interface3 []interface{}
+					var interface4 []interface{}
+					var interface5 []interface{}
+					body["keys"] = interface1
+					body["oprs"] = interface2
+					body["values"] = interface3
+					body["update-keys"] = interface4
+					body["new-values"] = interface5
+					body["sort-pos"] = sortPos
+					body["sort-key"] = sortKey
+
+					if setStartIndex < 4 {
+						text.PrintfLine(fmt.Sprintf("%d Invalid update query missing set", 4011))
+						query = ""
+						continue
+					}
+
+					log.Println(querySplit)
+
+					conditions := querySplit[4:setStartIndex]
+					newValues := strings.Split(strings.ReplaceAll(strings.Join(querySplit[setStartIndex:], " "), "set ", ""), ",")
+					log.Println(conditions)
+					for _, nvSet := range newValues {
+						spl := strings.Split(nvSet, " = ")
+						body["update-keys"] = append(body["update-keys"].([]interface{}), strings.TrimSpace(spl[0]))
+						var val interface{}
+						if len(spl) != 2 {
+							text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
+							query = ""
+							continue
+						}
+
+						val = strings.TrimSuffix(spl[1], ";")
+						if strings.EqualFold(val.(string), "null") {
+							val = nil
+						} else if cursus.IsString(val.(string)) {
+
+							val = strings.TrimSuffix(val.(string), "\"")
+							val = strings.TrimPrefix(val.(string), "\"")
+							val = strings.TrimSuffix(val.(string), "'")
+							val = strings.TrimPrefix(val.(string), "'")
+						} else if cursus.IsBool(val.(string)) {
+
+							b, err := strconv.ParseBool(val.(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+								query = ""
+								continue
+							}
+
+							val = b
+						} else if cursus.IsFloat(val.(string)) {
+
+							f, err := strconv.ParseFloat(val.(string), 64)
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+								query = ""
+								continue
+							}
+
+							val = f
+						} else if cursus.IsInt(val.(string)) {
+							i, err := strconv.Atoi(val.(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
+								query = ""
+								continue
+							}
+
+							val = i
+
+						}
+						body["new-values"] = append(body["new-values"].([]interface{}), val)
+					}
+
+					r, _ := regexp.Compile("[\\&&\\||]+")
+					andOrSplit := r.Split(strings.Join(conditions, " "), -1)
+
+					for k, s := range andOrSplit {
+						re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
+						querySplitNested := re.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), "where", ""), "from", "")), -1)
+
+						if len(querySplitNested) < 3 {
+							text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
+							query = ""
+							continue
+						}
+
+						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
+						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
+						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
+
+						switch {
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "=="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "="):
+							body["oprs"].([]interface{})[k] = "=="
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">="):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "<"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), ">"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "like"):
+						case strings.EqualFold(body["oprs"].([]interface{})[k].(string), "!like"):
+						default:
+							text.PrintfLine(fmt.Sprintf("%d Invalid query operator.", 4007))
+							query = ""
+							goto extCont4
+						}
+
+						var val interface{}
+						val = strings.TrimSuffix(strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"), ";")
+						if strings.EqualFold(val.(string), "null") {
+							val = nil
+						} else if cursus.IsString(val.(string)) {
+
+							val = strings.TrimSuffix(val.(string), "\"")
+							val = strings.TrimPrefix(val.(string), "\"")
+							val = strings.TrimSuffix(val.(string), "'")
+							val = strings.TrimPrefix(val.(string), "'")
+						} else if cursus.IsBool(val.(string)) {
+
+							b, err := strconv.ParseBool(val.(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+								query = ""
+								continue
+							}
+
+							val = b
+						} else if cursus.IsFloat(val.(string)) {
+
+							f, err := strconv.ParseFloat(val.(string), 64)
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+								query = ""
+								continue
+							}
+
+							val = f
+						} else if cursus.IsInt(val.(string)) {
+							i, err := strconv.Atoi(val.(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
+								query = ""
+								continue
+							}
+
+							val = i
+
+						}
+						body["values"] = append(body["values"].([]interface{}), val)
+
+						if k < len(andOrSplit)-1 {
+							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+
+							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(query[lindx+valLen:lindx+valLen+4]), "'", ""), "\"", "")))
+						}
+					}
+
+					if body["limit"].(string) == "*" {
+						body["limit"] = -1
+					} else if strings.Contains(body["limit"].(string), ",") {
+						if len(strings.Split(body["limit"].(string), ",")) == 2 {
+							var err error
+							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								query = ""
+								continue
+							}
+
+							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
+								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									query = ""
+									continue
+								}
+							} else {
+								body["limit"] = -1
+							}
+						} else {
+							text.PrintfLine("%d Invalid limiting value", 504)
+							query = ""
+							continue
+						}
+					} else {
+						var err error
+						body["limit"], err = strconv.Atoi(body["limit"].(string))
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+							query = ""
+							continue
+						}
+					}
+
+					if len(body["values"].([]interface{})) == 0 {
+						text.PrintfLine(fmt.Sprintf("%d Where is missing values", 506))
+						query = ""
+						continue
+					}
+
+					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
+					if err != nil {
+						text.PrintfLine(err.Error())
+						query = ""
+						continue
+					}
+
 					query = ""
 					continue
+				extCont4:
+					continue
 				}
-
-				query = ""
-				continue
-			extCont2:
-				continue
 			case strings.HasPrefix(query, "delete user"):
 				splQ := strings.Split(query, "delete user ")
 

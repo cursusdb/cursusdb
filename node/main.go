@@ -808,9 +808,10 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				continue
 			case strings.EqualFold(action.(string), "update"):
 
+				log.Println(request)
 				results := curode.Update(request["collection"].(string),
-					request["keys"].([]interface{}), request["values"].([]interface{}),
-					int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"].([]interface{}),
+					request["keys"], request["values"],
+					int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"],
 					request["lock"].(bool),
 					request["conditions"].([]interface{}),
 					request["update-keys"].([]interface{}), request["new-values"].([]interface{}),

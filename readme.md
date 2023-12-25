@@ -371,12 +371,13 @@ delete user USERNAME;
 - ``4010`` Invalid insert query is missing parentheses
 - ``4011`` Invalid update query missing set
 - ``4012`` Could not marshal JSON
-- ``4013`` Unmarsharable JSON
 - ``4013`` Unparsable boolean value
 - ``4014`` Unparsable float value
 - ``4015`` Unparsable int value
 - ``4016`` Missing limit value
 - ``4017`` Invalid query operator
+- ``4018`` Unmarsharable JSON
+
 ### Ports
 Default cluster port: ``7681``
 Default node port: ``7682``
