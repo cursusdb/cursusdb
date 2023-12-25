@@ -348,6 +348,7 @@ delete user USERNAME;
 - ``202`` - Could not decode user username
 - ``203`` - Could not marshal users list array
 - ``204`` - There must always be one database user available
+- ``205`` - Could not marshal user for creation
 - ``500`` - Unknown error (with description)
 - ``501`` - Limit skip must be an integer (with description)
 - ``502`` - Could not convert limit value to integer (with description)
@@ -371,7 +372,11 @@ delete user USERNAME;
 - ``4011`` Invalid update query missing set
 - ``4012`` Could not marshal JSON
 - ``4013`` Unmarsharable JSON
-
+- ``4013`` Unparsable boolean value
+- ``4014`` Unparsable float value
+- ``4015`` Unparsable int value
+- ``4016`` Missing limit value
+- ``4017`` Invalid query operator
 ### Ports
 Default cluster port: ``7681``
 Default node port: ``7682``

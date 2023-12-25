@@ -312,7 +312,7 @@ func (cursus *Cursus) NewUser(username, password, permission string) (string, ma
 		user["permission"] = permission
 		b, err := json.Marshal(user)
 		if err != nil {
-			return "", user, errors.New(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+			return "", user, errors.New(fmt.Sprintf("%d Could not marshal user for creation %s", 205, err.Error()))
 		}
 
 		h := sha256.New()
@@ -879,8 +879,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 				var x []interface{}
 				err := json.Unmarshal([]byte(res), &x)
 				if err != nil {
-					connection.Text.PrintfLine(fmt.Sprintf("%d Unmarsharable JSON", 4013))
-					return nil
+					return errors.New(fmt.Sprintf("%d Unmarsharable JSON", 4013))
 				}
 
 				if len(x) > 0 {
@@ -917,8 +916,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 					docsJson, err := json.Marshal(docs)
 					if err != nil {
-						connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
-						return nil
+						return errors.New(fmt.Sprintf("%d Could not marshal JSON", 4012))
 					}
 
 					connection.Text.PrintfLine(string(docsJson))
@@ -926,8 +924,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 					docsJson, err := json.Marshal(docs)
 					if err != nil {
-						connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
-						return nil
+						return errors.New(fmt.Sprintf("%d Could not marshal JSON", 4012))
 					}
 
 					connection.Text.PrintfLine(string(docsJson))
@@ -938,8 +935,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 				countJson, err := json.Marshal(countResponse)
 				if err != nil {
-					connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
-					return nil
+					return errors.New(fmt.Sprintf("%d Could not marshal JSON", 4012))
 				}
 
 				connection.Text.PrintfLine(string(countJson))
@@ -1057,16 +1053,16 @@ fin:
 
 // HandleClientConnection handles tcp/tls client connection
 func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]interface{}) {
-	defer cursus.Wg.Done()
-	defer conn.Close()
+	defer cursus.Wg.Done() // defer report return to waitgroup
+	defer conn.Close()     // defer client connection close
 	text := textproto.NewConn(conn)
-	defer text.Close()
+	defer text.Close() // defer close connection writer and reader
 
 	query := "" // clients current query
 
 	for {
-		conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 1000000))
-		read, err := text.ReadLine()
+		conn.SetReadDeadline(time.Now().Add(time.Nanosecond * 1000000)) // essentially keep listening until the client closes connection or cluster shuts down
+		read, err := text.ReadLine()                                    // read line from client
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				if cursus.Context.Err() != nil {
@@ -1085,10 +1081,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 			query += strings.TrimSpace(string(read)) + " "
 		}
 
-		if strings.HasPrefix(query, "quit") {
-			return
-		} else if strings.HasPrefix(query, "PING") {
-			text.PrintfLine("PONG")
+		if strings.HasPrefix(query, "ping") {
+			text.PrintfLine("pong")
 			query = ""
 			continue
 		} else if strings.HasSuffix(query, ";") { // Does line end with a semicolon?
@@ -1201,7 +1195,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							var arr []interface{}
 							err := json.Unmarshal([]byte(kValue.FindStringSubmatch(query)[1]), &arr)
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Unmarsharable JSON insert ", 4000))
 								query = ""
 								continue
 							}
@@ -1243,7 +1237,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 								b, err := strconv.ParseBool(body["values"].([]interface{})[0].(string))
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
 									query = ""
 									continue
 								}
@@ -1253,7 +1247,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 								f, err := strconv.ParseFloat(body["values"].([]interface{})[0].(string), 64)
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
 									query = ""
 									continue
 								}
@@ -1262,7 +1256,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							} else if cursus.IsInt(body["values"].([]interface{})[0].(string)) {
 								i, err := strconv.Atoi(body["values"].([]interface{})[0].(string))
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
 									query = ""
 									continue
 								}
@@ -1385,6 +1379,13 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body := make(map[string]interface{})
 					body["action"] = querySplit[0]
 					body["limit"] = querySplit[1]
+
+					if len(querySplit) == 2 {
+						text.PrintfLine(fmt.Sprintf("%d Missing limit value", 4016))
+						query = ""
+						continue
+					}
+
 					body["collection"] = strings.TrimSuffix(querySplit[2], ";")
 					var interface1 []interface{}
 					var interface2 []interface{}
@@ -1440,9 +1441,17 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						body["count"] = true
 					}
 
+					if strings.Contains(query, "where") {
+						if len(body["values"].([]interface{})) == 0 || body["values"] == nil {
+							text.PrintfLine(fmt.Sprintf("%d Where is missing values", 506))
+							query = ""
+							continue
+						}
+					}
+
 					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
-						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+						text.PrintfLine(err.Error())
 						query = ""
 						continue
 					}
@@ -1475,6 +1484,12 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					for k, s := range andOrSplit {
 						querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
 
+						if len(querySplitNested) < 3 {
+							text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
+							query = ""
+							continue
+						}
+
 						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
 
 						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
@@ -1501,9 +1516,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						if k < len(andOrSplit)-1 {
 							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
 
-							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
+							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx-2:lindx-1]))
 						}
 
 						if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
@@ -1518,7 +1532,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
 								query = ""
 								continue
 							}
@@ -1528,7 +1542,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
 								query = ""
 								continue
 							}
@@ -1537,7 +1551,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
 								query = ""
 								continue
 							}
@@ -1590,15 +1604,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						body["count"] = true
 					}
 
-					if len(body["values"].([]interface{})) == 0 {
-						text.PrintfLine(fmt.Sprintf("%d Where is missing values", 506))
-						query = ""
-						continue
-					}
-
 					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
-						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+						text.PrintfLine(err.Error())
 						query = ""
 						continue
 					}
@@ -1642,6 +1650,13 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				body["action"] = querySplit[0]
 				body["limit"] = querySplit[1]
 				body["skip"] = 0
+
+				if len(querySplit) < 3 {
+					text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
+					query = ""
+					continue
+				}
+
 				body["collection"] = querySplit[2]
 				if !strings.Contains(query, "where ") {
 					body["conditions"] = []string{""}
@@ -1667,6 +1682,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					query = ""
 					continue
 				}
+
 				conditions := querySplit[4:setStartIndex]
 				newValues := strings.Split(strings.ReplaceAll(strings.Join(querySplit[setStartIndex:], " "), "set ", ""), ",")
 
@@ -1693,7 +1709,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						b, err := strconv.ParseBool(val.(string))
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
 							query = ""
 							continue
 						}
@@ -1703,7 +1719,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						f, err := strconv.ParseFloat(val.(string), 64)
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
 							query = ""
 							continue
 						}
@@ -1712,7 +1728,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					} else if cursus.IsInt(val.(string)) {
 						i, err := strconv.Atoi(val.(string))
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
 							query = ""
 							continue
 						}
@@ -1765,7 +1781,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						b, err := strconv.ParseBool(val.(string))
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
 							query = ""
 							continue
 						}
@@ -1775,7 +1791,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						f, err := strconv.ParseFloat(val.(string), 64)
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
 							query = ""
 							continue
 						}
@@ -1784,7 +1800,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					} else if cursus.IsInt(val.(string)) {
 						i, err := strconv.Atoi(val.(string))
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
 							query = ""
 							continue
 						}
@@ -1847,7 +1863,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 				if err != nil {
-					text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+					text.PrintfLine(err.Error())
 					query = ""
 					continue
 				}
@@ -1908,6 +1924,13 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body := make(map[string]interface{})
 					body["action"] = querySplit[0]
 					body["limit"] = querySplit[1]
+
+					if len(querySplit) == 2 {
+						text.PrintfLine(fmt.Sprintf("%d Missing limit value", 4016))
+						query = ""
+						continue
+					}
+
 					body["collection"] = strings.TrimSuffix(querySplit[2], ";")
 					var interface1 []interface{}
 					var interface2 []interface{}
@@ -1929,7 +1952,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							var err error
 							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("Limit skip must be an integer. %s", err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
 								query = ""
 								continue
 							}
@@ -1937,7 +1960,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
 								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("Something went wrong. %s", err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer %s", 502, err.Error()))
 									query = ""
 									continue
 								}
@@ -1945,7 +1968,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["limit"] = -1
 							}
 						} else {
-							text.PrintfLine("invalid limiting value.")
+							text.PrintfLine(fmt.Sprintf("%d Invalid limiting value", 504))
 							query = ""
 							continue
 						}
@@ -1953,7 +1976,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						var err error
 						body["limit"], err = strconv.Atoi(body["limit"].(string))
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("Something went wrong. %s", err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer %s", 502, err.Error()))
 							query = ""
 							continue
 						}
@@ -1961,7 +1984,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
-						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+						text.PrintfLine(err.Error())
 						query = ""
 						continue
 					}
@@ -1994,6 +2017,12 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
 						querySplitNested := re.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), "where", ""), "from", "")), -1)
 
+						if len(querySplitNested) < 3 {
+							text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
+							query = ""
+							continue
+						}
+
 						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
 						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
 						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
@@ -2019,9 +2048,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						if k < len(andOrSplit)-1 {
 							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
 
-							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
+							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx-2:lindx-1]))
 						}
 
 						if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
@@ -2036,7 +2064,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
 								query = ""
 								continue
 							}
@@ -2046,7 +2074,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
 								query = ""
 								continue
 							}
@@ -2055,7 +2083,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
 								query = ""
 								continue
 							}
@@ -2111,7 +2139,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
-						text.PrintfLine(fmt.Sprintf("%d Unknown error %s", 500, err.Error()))
+						text.PrintfLine(err.Error())
 						query = ""
 						continue
 					}
