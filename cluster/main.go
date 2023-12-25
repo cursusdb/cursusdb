@@ -821,6 +821,7 @@ ok:
 	} else {
 		node.SecureConn.SetReadDeadline(time.Now().Add(time.Second * 2))
 	}
+
 	response, err := node.Text.ReadLine()
 	if err != nil {
 		node.Ok = false
