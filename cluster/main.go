@@ -815,11 +815,17 @@ query:
 ok:
 
 	node.Text.PrintfLine("%s", string(jsonString)) // Send the query over
-
+	node.Conn.SetReadDeadline(time.Now().Add(time.Second * 2))
 	response, err := node.Text.ReadLine()
 	if err != nil {
-		connection.Text.PrintfLine("%d Unknown error %s", 500, err.Error())
-		return
+		if nodeRetries > 0 {
+			nodeRetries -= 1
+			goto query
+		} else {
+			node.Ok = false
+			connection.Text.PrintfLine("%d No node was available for insert.", 104)
+			return
+		}
 	}
 
 	if strings.HasPrefix(response, "100") {
@@ -849,7 +855,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 	wgPara := &sync.WaitGroup{}
 	muPara := &sync.RWMutex{}
 	for _, n := range cursus.NodeConnections {
-		if !n.Replica {
+		if !n.Replica && n.Ok {
 			wgPara.Add(1)
 			go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
 		}
@@ -969,8 +975,10 @@ func (cursus *Cursus) QueryNodesRet(body map[string]interface{}) map[string]stri
 	wgPara := &sync.WaitGroup{}
 	muPara := &sync.RWMutex{}
 	for _, n := range cursus.NodeConnections {
-		wgPara.Add(1)
-		go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
+		if !n.Replica && n.Ok {
+			wgPara.Add(1)
+			go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
+		}
 	}
 
 	wgPara.Wait()
@@ -1040,7 +1048,7 @@ unavailable:
 		}
 	}
 
-	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
+	(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s  and replicas %s unavailable."}`, n.Conn.RemoteAddr().String(), strings.Join(attemptedReplicas, ","))
 	mu.Unlock()
 	return
 fin:
