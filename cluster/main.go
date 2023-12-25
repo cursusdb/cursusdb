@@ -74,9 +74,8 @@ type NodeConnection struct {
 	Text       *textproto.Conn // For writing and reading
 	Mu         *sync.Mutex     // Multiple connections shouldn't hit the same node without the node being locked
 	Replica    bool            // is node replica?
-	MainNode   string
-	Ok         bool // Is node ok?
-	Node       Node
+	Ok         bool            // Is node ok?
+	Node       Node            // The underlaying node for connection
 }
 
 // Connection is the main TCP connection struct for cluster
@@ -477,7 +476,6 @@ func (cursus *Cursus) ConnectToNodes() {
 							SecureConn: secureConnReplica,
 							Text:       textproto.NewConn(secureConnReplica),
 							Replica:    true,
-							MainNode:   rep.Host,
 							Node: Node{
 								Host: rep.Host,
 								Port: rep.Port,
@@ -573,10 +571,9 @@ func (cursus *Cursus) ConnectToNodes() {
 					// Did response start with a 0?  This indicates successful authentication
 					if strings.HasPrefix(string(authBuf[:rReplica]), "0") {
 						cursus.NodeConnections = append(cursus.NodeConnections, &NodeConnection{
-							Conn:     connReplica,
-							Text:     textproto.NewConn(connReplica),
-							Replica:  true,
-							MainNode: rep.Host,
+							Conn:    connReplica,
+							Text:    textproto.NewConn(connReplica),
+							Replica: true,
 							Node: Node{
 								Host: rep.Host,
 								Port: rep.Port,
@@ -995,7 +992,7 @@ func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGro
 	n.Mu.Lock()
 	defer n.Mu.Unlock()
 
-	retries := len(n.Node.Replicas)
+	retries := len(n.Node.Replicas) // retry a node replica
 
 	var attemptedReplicas []string
 
