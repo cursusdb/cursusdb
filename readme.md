@@ -435,7 +435,7 @@ Please report issues, enhancements, etc at:
 
 
 ## Todo
-- Allow SQL inserts ```insert into coll (key, key, key, ...)
+- Allow SQL inserts ```insert into coll (key, key!, key!, ...)
   VALUES (value1, value2, value3, ...); ```
 - Secured TLS connection configuration for node replicas.
 
