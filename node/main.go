@@ -196,7 +196,7 @@ func main() {
 
 		// Read encrypted data file
 		reader := bufio.NewReader(dataFile)
-		buf := make([]byte, 1024)
+		buf := make([]byte, 8192)
 
 		defer dataFile.Close()
 
@@ -530,7 +530,7 @@ func (curode *Curode) WriteToFile() {
 
 	//
 	reader := bufio.NewReader(fTmp)
-	buf := make([]byte, 1024)
+	buf := make([]byte, 8192)
 	f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
 	if err != nil {
 		curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
