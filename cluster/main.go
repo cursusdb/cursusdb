@@ -896,22 +896,32 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 			if !isCount {
 
 				if body["limit"] != -1 {
-					for i, _ := range docs {
-						if i > body["limit"].(int) {
-							docs[i] = docs[len(docs)-1]
-							docs[len(docs)-1] = nil
-							docs = docs[:len(docs)-1]
+					var docsLimited []interface{}
+					for i, d := range docs {
+						if i >= body["limit"].(int) {
+							break
+						} else {
+							docsLimited = append(docsLimited, d)
 						}
 					}
-				}
 
-				docsJson, err := json.Marshal(docs)
-				if err != nil {
-					connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
-					return nil
-				}
+					docsJson, err := json.Marshal(docsLimited)
+					if err != nil {
+						connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
+						return nil
+					}
 
-				connection.Text.PrintfLine(string(docsJson))
+					connection.Text.PrintfLine(string(docsJson))
+				} else {
+
+					docsJson, err := json.Marshal(docs)
+					if err != nil {
+						connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
+						return nil
+					}
+
+					connection.Text.PrintfLine(string(docsJson))
+				}
 			} else {
 				countResponse := make(map[string]interface{})
 				countResponse["count"] = count
