@@ -896,16 +896,20 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 			if !isCount {
 
 				if body["limit"] != -1 {
-					var docsLimited []interface{}
-					for i, d := range docs {
+					var docsToRemoveFromResponse []int
+					for i, _ := range docs {
 						if i >= body["limit"].(int) {
-							break
-						} else {
-							docsLimited = append(docsLimited, d)
+							docsToRemoveFromResponse = append(docsToRemoveFromResponse, i)
 						}
 					}
 
-					docsJson, err := json.Marshal(docsLimited)
+					for _, i := range docsToRemoveFromResponse {
+						copy(docs[i:], docs[i+1:])
+						docs[len(docs)-1] = ""
+						docs = docs[:len(docs)-1]
+					}
+
+					docsJson, err := json.Marshal(docs)
 					if err != nil {
 						connection.Text.PrintfLine(fmt.Sprintf("%d Could not marshal JSON", 4012))
 						return nil
