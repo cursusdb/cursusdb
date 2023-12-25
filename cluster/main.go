@@ -1020,6 +1020,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 		if strings.HasPrefix(query, "quit") {
 			return
+		} else if strings.HasPrefix(query, "PING") {
+			text.PrintfLine("PONG")
+			query = ""
+			continue
 		} else if strings.HasSuffix(query, ";") { // Does line end with a semicolon?
 			cursus.Printl(fmt.Sprintf("HandleClientConnection(): %s query(%s)", conn.RemoteAddr().String(), query), "INFO")
 
