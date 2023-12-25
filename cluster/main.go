@@ -1048,6 +1048,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				} else if strings.HasPrefix(query, "new user") {
 					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
 					goto continueOn // User not allowed
+				} else if strings.HasPrefix(query, "list users") {
+					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+					goto continueOn // User not allowed
 				} else if strings.HasPrefix(query, "delete user") {
 					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
 					goto continueOn // User not allowed
@@ -1794,6 +1797,27 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				continue
 			extCont2:
 				continue
+			case strings.HasPrefix(query, "delete user"):
+				splQ := strings.Split(query, "delete user ")
+
+				if len(splQ) != 2 {
+					text.PrintfLine("%d Invalid command/query.", 4005)
+					query = ""
+					continue
+				}
+
+				err = cursus.RemoveUser(splQ[1])
+				if err != nil {
+					text.PrintfLine(err.Error())
+					query = ""
+					continue
+				}
+
+				text.PrintfLine("%d Database user %s removed successfully.", 201, strings.TrimSuffix(splQ[1], ";"))
+
+				query = ""
+				continue
+
 			case strings.HasPrefix(query, "delete "):
 
 				// delete 1 from users where name == 'alex' && last == 'padula';
@@ -2037,26 +2061,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				extCont3:
 					continue
 				}
-			case strings.HasPrefix(query, "delete user "):
-				splQ := strings.Split(query, "delete user ")
-
-				if len(splQ) != 2 {
-					text.PrintfLine("%d Invalid command/query.", 4005)
-					query = ""
-					continue
-				}
-
-				err = cursus.RemoveUser(splQ[1])
-				if err != nil {
-					text.PrintfLine("%d Database user %s removed successfully.", 201, splQ[1])
-					query = ""
-					continue
-				}
-
-				text.PrintfLine("%d No user exists with username %s.", 102, splQ[1])
-				query = ""
-				continue
-
 			case strings.HasPrefix(query, "new user "): // new user username, password, RW
 				splQ := strings.Split(query, "new user ")
 
@@ -2083,6 +2087,31 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				}
 
 				text.PrintfLine(fmt.Sprintf("%d New database user %s created successfully.", 200, strings.TrimSpace(splQComma[0])))
+				query = ""
+				continue
+			case strings.HasPrefix(query, "list users"):
+				var users []string
+
+				for _, u := range cursus.Config.Users {
+					username, err := base64.StdEncoding.DecodeString(strings.Split(u, ":")[0])
+					if err != nil {
+						cursus.Printl(fmt.Sprintf("%d Could not decode user username", 202), "ERROR")
+						continue
+					}
+					users = append(users, string(username))
+				}
+
+				//usersJson := new(strings.Builder)
+				//json.NewEncoder(usersJson).Encode(users)
+				usersJsonArr, err := json.Marshal(users)
+				if err != nil {
+					cursus.Printl(fmt.Sprintf("%d Could not marshal users list array", 203), "ERROR")
+					query = ""
+					continue
+				}
+
+				text.PrintfLine(string(usersJsonArr))
+
 				query = ""
 				continue
 			default:
@@ -2139,6 +2168,12 @@ func (cursus *Cursus) IsBool(str string) bool {
 // RemoveUser removes a user by username
 func (cursus *Cursus) RemoveUser(username string) error {
 
+	if len(cursus.Config.Users) == 1 {
+		return errors.New(fmt.Sprintf("%d There must always be one database user available", 204))
+	}
+
+	username = strings.TrimSuffix(username, ";")
+
 	for j := 0; j < 50; j++ { // retry as gorm will serialize the bytes a bit different sometimes
 		encodeUsername := base64.StdEncoding.EncodeToString([]byte(username))
 		for i, user := range cursus.Config.Users {
@@ -2153,7 +2188,7 @@ func (cursus *Cursus) RemoveUser(username string) error {
 		}
 	}
 
-	return errors.New("No user found")
+	return errors.New(fmt.Sprintf("%d No user found %s", 102, username))
 }
 
 // LostReconnect connects to lost node or replica connections, or will try to.
