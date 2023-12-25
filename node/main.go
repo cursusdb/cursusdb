@@ -776,6 +776,8 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 			continue
 		}
 
+		log.Println("REQ", request)
+
 		action, ok := request["action"] // An action is insert, select, delete, ect..
 		if ok {
 			switch {
@@ -953,6 +955,9 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	// Results
 	var objects []interface{}
 
+	// To be deleted
+	var tbd []int64
+
 	//The && operator displays a document if all the conditions are TRUE.
 	//The || operator displays a record if any of the conditions are TRUE.
 
@@ -980,6 +985,11 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 			// add document to objects
 			objects = append(objects, d)
+
+			if del {
+				tbd = append(tbd, int64(i))
+			}
+
 			continue
 		} else {
 
@@ -1871,63 +1881,23 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 				if conditionsMetDocument >= len(conditions) {
 					objects = append(objects, d)
 					if del {
-						curode.Data.Writers[collection].Lock()
-
-						curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
-						curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
-						curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
-
-						// if no entries in collection, remove it.
-						if len(curode.Data.Map[collection]) == 0 {
-							delete(curode.Data.Map, collection)
-						}
-						curode.Data.Writers[collection].Unlock()
+						tbd = append(tbd, int64(i))
 					}
 				} else if slices.Contains(conditions, "||") && conditionsMetDocument > 0 {
 					objects = append(objects, d)
 					if del {
-						curode.Data.Writers[collection].Lock()
-
-						curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
-						curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
-						curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
-
-						// if no entries in collection, remove it.
-						if len(curode.Data.Map[collection]) == 0 {
-							delete(curode.Data.Map, collection)
-						}
-						curode.Data.Writers[collection].Unlock()
+						tbd = append(tbd, int64(i))
 					}
 				}
 			} else if slices.Contains(conditions, "||") && conditionsMetDocument > 0 {
 				objects = append(objects, d)
 				if del {
-					curode.Data.Writers[collection].Lock()
-
-					curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
-					curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
-					curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
-
-					// if no entries in collection, remove it.
-					if len(curode.Data.Map[collection]) == 0 {
-						delete(curode.Data.Map, collection)
-					}
-					curode.Data.Writers[collection].Unlock()
+					tbd = append(tbd, int64(i))
 				}
 			} else if conditionsMetDocument > 0 && len(conditions) == 1 {
 				objects = append(objects, d)
 				if del {
-					curode.Data.Writers[collection].Lock()
-
-					curode.Data.Map[collection][i] = curode.Data.Map[collection][len(curode.Data.Map[collection])-1]
-					curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
-					curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
-
-					// if no entries in collection, remove it.
-					if len(curode.Data.Map[collection]) == 0 {
-						delete(curode.Data.Map, collection)
-					}
-					curode.Data.Writers[collection].Unlock()
+					tbd = append(tbd, int64(i))
 				}
 			}
 
@@ -1987,6 +1957,21 @@ cont:
 		countObject["count"] = len(objects)
 		countResponse = append(countResponse, countObject)
 		return countResponse
+	}
+
+	if len(tbd) > 0 {
+		curode.Data.Writers[collection].Lock()
+		for i := len(tbd) - 1; i >= 0; i-- {
+			copy(curode.Data.Map[collection][tbd[i]:], curode.Data.Map[collection][tbd[i]+1:])
+			curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
+			curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
+
+			// if no entries in collection, remove it.
+			if len(curode.Data.Map[collection]) == 0 {
+				delete(curode.Data.Map, collection)
+			}
+		}
+		curode.Data.Writers[collection].Unlock()
 	}
 
 	return objects

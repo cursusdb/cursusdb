@@ -1888,6 +1888,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["lock"] = false
 					body["sort-pos"] = sortPos
 					body["sort-key"] = sortKey
+					body["skip"] = 0
 
 					if body["limit"].(string) == "*" {
 						body["limit"] = -1
