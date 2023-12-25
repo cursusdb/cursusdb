@@ -452,10 +452,9 @@ Please report issues, enhancements, etc at:
 
 ## Todo
 - Allow SQL inserts ```insert into coll (key, key!, key!, ...)
-  VALUES (value1, value2, value3, ...); ```
-- Secured TLS connection configuration for node replicas.
+  VALUES (value1, value2, value3, ...); ``` (Possible enhancement)
 
-## CursusDB v MySQL
+## CursusDB v MySQL BENCHMARK
 Most basic setup.  CursusDB cluster and node hosted same instance no TLS.
 MySQL setup exact same specification of an instance no TLS.
 
