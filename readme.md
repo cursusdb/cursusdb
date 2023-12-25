@@ -28,6 +28,8 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - File logging and automatic log truncation based on ``log-max-lines`` config
 - Automatic reconnect of any lost node or node replica
 
+**There are no databases like MySQL let's say where you can have multiples.  A cluster is your database that spreads data across many nodes.**
+
 ![drawing3.png](images/drawing3.png)
 
 ![drawing5.png](images/drawing5.png)
