@@ -875,6 +875,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 			isCount := false
 
 			for _, res := range responses {
+
 				if strings.Contains(res, "\"statusCode\": 105") {
 					cursus.Printl("QueryNodes(): "+res, "INFO")
 					continue
@@ -1015,6 +1016,7 @@ query:
 		}
 		goto unavailable
 	}
+
 	mu.Lock()
 	(*responses)[n.Conn.RemoteAddr().String()] = line
 	mu.Unlock()
