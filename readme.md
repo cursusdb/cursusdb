@@ -277,6 +277,14 @@ Using a client like ``curush`` the CursusDB Shell Program.
 curush> new user someusername, somepassword, RW;
 ```
 
+#### Listing Database Users
+
+Getting all database users.  User with RW permission required.
+
+```list users ```
+
+command returns JSON array of database users. 
+
 #### Removing Database Users
 ``` 
 delete user USERNAME;
