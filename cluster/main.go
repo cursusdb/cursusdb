@@ -75,7 +75,7 @@ type NodeConnection struct {
 	Mu         *sync.Mutex     // Multiple connections shouldn't hit the same node without the node being locked
 	Replica    bool            // is node replica?
 	Ok         bool            // Is node ok?
-	Node       Node            // The underlaying node for connection
+	Node       Node            // The underlaying Node for connection
 }
 
 // Connection is the main TCP connection struct for cluster
@@ -1525,11 +1525,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
 						}
 
-						log.Println("c" + body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string) + "x")
 						if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
 							body["values"].([]interface{})[k] = nil
 						} else if cursus.IsString(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-							log.Println("c" + body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string) + "x")
+
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
