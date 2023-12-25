@@ -11,6 +11,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Encrypted data at rest by default with chacha20poly1305.
 - In-memory data during runtime
 - Parallel search. Searching section of collections within multiple nodes simultaneously at the same time.
+- Auto generated $id key for all documents unique across all nodes
 - Database Users with basic (R, RW) permissions
 - Cluster and node authentication.
 - Cluster node data replication and synchronization specifically for reads
