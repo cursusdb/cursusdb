@@ -42,6 +42,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -971,6 +972,8 @@ func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGro
 
 	retries := len(n.Node.Replicas)
 
+	var attemptedReplicas []string
+
 	goto query
 
 query:
@@ -1004,8 +1007,14 @@ unavailable:
 	for _, r := range n.Node.Replicas {
 		for _, nc := range cursus.NodeConnections {
 			if nc.Node.Host == r.Host && nc.Replica == true {
+				if slices.Contains(attemptedReplicas, fmt.Sprintf("%s:%d", r.Host, r.Port)) {
+					continue
+				}
+
 				n = nc
 				retries -= 1
+
+				attemptedReplicas = append(attemptedReplicas, fmt.Sprintf("%s:%d", r.Host, r.Port))
 
 				if retries > -1 {
 					mu.Unlock()
