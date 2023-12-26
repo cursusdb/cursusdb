@@ -799,21 +799,13 @@ func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, coll
 query:
 	rand.Seed(time.Now().UnixNano())
 
-	for i := 0; i < len(cursus.NodeConnections); i++ {
-		currentNode := node
-		node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Select a random node that is not a replica
+	node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Select a random node that is not a replica
 
-		if node.Conn.RemoteAddr().String() == currentNode.Conn.RemoteAddr().String() { // To not retry same node
-			goto query
-		}
-
-		if !node.Replica {
-			goto ok
-		}
+	if !node.Replica { // Make sure node connection is node a replica for inserts
+		goto ok
+	} else {
+		goto query
 	}
-
-	connection.Text.PrintfLine(fmt.Sprintf("%d No node was available for insert", 104))
-	return
 
 ok:
 
@@ -830,7 +822,18 @@ ok:
 		node.Ok = false
 		if nodeRetries > -1 {
 			nodeRetries -= 1
-			goto query
+			currentNode := node
+
+			if len(cursus.Config.Nodes) >= 2 { // if more than or equal to 2 configured nodes we will compare to see
+				if fmt.Sprintf("%s:%d", node.Node.Host, node.Node.Port) == fmt.Sprintf("%s:%d", currentNode.Node.Host, currentNode.Node.Port) { // To not retry same node
+					node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Pick another node, not the current one we have selected prior
+
+					goto query
+				}
+			} else {
+				goto query
+			}
+
 		} else {
 			connection.Text.PrintfLine("%d No node was available for insert.", 104)
 			return
