@@ -37,6 +37,8 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
+	"io/fs"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/textproto"
@@ -85,8 +87,9 @@ type Config struct {
 	ReplicationSyncTime        int       `yaml:"replication-sync-time"`                    // in minutes default is every 10 minutes
 	TLSReplication             bool      `default:"false" yaml:"tls-replication"`          // If your cluster node replicas are running TLS then configure this to true
 	AutomaticBackups           bool      `default:"false" yaml:"automatic-backups"`        // If for some reason a .cdat gets corrupt you can choose to have the system save a state of your .cdat file every set n amount of time.  (default is every 8 hours(480 minutes) to make a backup of your nodes data under /backups directory(which the system will create inside your binary executable location) files are named like so .cdat_YYMMDDHHMMSS in your set timezone
+	AutomaticBackupTime        int       `yaml:"automatic-backup-time"`                    // Automatic node backup time.  Default is 8 (hours)
 	AutomaticBackupCleanup     bool      `default:"false" yaml:"automatic-backup-cleanup"` // If set true node will clean up backups that are older than AutomaticBackupCleanupTime days old
-	AutomaticBackupCleanupTime int       `yaml:"automatic-backup-cleanup-time"`            // Clean up old .cdat backups that are n amount days old only used if AutomaticBackups is set true default is 30 days
+	AutomaticBackupCleanupDays int       `yaml:"automatic-backup-cleanup-days"`            // Clean up old .cdat backups that are n amount days old only used if AutomaticBackups is set true default is 30 days
 	Timezone                   string    `default:"Local" yaml:"timezone"`                 // i.e America/Chicago default is local system time
 
 }
@@ -143,7 +146,8 @@ func main() {
 		curode.Config.LogMaxLines = 1000 // truncate at 1000 lines as default
 		curode.Config.Timezone = "Local"
 		curode.Config.ReplicationSyncTime = 10        // default of every 10 minutes
-		curode.Config.AutomaticBackupCleanupTime = 30 // Set default of 30 days in which to delete old backed up .cdat files
+		curode.Config.AutomaticBackupCleanupDays = 30 // Set default of 30 days in which to delete old backed up .cdat files
+		curode.Config.AutomaticBackupTime = 8         // Automatically backup node data to backups folder every 8 hours if AutomaticBackups is enabled
 
 		fmt.Println("Node key is required.  A node key is shared with your cluster and will encrypt all your data at rest and allow for only connections that contain a correct Key: header value matching the hashed key you provide.")
 		fmt.Print("key> ")
@@ -196,15 +200,24 @@ func main() {
 
 	}
 
+	datafile := "./.cdat"        // If .cdat is corrupted we will try again with a backup
+	var latestBackup fs.FileInfo // When we search /backups directory we look for latest backup also we use this variable to check if we already attempted to use this backup
+	backupCount := 0             // Will populate then decrement when we read backups directory if the directory exists
+	backedUp := false            // If a backup occurred
+
+	goto readData
+
+readData:
+
 	// Read rested data from .cdat file
-	if _, err := os.Stat("./.cdat"); errors.Is(err, os.ErrNotExist) { // Not exists we create it
+	if _, err := os.Stat(fmt.Sprintf("%s", datafile)); errors.Is(err, os.ErrNotExist) { // Not exists we create it
 		curode.Printl(fmt.Sprintf("main(): No previous data to read.  Creating new .cdat file."), "INFO")
 	} else {
 		curode.Printl(fmt.Sprintf("main(): Node data read into memory."), "INFO")
-		dataFile, err := os.Open("./.cdat") // Open .cdat
+		dataFile, err := os.Open(fmt.Sprintf("%s", datafile)) // Open .cdat
 
 		// Temporary decrypted data file.. to be unserialized into map
-		fDFTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
+		fDFTmp, err := os.OpenFile(fmt.Sprintf("%s.tmp", datafile), os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
 		if err != nil {
 			fmt.Println("main():", err.Error())
 			os.Exit(1)
@@ -237,7 +250,44 @@ func main() {
 
 				serialized, err := curode.Decrypt(decodedKey[:], buf[:read])
 				if err != nil {
-					fmt.Println("main():", err.Error())
+					fmt.Println("main(): Data file corrupt!", err.Error())
+					os.Remove(fmt.Sprintf("%s.tmp", datafile))
+					// Data file is corrupt.. If node has backups configured grab last working state.
+					if curode.Config.AutomaticBackups {
+						workingDir, err := os.Getwd()
+						if err != nil {
+							curode.Printl(fmt.Sprintf("%d Could not get node working directory for automatic recovery. %s", 210, err.Error()), "ERROR")
+							os.Exit(1)
+						}
+
+						// Read backups and remove any backups older than AutomaticBackupCleanupTime days old
+						backups, err := ioutil.ReadDir(fmt.Sprintf("%s/backups", workingDir))
+						if err != nil {
+							curode.Printl(fmt.Sprintf("%d Could not read node backups directory %s", 208, err.Error()), "ERROR")
+							os.Exit(1)
+						}
+
+						backupCount = len(backups)
+
+						for _, backup := range backups {
+							backedUp = true
+							if latestBackup == nil {
+								latestBackup = backup
+							} else {
+								if backup.ModTime().Before(latestBackup.ModTime()) && latestBackup.Name() != backup.Name() {
+									latestBackup = backup
+								}
+							}
+						}
+
+						if backupCount > -1 {
+							backupCount -= 1
+							datafile = fmt.Sprintf(fmt.Sprintf("%s/backups/%s", workingDir, latestBackup.Name()))
+							goto readData
+						}
+
+					}
+
 					os.Exit(1)
 					return
 				}
@@ -247,7 +297,7 @@ func main() {
 		}
 		fDFTmp.Close()
 
-		fDFTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
+		fDFTmp, err = os.OpenFile(fmt.Sprintf("%s.tmp", datafile), os.O_RDONLY, 0777)
 		if err != nil {
 			curode.Printl("main(): "+fmt.Sprintf(err.Error()), "ERROR")
 			os.Exit(1)
@@ -264,12 +314,17 @@ func main() {
 
 		fDFTmp.Close()
 
-		os.Remove(".cdat.tmp") // Remove temp
+		os.Remove(fmt.Sprintf("%s.tmp", datafile)) // Remove temp
 
 		// Setup collection mutexes
 		for c, _ := range curode.Data.Map {
 			curode.Data.Writers[c] = &sync.RWMutex{}
 		}
+
+		if backedUp {
+			curode.Printl(fmt.Sprintf("main(): %d Node data backup was successful.", 211), "INFO")
+		}
+
 		curode.Printl(fmt.Sprintf("main(): Collection mutexes created."), "INFO")
 	}
 
@@ -281,6 +336,11 @@ func main() {
 	if len(curode.Config.Replicas) > 0 {
 		curode.Wg.Add(1)
 		go curode.SyncOut()
+	}
+
+	if curode.Config.AutomaticBackups {
+		curode.Wg.Add(1)
+		go curode.AutomaticBackup()
 	}
 
 	curode.Wg.Add(1)
@@ -334,7 +394,7 @@ func (curode *Curode) SignalListener() {
 		case sig := <-curode.SignalChannel:
 			curode.Printl(fmt.Sprintf("SignalListener(): Received signal %s starting database shutdown.", sig), "INFO")
 			curode.TCPListener.Close() // Close up TCP/TLS listener
-			curode.WriteToFile()       // Write database data to file
+			curode.WriteToFile(false)  // Write database data to file
 			curode.ContextCancel()     // Cancel context, used for loops and so forth
 			return
 		default:
@@ -594,15 +654,43 @@ func (curode *Curode) Printl(data string, level string) {
 }
 
 // WriteToFile will write the current node data to a .cdat file encrypted with your node key.
-func (curode *Curode) WriteToFile() {
-	curode.Printl(fmt.Sprintf("WriteToFile(): Starting to write node data to file."), "INFO")
+func (curode *Curode) WriteToFile(backup bool) {
+	var t time.Time // Time for if backup is enabled
 
-	// Create temporary .cdat which is all serialized data.  An encryption is performed after the fact to not consume memory.
-	fTmp, err := os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
-	if err != nil {
-		curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
-		curode.SignalChannel <- os.Interrupt
-		return
+	if backup {
+		tz, err := time.LoadLocation(curode.Config.Timezone)
+		if err != nil {
+			t = time.Now()
+		} else {
+			t = time.Now().In(tz)
+		}
+
+	}
+
+	if !backup {
+		curode.Printl(fmt.Sprintf("WriteToFile(): Starting to write node data to file."), "INFO")
+	} else {
+		curode.Printl(fmt.Sprintf("WriteToFile(): Starting to write node data to backup file."), "INFO")
+	}
+
+	var fTmp *os.File
+	var err error
+
+	if !backup {
+		// Create temporary .cdat which is all serialized data.  An encryption is performed after the fact to not consume memory.
+		fTmp, err = os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
+		if err != nil {
+			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+			curode.SignalChannel <- os.Interrupt
+			return
+		}
+	} else {
+		fTmp, err = os.OpenFile(fmt.Sprintf("backups/.cdat.%d.tmp", t.Unix()), os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
+		if err != nil {
+			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+			curode.SignalChannel <- os.Interrupt
+			return
+		}
 	}
 
 	e := gob.NewEncoder(fTmp)
@@ -617,23 +705,46 @@ func (curode *Curode) WriteToFile() {
 
 	fTmp.Close()
 
-	// After serialization encrypt temp data file
-	fTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
-	if err != nil {
-		curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
-		curode.SignalChannel <- os.Interrupt
-		return
+	if !backup {
+		// After serialization encrypt temp data file
+		fTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
+		if err != nil {
+			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+			curode.SignalChannel <- os.Interrupt
+			return
+		}
+	} else {
+		// After serialization encrypt temp data file
+		fTmp, err = os.OpenFile(fmt.Sprintf("backups/.cdat.%d.tmp", t.Unix()), os.O_RDONLY, 0777)
+		if err != nil {
+			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+			curode.SignalChannel <- os.Interrupt
+			return
+		}
 	}
 
 	//
 	reader := bufio.NewReader(fTmp)
 	buf := make([]byte, 8192)
-	f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
-	if err != nil {
-		curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
-		curode.SignalChannel <- os.Interrupt
-		return
+
+	var f *os.File
+
+	if !backup {
+		f, err = os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
+		if err != nil {
+			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+			curode.SignalChannel <- os.Interrupt
+			return
+		}
+	} else {
+		f, err = os.OpenFile(fmt.Sprintf("backups/.cdat.%d", t.Unix()), os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
+		if err != nil {
+			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+			curode.SignalChannel <- os.Interrupt
+			return
+		}
 	}
+
 	defer f.Close()
 
 	for {
@@ -667,8 +778,14 @@ func (curode *Curode) WriteToFile() {
 		}
 	}
 
-	os.Remove(".cdat.tmp")
-	curode.Printl(fmt.Sprintf("WriteToFile(): Node data written to file successfully."), "INFO")
+	if !backup {
+		os.Remove(".cdat.tmp")
+		curode.Printl(fmt.Sprintf("WriteToFile(): Node data written to file successfully."), "INFO")
+	} else {
+		os.Remove(fmt.Sprintf("backups/.cdat.%d.tmp", t.Unix()))
+		curode.Printl(fmt.Sprintf("WriteToFile(): Node backup data written to file successfully."), "INFO")
+	}
+
 }
 
 // StartTCP_TLS starts listening on tcp/tls on configured host and port
@@ -2036,4 +2153,87 @@ func (curode *Curode) Update(collection string, ks interface{}, vs interface{}, 
 	}
 
 	return updated
+}
+
+// AutomaticBackup automatically backs up node data every set AutomaticBackupTime hours to curode backups directory under .cdat.unixtime
+// Also will remove any old backups based on the days provided on AutomaticBackupCleanupTime
+func (curode *Curode) AutomaticBackup() {
+	defer curode.Wg.Done()
+
+	workingDir, err := os.Getwd()
+	if err != nil {
+		curode.Printl(fmt.Sprintf("%d Could not get node working directory for automatic backup %s", 206, err.Error()), "ERROR")
+		return
+	}
+
+	// Check if /backups exists or not and create it
+	if _, err = os.Stat(fmt.Sprintf("%s/backups", workingDir)); errors.Is(err, os.ErrNotExist) {
+		if err = os.Mkdir(fmt.Sprintf("%s/backups", workingDir), os.ModePerm); err != nil {
+			curode.Printl(fmt.Sprintf("%d Could not create automatic backups directory %s", 207, err.Error()), "ERROR")
+			return
+		}
+	}
+
+	stateCh := make(chan int)
+	// 0 - continue
+	// 1 - sleep
+	// 2 - cancel
+
+	go func(c *Curode, sc chan int) {
+		f := time.Now().Add(time.Minute * time.Duration(curode.Config.AutomaticBackupTime))
+		for {
+			if c.Context.Err() != nil {
+				sc <- 2
+				return
+			}
+
+			if time.Now().After(f) {
+				f = time.Now().Add(time.Minute * time.Duration(curode.Config.AutomaticBackupTime))
+				sc <- 0
+				time.Sleep(time.Nanosecond * 1000000)
+			} else {
+				sc <- 1
+				time.Sleep(time.Nanosecond * 1000000)
+			}
+		}
+	}(curode, stateCh)
+
+	for {
+		select {
+		case sc := <-stateCh:
+
+			if sc == 0 {
+
+				// Backup data to backups/.cdat.unixtime
+				curode.WriteToFile(true)
+
+				// Read backups and remove any backups older than AutomaticBackupCleanupTime days old
+				backups, err := ioutil.ReadDir(fmt.Sprintf("%s/backups", workingDir)) // read backups directory
+				if err != nil {
+					curode.Printl(fmt.Sprintf("%d Could not read node backups directory %s", 208, err.Error()), "ERROR")
+					time.Sleep(time.Second)
+					continue
+				}
+
+				for _, backup := range backups {
+					if backup.ModTime().After(time.Now().Add(time.Minute * time.Duration(curode.Config.AutomaticBackupCleanupDays))) {
+						e := os.Remove(fmt.Sprintf("%s/backups/%s", workingDir, backup.Name()))
+						if e != nil {
+							curode.Printl(fmt.Sprintf("%d Could not remove .cdat backup %s %s", 209, backup.Name(), err.Error()), "ERROR")
+							continue
+						}
+					}
+				}
+
+			} else if sc == 2 {
+				return
+			} else if sc == 1 {
+				time.Sleep(time.Nanosecond * 1000000)
+				continue
+			}
+		default:
+			time.Sleep(time.Nanosecond * 1000000)
+		}
+	}
+
 }

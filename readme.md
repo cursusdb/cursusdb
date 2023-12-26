@@ -27,7 +27,8 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Lightweight core code under 4,500 lines of code in total
 - File logging and automatic log truncation based on ``log-max-lines`` config
 - Automatic reconnect of any lost node or node replica
-
+- Automatic node backups if ``automatic-backup`` within ``.curodeconfig`` is set to true
+- Automatic node backup clean up if ``automatic-backup-cleanup`` within ``.curodeconfig`` is set to true.  ``automatic-backup-cleanup-time`` is in hours.
 **There are no databases like MySQL let's say where you can have multiples.  A cluster is your database that spreads data across many nodes.**
 
 ![drawing3.png](images/drawing3.png)
@@ -353,6 +354,12 @@ delete user USERNAME;
 - ``203`` - Could not marshal users list array
 - ``204`` - There must always be one database user available
 - ``205`` - Could not marshal user for creation
+- ``206`` - Could not get node working directory for automatic backup (with description)
+- ``207`` - Could not create automatic backups directory (with description)
+- ``208`` - Could not read node backups directory  (with description)
+- ``209`` - Could not remove .cdat backup {FILE NAME} (with description)
+- ``210`` - Could not get node working directory for automatic recovery (with description)
+- ``211`` - Node data backup was successful
 - ``500`` - Unknown error (with description)
 - ``501`` - Limit skip must be an integer (with description)
 - ``502`` - Could not convert limit value to integer (with description)
