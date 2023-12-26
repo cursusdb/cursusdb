@@ -813,7 +813,7 @@ query:
 	rand.Seed(time.Now().UnixNano())
 
 	node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Select a random node that is not a replica
-	log.Println("lol")
+
 	if !node.Replica { // Make sure node connection is node a replica for inserts
 		goto ok
 	} else {
@@ -847,7 +847,6 @@ ok:
 				return
 			}
 
-			log.Println("lol2")
 			node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Pick another node, not the current one we have selected prior
 
 			if fmt.Sprintf("%s:%d", node.Node.Host, node.Node.Port) == fmt.Sprintf("%s:%d", currentNode.Node.Host, currentNode.Node.Port) { // To not retry same node
