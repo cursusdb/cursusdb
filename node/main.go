@@ -984,7 +984,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				if err != nil {
 					// Only error returned is a 4003 which means cannot insert nested object
 					response["statusCode"] = strings.Split(err.Error(), " ")[0]
-					response["message"] = strings.Split(err.Error(), " ")[1]
+					response["message"] = strings.Join(strings.Split(err.Error(), " ")[1:], " ")
 					r, _ := json.Marshal(response)
 					text.PrintfLine(string(r))
 					continue
@@ -1032,11 +1032,11 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 	}
 
 	if strings.Contains(string(jsonStr), "[{\"") {
-		return errors.New("nested JSON objects not permitted")
+		return errors.New(fmt.Sprintf("%d Nested JSON objects not permitted", 4003))
 	} else if strings.Contains(string(jsonStr), ": {\"") {
-		return errors.New("nested JSON objects not permitted")
+		return errors.New(fmt.Sprintf("%d Nested JSON objects not permitted", 4003))
 	} else if strings.Contains(string(jsonStr), ":{\"") {
-		return errors.New("nested JSON objects not permitted")
+		return errors.New(fmt.Sprintf("%d Nested JSON objects not permitted", 4003))
 	}
 
 	doc := make(map[string]interface{})

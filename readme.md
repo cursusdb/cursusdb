@@ -376,7 +376,7 @@ delete user USERNAME;
 - ``4000`` Unmarsharable JSON insert
 - ``4001`` Missing action
 - ``4002`` None existent action
-- ``4003`` Nested JSON object cannot be inserted
+- ``4003`` Nested JSON objects not permitted
 - ``4004`` Document already exists
 - ``4005`` Invalid command/query
 - ``4006`` From is required

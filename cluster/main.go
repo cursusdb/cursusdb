@@ -813,7 +813,7 @@ query:
 	rand.Seed(time.Now().UnixNano())
 
 	node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Select a random node that is not a replica
-
+	log.Println("lol")
 	if !node.Replica { // Make sure node connection is node a replica for inserts
 		goto ok
 	} else {
@@ -838,25 +838,28 @@ ok:
 			nodeRetries -= 1
 			currentNode := node
 
-			if len(cursus.Config.Nodes) >= 2 { // if more than or equal to 2 configured nodes we will compare to see
+			goto findNode
+
+		findNode:
+			if nodeRetries == -1 {
+				node.Ok = false
+				connection.Text.PrintfLine("%d No node was available for insert.", 104)
+				return
+			}
+
+			log.Println("lol2")
+			node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Pick another node, not the current one we have selected prior
+
+			if fmt.Sprintf("%s:%d", node.Node.Host, node.Node.Port) == fmt.Sprintf("%s:%d", currentNode.Node.Host, currentNode.Node.Port) { // To not retry same node
+				nodeRetries -= 1
 				goto findNode
-
-			findNode:
-				node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Pick another node, not the current one we have selected prior
-
-				if fmt.Sprintf("%s:%d", node.Node.Host, node.Node.Port) == fmt.Sprintf("%s:%d", currentNode.Node.Host, currentNode.Node.Port) { // To not retry same node
-					goto findNode
-				} else {
-					goto query
-				}
 			} else {
 				goto query
 			}
-
 		} else {
-			connection.Text.PrintfLine("%d No node was available for insert.", 104)
-			return
+			goto query
 		}
+
 	}
 
 	if strings.HasPrefix(response, "100") {
@@ -1038,6 +1041,7 @@ query:
 	line, err := n.Text.ReadLine()
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			n.Ok = false
 			if len(n.Node.Replicas) == 0 {
 				retriesGeneral -= retriesGeneral
 
@@ -1050,6 +1054,7 @@ query:
 				goto unavailable
 			}
 		} else if errors.Is(err, io.EOF) {
+			n.Ok = false
 			if len(n.Node.Replicas) == 0 {
 				retriesGeneral -= retriesGeneral
 
@@ -1058,6 +1063,7 @@ query:
 				}
 				goto unavailable
 			} else {
+				n.Ok = false
 				goto unavailable
 			}
 		}
