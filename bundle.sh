@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=v1.9.92
+VERSION=v1.9.93
 
 echo "Bundling cluster and node zip and tars into /bin in each node and cluster directory."
 

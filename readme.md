@@ -53,10 +53,7 @@ imagine you insert this object into a users collection:
 
 ```insert into users({"username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]})```
 
-```
-{"insert":{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90", "username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]},"message":"Document inserted","statusCode":2000}
-
-```
+```{"insert":{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90", "username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]},"message":"Document inserted","statusCode":2000}```
 You can see username and email are set up to be unique using the suffixed ``!``. If CursusDB finds a user with that email or username you'll get back a 4004 error which means document already exists.
 
 Now lets say this user can have many posts.
