@@ -2188,7 +2188,7 @@ func (curode *Curode) AutomaticBackup() {
 			}
 
 			if time.Now().After(f) {
-				f = time.Now().Add(time.Minute * time.Duration(curode.Config.AutomaticBackupTime))
+				f = time.Now().Add(time.Hour * time.Duration(curode.Config.AutomaticBackupTime))
 				sc <- 0
 				time.Sleep(time.Nanosecond * 1000000)
 			} else {
@@ -2216,7 +2216,7 @@ func (curode *Curode) AutomaticBackup() {
 				}
 
 				for _, backup := range backups {
-					if backup.ModTime().After(time.Now().Add(time.Minute * time.Duration(curode.Config.AutomaticBackupCleanupDays))) {
+					if backup.ModTime().After(time.Now().Add((time.Hour * time.Duration(24)) * time.Duration(curode.Config.AutomaticBackupCleanupDays))) {
 						e := os.Remove(fmt.Sprintf("%s/backups/%s", workingDir, backup.Name()))
 						if e != nil {
 							curode.Printl(fmt.Sprintf("%d Could not remove .cdat backup %s %s", 209, backup.Name(), err.Error()), "ERROR")
