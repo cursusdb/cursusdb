@@ -40,7 +40,40 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 ![drawing32.png](images/drawing32.png)
 
 ## Docker
-https://hub.docker.com/repositories/cursusdb
+https://hub.docker.com/repositories/cursusdb (SOON)
+
+## Document Expectation & Document Relation
+CursusDB expects simple JSON objects. For example take this user object:
+
+```{"username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]}```
+
+This is an object CursusDB likes.
+
+imagine you insert this object into a users collection:
+
+```insert into users({"username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]})```
+
+You can see username and email are setup to be unique. If CursusDB finds a user with that email or username you'll get back a 4004 error which means document already exists.
+
+Now lets say this user can have many posts.
+We will create a posts collection with the first post containing the users $id we created.
+
+```insert into posts({"title": "First Post", "body": "This is a test post", "userId": "17cc0a83-f78e-4cb2-924f-3a194dedec90", "createdOn": 1703626015})```
+
+As you can see we sorta just related data so now it's fairly easy to query the database and say hey give me all the users posts like so:
+select * from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90";
+
+Remember how we had the createdOn as a unix timestamp on our posts documents? Awesome we can sort all the posts and paginate them!
+
+Skipping 10 and grabbing 10
+select 10,10 from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90" order by createdOn desc;
+
+Let`s say we want to sort the posts by title alphabetically:
+
+```select * from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90" order by title asc;```
+
+This is how data should be related on CursusDB either a user has many posts or lets say a user has one account profile well same thing just repeat the process.
+
 
 ## Cluster & Node Building & Initial Setup
 Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
@@ -541,3 +574,4 @@ last varchar(255),
 age int,
 active BOOLEAN
 );``
+
