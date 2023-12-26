@@ -186,7 +186,7 @@ func main() {
 		}
 
 		if curode.Config.Logging {
-			curode.LogMu = &sync.Mutex{} // Cluster log mutex
+			curode.LogMu = &sync.Mutex{} // Cluster node log mutex
 			curode.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
 			if err != nil {
 				fmt.Println("main(): ", "Could not open log file - ", err.Error())
