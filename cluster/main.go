@@ -821,7 +821,8 @@ query:
 	}
 
 ok:
-
+	node.Mu.Lock()
+	defer node.Mu.Unlock()
 	node.Text.PrintfLine("%s", string(jsonString)) // Send the query over
 	if !cursus.Config.TLSNode {
 		node.Conn.SetReadDeadline(time.Now().Add(time.Second * 2))
@@ -838,9 +839,14 @@ ok:
 			currentNode := node
 
 			if len(cursus.Config.Nodes) >= 2 { // if more than or equal to 2 configured nodes we will compare to see
-				if fmt.Sprintf("%s:%d", node.Node.Host, node.Node.Port) == fmt.Sprintf("%s:%d", currentNode.Node.Host, currentNode.Node.Port) { // To not retry same node
-					node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Pick another node, not the current one we have selected prior
+				goto findNode
 
+			findNode:
+				node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Pick another node, not the current one we have selected prior
+
+				if fmt.Sprintf("%s:%d", node.Node.Host, node.Node.Port) == fmt.Sprintf("%s:%d", currentNode.Node.Host, currentNode.Node.Port) { // To not retry same node
+					goto findNode
+				} else {
 					goto query
 				}
 			} else {
@@ -1016,6 +1022,7 @@ func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGro
 	defer n.Mu.Unlock()
 
 	retries := len(n.Node.Replicas) // retry a node replica
+	retriesGeneral := 10
 
 	var attemptedReplicas []string
 
@@ -1031,12 +1038,39 @@ query:
 	line, err := n.Text.ReadLine()
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			if len(n.Node.Replicas) == 0 {
+				retriesGeneral -= retriesGeneral
 
-			goto unavailable
+				if retriesGeneral > 0 {
+					goto query
+				}
+
+				goto unavailable
+			} else {
+				goto unavailable
+			}
 		} else if errors.Is(err, io.EOF) {
+			if len(n.Node.Replicas) == 0 {
+				retriesGeneral -= retriesGeneral
+
+				if retriesGeneral > 0 {
+					goto query
+				}
+				goto unavailable
+			} else {
+				goto unavailable
+			}
+		}
+		if len(n.Node.Replicas) == 0 {
+			retriesGeneral -= retriesGeneral
+
+			if retriesGeneral > 0 {
+				goto query
+			}
+			goto unavailable
+		} else {
 			goto unavailable
 		}
-		goto unavailable
 	}
 
 	mu.Lock()
