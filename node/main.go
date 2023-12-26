@@ -72,20 +72,22 @@ type Curode struct {
 
 // Config is the CursusDB cluster config struct
 type Config struct {
-	Replicas            []Replica `yaml:"replicas"`                          // Replicas are replica of this current node
-	TLSCert             string    `yaml:"tls-cert"`                          // TLS cert path
-	TLSKey              string    `yaml:"tls-key"`                           // TLS cert key
-	Host                string    `yaml:"host"`                              // Node host i.e 0.0.0.0 usually
-	TLS                 bool      `default:"false" yaml:"tls"`               // Use TLS?
-	Port                int       `yaml:"port"`                              // Node port
-	Key                 string    `yaml:"key"`                               // Key for a cluster to communicate with the node and also used to resting data.
-	MaxMemory           uint64    `yaml:"max-memory"`                        // Default 10240MB = 10 GB (1024 * 10)
-	LogMaxLines         int       `yaml:"log-max-lines"`                     // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
-	Logging             bool      `default:"false" yaml:"logging"`           // Log to file ?
-	ReplicationSyncTime int       `yaml:"replication-sync-time"`             // in minutes default is every 10 minutes
-	TLSReplication      bool      `default:"false" yaml:"tls-replication"`   // If your cluster node replicas are running TLS then configure this to true
-	AutomaticBackups    bool      `default:"false" yaml:"automatic-backups"` // If for some reason a .cdat gets corrupt you can choose to have the system save a state of your .cdat file every set n amount of time.  (default is every 2 hours to make a backup of your nodes data under /backups directory files are named like so .cdat_YYMMDDHHMMSS in your set timezone
-	Timezone            string    `default:"default" yaml:"timezone"`        // i.e America/Chicago default is local system time
+	Replicas                   []Replica `yaml:"replicas"`                          // Replicas are replica of this current node
+	TLSCert                    string    `yaml:"tls-cert"`                          // TLS cert path
+	TLSKey                     string    `yaml:"tls-key"`                           // TLS cert key
+	Host                       string    `yaml:"host"`                              // Node host i.e 0.0.0.0 usually
+	TLS                        bool      `default:"false" yaml:"tls"`               // Use TLS?
+	Port                       int       `yaml:"port"`                              // Node port
+	Key                        string    `yaml:"key"`                               // Key for a cluster to communicate with the node and also used to resting data.
+	MaxMemory                  uint64    `yaml:"max-memory"`                        // Default 10240MB = 10 GB (1024 * 10)
+	LogMaxLines                int       `yaml:"log-max-lines"`                     // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
+	Logging                    bool      `default:"false" yaml:"logging"`           // Log to file ?
+	ReplicationSyncTime        int       `yaml:"replication-sync-time"`             // in minutes default is every 10 minutes
+	TLSReplication             bool      `default:"false" yaml:"tls-replication"`   // If your cluster node replicas are running TLS then configure this to true
+	AutomaticBackups           bool      `default:"false" yaml:"automatic-backups"` // If for some reason a .cdat gets corrupt you can choose to have the system save a state of your .cdat file every set n amount of time.  (default is every 8 hours(480 minutes) to make a backup of your nodes data under /backups directory(which the system will create inside your binary executable location) files are named like so .cdat_YYMMDDHHMMSS in your set timezone
+	AutomaticBackupCleanupTime int       `yaml:"automatic-backup-cleanup-time"`     // Clean up old .cdat backups that are n amount days old only used if AutomaticBackups is set true default is 30 days
+	Timezone                   string    `default:"default" yaml:"timezone"`        // i.e America/Chicago default is local system time
+
 }
 
 // Replica is a cluster node that current node data will be replicated/synced to
@@ -139,6 +141,7 @@ func main() {
 		curode.Config.Host = "0.0.0.0"         // Set default host of 0.0.0.0
 		curode.Config.LogMaxLines = 1000       // truncate at 1000 lines as default
 		curode.Config.ReplicationSyncTime = 10 // default of every 10 minutes
+		curode.Config.AutomaticCleanup = 30    // Set default of 30 days in which to delete old backed up .cdat files
 
 		fmt.Println("Node key is required.  A node key is shared with your cluster and will encrypt all your data at rest and allow for only connections that contain a correct Key: header value matching the hashed key you provide.")
 		fmt.Print("key> ")

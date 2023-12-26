@@ -100,6 +100,7 @@ type Config struct {
 	LogMaxLines    int      `yaml:"log-max-lines"`                 // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
 	JoinResponses  bool     `default:"true" yaml:"join-responses"` // Joins all nodes results limiting at n
 	Logging        bool     `default:"false" yaml:"logging"`       // Log to file ?
+	Timezone       string   `default:"default" yaml:"timezone"`    // i.e America/Chicago default is local system time
 }
 
 // Node is a cluster node
