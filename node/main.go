@@ -87,7 +87,7 @@ type Config struct {
 	AutomaticBackups           bool      `default:"false" yaml:"automatic-backups"`        // If for some reason a .cdat gets corrupt you can choose to have the system save a state of your .cdat file every set n amount of time.  (default is every 8 hours(480 minutes) to make a backup of your nodes data under /backups directory(which the system will create inside your binary executable location) files are named like so .cdat_YYMMDDHHMMSS in your set timezone
 	AutomaticBackupCleanup     bool      `default:"false" yaml:"automatic-backup-cleanup"` // If set true node will clean up backups that are older than AutomaticBackupCleanupTime days old
 	AutomaticBackupCleanupTime int       `yaml:"automatic-backup-cleanup-time"`            // Clean up old .cdat backups that are n amount days old only used if AutomaticBackups is set true default is 30 days
-	Timezone                   string    `default:"default" yaml:"timezone"`               // i.e America/Chicago default is local system time
+	Timezone                   string    `default:"Local" yaml:"timezone"`                 // i.e America/Chicago default is local system time
 
 }
 
@@ -137,12 +137,13 @@ func main() {
 		// Defer close node config
 		defer nodeConfigFile.Close()
 
-		curode.Config.Port = 7682              // Set default CursusDB node port
-		curode.Config.MaxMemory = 10240        // Max memory 10GB default
-		curode.Config.Host = "0.0.0.0"         // Set default host of 0.0.0.0
-		curode.Config.LogMaxLines = 1000       // truncate at 1000 lines as default
-		curode.Config.ReplicationSyncTime = 10 // default of every 10 minutes
-		curode.Config.AutomaticCleanup = 30    // Set default of 30 days in which to delete old backed up .cdat files
+		curode.Config.Port = 7682        // Set default CursusDB node port
+		curode.Config.MaxMemory = 10240  // Max memory 10GB default
+		curode.Config.Host = "0.0.0.0"   // Set default host of 0.0.0.0
+		curode.Config.LogMaxLines = 1000 // truncate at 1000 lines as default
+		curode.Config.Timezone = "Local"
+		curode.Config.ReplicationSyncTime = 10        // default of every 10 minutes
+		curode.Config.AutomaticBackupCleanupTime = 30 // Set default of 30 days in which to delete old backed up .cdat files
 
 		fmt.Println("Node key is required.  A node key is shared with your cluster and will encrypt all your data at rest and allow for only connections that contain a correct Key: header value matching the hashed key you provide.")
 		fmt.Print("key> ")
@@ -555,16 +556,29 @@ func (curode *Curode) Printl(data string, level string) {
 				return
 			}
 
+			tz, err := time.LoadLocation(curode.Config.Timezone)
+			if err != nil {
+				curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error())))
+				return
+			}
+
 			curode.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
 			if err != nil {
 				return
 			}
-			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), fmt.Sprintf("Printl(): Log truncated at %d", curode.Config.LogMaxLines))))
-			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
+			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().In(tz).Format(time.RFC822), fmt.Sprintf("Log truncated at %d", curode.Config.LogMaxLines))))
+			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().In(tz).Format(time.RFC822), data)))
 		} else {
-			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
+			tz, err := time.LoadLocation(curode.Config.Timezone)
+			if err != nil {
+				fmt.Println(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error()))
+				return
+			}
+
+			curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().In(tz).Format(time.RFC822), data)))
 		}
 	} else {
+
 		log.Println(fmt.Sprintf("[%s] %s", level, data))
 	}
 

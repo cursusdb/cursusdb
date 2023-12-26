@@ -100,7 +100,7 @@ type Config struct {
 	LogMaxLines    int      `yaml:"log-max-lines"`                 // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
 	JoinResponses  bool     `default:"true" yaml:"join-responses"` // Joins all nodes results limiting at n
 	Logging        bool     `default:"false" yaml:"logging"`       // Log to file ?
-	Timezone       string   `default:"default" yaml:"timezone"`    // i.e America/Chicago default is local system time
+	Timezone       string   `default:"Local" yaml:"timezone"`      // i.e America/Chicago default is local system time.  On the cluster we use the Timezone for logging purposes.
 }
 
 // Node is a cluster node
@@ -137,7 +137,7 @@ func main() {
 		cursus.Config.NodeReaderSize = 2097152 // Default node reader size of 2097152 bytes (2MB).. Pretty large json response
 		cursus.Config.Host = "0.0.0.0"         // Default host of 0.0.0.0
 		cursus.Config.LogMaxLines = 1000       // Default of 1000 lines then truncate/clear
-
+		cursus.Config.Timezone = "Local"
 		// Get initial database user credentials
 		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
 		fmt.Print("username> ")
@@ -364,14 +364,26 @@ func (cursus *Cursus) Printl(data string, level string) {
 				return
 			}
 
-			cursus.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
+			tz, err := time.LoadLocation(cursus.Config.Timezone)
+			if err != nil {
+				cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error())))
+				return
+			}
+
+			cursus.LogFile, err = os.OpenFile("cursus.log", os.O_CREATE|os.O_RDWR, 0777)
 			if err != nil {
 				return
 			}
-			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), fmt.Sprintf("Log truncated at %d", cursus.Config.LogMaxLines))))
-			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
+			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().In(tz).Format(time.RFC822), fmt.Sprintf("Log truncated at %d", cursus.Config.LogMaxLines))))
+			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().In(tz).Format(time.RFC822), data)))
 		} else {
-			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().UTC(), data)))
+			tz, err := time.LoadLocation(cursus.Config.Timezone)
+			if err != nil {
+				fmt.Println(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error()))
+				return
+			}
+
+			cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s\r\n", level, time.Now().In(tz).Format(time.RFC822), data)))
 		}
 	} else {
 		log.Println(fmt.Sprintf("[%s] %s", level, data))
