@@ -53,6 +53,10 @@ imagine you insert this object into a users collection:
 
 ```insert into users({"username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]})```
 
+```
+{"insert":{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90", "username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]},"message":"Document inserted","statusCode":2000}
+
+```
 You can see username and email are set up to be unique using the suffixed ``!``. If CursusDB finds a user with that email or username you'll get back a 4004 error which means document already exists.
 
 Now lets say this user can have many posts.
@@ -61,12 +65,14 @@ We will create a posts collection with the first post containing the users $id w
 ```insert into posts({"title": "First Post", "body": "This is a test post", "userId": "17cc0a83-f78e-4cb2-924f-3a194dedec90", "createdOn": 1703626015})```
 
 As you can see we sorta just related data so now it's fairly easy to query the database and say hey give me all the users posts like so:
-select * from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90";
+
+```select * from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90";```
 
 Remember how we had the createdOn as a unix timestamp on our posts documents? Awesome we can sort all the posts and paginate them!
 
 Skipping 10 and grabbing 10
-select 10,10 from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90" order by createdOn desc;
+
+```select 10,10 from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90" order by createdOn desc;```
 
 Let`s say we want to sort the posts by title alphabetically:
 
