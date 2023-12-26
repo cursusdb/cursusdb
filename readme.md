@@ -96,6 +96,8 @@ timezone: Local
 - node-reader-size - the max size of a response from a node
 - join-responses - join all node responses and limit based on provided n
 - logging - start logging to file
+- timezone - Default is Local but format allowed is for example America/Toronto
+
 
 Let's put in under nodes a local node we will start shortly.
 ``` 
