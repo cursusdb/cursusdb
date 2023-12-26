@@ -800,7 +800,13 @@ query:
 	rand.Seed(time.Now().UnixNano())
 
 	for i := 0; i < len(cursus.NodeConnections); i++ {
+		currentNode := node
 		node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Select a random node that is not a replica
+
+		if node.Conn.RemoteAddr().String() == currentNode.Conn.RemoteAddr().String() { // To not retry same node
+			goto query
+		}
+
 		if !node.Replica {
 			goto ok
 		}
