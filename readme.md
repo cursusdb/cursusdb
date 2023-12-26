@@ -400,7 +400,7 @@ logging: true
 Within your yaml configs you can set ``log-max-lines`` this option will tell either node or cluster when to truncate(clear up) the log file(s).
 
 ### How are logs are formatted?
-[LEVEL][UTC DATETIME] DATA
+[LEVEL][YOUR CONFIGURED TZ RFC822 DATE] DATA
 
 Logs can have either level:
 - ERROR
