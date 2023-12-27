@@ -214,7 +214,7 @@ Using curush or native client
 ## Get collections
 ```
 curush>collections;
-[{"127.0.0.1:7682": {"collections":["losers","winners","users"]}}]```
+[{"127.0.0.1:7682": {"collections":["losers","winners","users"]}}]
 ```
 
 ## Query Language
