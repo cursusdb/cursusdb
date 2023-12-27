@@ -1460,7 +1460,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					query = query[:strings.Index(query, "order by ")]
 				}
 
-				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
+				qsreg := regexp.MustCompile("'.+'|\".+\"|\\S+")
+
+				querySplit := qsreg.FindAllString(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""), -1)
 
 				if !strings.Contains(query, "where ") {
 					body := make(map[string]interface{})
@@ -1536,6 +1538,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						}
 					}
 
+					log.Println(body)
+
 					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {
 						text.PrintfLine(err.Error())
@@ -1554,10 +1558,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["action"] = querySplit[0]
 					body["limit"] = querySplit[1]
 					body["collection"] = querySplit[2]
+					body["skip"] = 0
 					body["conditions"] = []string{"*"}
-					body["lock"] = false // lock on read.  There can be many clusters reading at one time.
-					body["sort-pos"] = sortPos
-					body["sort-key"] = sortKey
 
 					var interface1 []interface{}
 					var interface2 []interface{}
@@ -1566,10 +1568,12 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["keys"] = interface1
 					body["oprs"] = interface2
 					body["values"] = interface3
-					body["skip"] = 0
+					body["sort-pos"] = sortPos
+					body["sort-key"] = sortKey
 
 					for k, s := range andOrSplit {
-						querySplitNested := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), " ")
+						re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
+						querySplitNested := re.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), "where", ""), "from", "")), -1)
 
 						if len(querySplitNested) < 3 {
 							text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
@@ -1578,7 +1582,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						}
 
 						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
-
 						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
 						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
 
@@ -1650,46 +1653,47 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 					}
 
-					if body["limit"].(string) != "count" {
+					if len(body["values"].([]interface{})) == 0 {
+						text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 506))
+						query = ""
+						continue
+					}
 
-						if body["limit"].(string) == "*" {
-							body["limit"] = -1
-						} else if strings.Contains(body["limit"].(string), ",") {
-							if len(strings.Split(body["limit"].(string), ",")) == 2 {
-								body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
-								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
-									query = ""
-									continue
-								}
-
-								if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
-									body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
-									if err != nil {
-										text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
-										query = ""
-										continue
-									}
-								} else {
-									body["limit"] = -1
-								}
-							} else {
-								text.PrintfLine("%d Invalid limiting value.", 504)
-								query = ""
-								continue
-							}
-						} else {
-							body["limit"], err = strconv.Atoi(body["limit"].(string))
+					if body["limit"].(string) == "*" {
+						body["limit"] = -1
+					} else if strings.Contains(body["limit"].(string), ",") {
+						if len(strings.Split(body["limit"].(string), ",")) == 2 {
+							var err error
+							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
 								query = ""
 								continue
 							}
-						}
 
+							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
+								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									query = ""
+									continue
+								}
+							} else {
+								body["limit"] = -1
+							}
+						} else {
+							text.PrintfLine("%d Invalid limiting value.", 504)
+							query = ""
+							continue
+						}
 					} else {
-						body["limit"] = -2
-						body["count"] = true
+						var err error
+						body["limit"], err = strconv.Atoi(body["limit"].(string))
+						if err != nil {
+							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+							query = ""
+							continue
+						}
 					}
 
 					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)

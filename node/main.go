@@ -1159,6 +1159,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 					}
 				}
 
+				log.Println(vs)
 				vType := fmt.Sprintf("%T", vs.([]interface{})[m])
 
 				_, ok := d[k.(string)]
@@ -1426,6 +1427,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 								if oprs.([]interface{})[m] == "like" {
 									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
 									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
+									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "(MISSING)", "")
 									vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
 									vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
 									vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
