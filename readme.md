@@ -42,6 +42,14 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 ## Docker
 https://hub.docker.com/repositories/cursusdb (SOON)
 
+## Native Clients
+- Shell https://github.com/cursusdb/curush ``STABLE``
+- GO https://github.com/cursusdb/cursusdb-go ``STABLE``
+- JAVA https://github.com/cursusdb/cursusdb-java ``IN TESTING``
+- CSHARP https://github.com/cursusdb/cursusdb-cs ``IN TESTING``
+- NODE.JS https://github.com/cursusdb/cursusdb-node ``IN TESTING``
+- PYTHON https://github.com/cursusdb/cursusdb-py ``IN PROGRESS``
+
 ## Document Expectation & Document Relation
 CursusDB expects simple JSON objects. For example take this user object:
 
