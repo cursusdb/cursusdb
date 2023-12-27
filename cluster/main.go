@@ -1183,6 +1183,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					goto continueOn // User not allowed, ret
 				} else if strings.HasPrefix(query, "select") {
 					goto allowed // Goto allowed
+				} else if strings.HasPrefix(query, "collections") {
+					goto allowed // Goto allowed
 				}
 			case "RW":
 				goto allowed // Goto allowed
@@ -1195,6 +1197,19 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 		allowed:
 
 			switch {
+			// query starts with collections
+			case strings.HasPrefix(query, "collections"):
+				body := make(map[string]interface{})
+				body["action"] = "collections"
+				err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
+				if err != nil {
+					text.PrintfLine(err.Error())
+					query = ""
+					continue
+				}
+
+				query = ""
+				continue
 			// Query starts with insert
 			case strings.HasPrefix(query, "insert "):
 				retries := 3 // how many times to retry if node is not available for uniqueness isnt met

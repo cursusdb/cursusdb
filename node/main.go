@@ -925,6 +925,16 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 		action, ok := request["action"] // An action is insert, select, delete, ect..
 		if ok {
 			switch {
+			case strings.EqualFold(action.(string), "collections"):
+				var collections []string
+				for coll, _ := range curode.Data.Map {
+					collections = append(collections, coll)
+				}
+
+				response["collections"] = collections
+				r, _ := json.Marshal(response)
+				text.PrintfLine(string(r))
+				continue
 			case strings.EqualFold(action.(string), "delete"):
 
 				results := curode.Delete(request["collection"].(string), request["keys"], request["values"], int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"], request["lock"].(bool), request["conditions"].([]interface{}), request["sort-pos"].(string), request["sort-key"].(string))
