@@ -211,6 +211,11 @@ Using curush or native client
 > pong;
 ```
 
+## Get collections
+```
+curush>collections;
+[{"127.0.0.1:7682": {"collections":["losers","winners","users"]}}]```
+```
 
 ## Query Language
 Case-sensitive.. Keep it lowercase as the example.
