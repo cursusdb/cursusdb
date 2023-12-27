@@ -1234,11 +1234,213 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 				}
 
-				if strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"count":`) {
+				// Check reserved words based on https://go.dev/ref/spec and CursusDB system reserved words
+				switch {
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"count":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"break":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"case":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"chan":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"const":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"continue":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"default":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"defer":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"else":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"fallthrough":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"for":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"func":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"go":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"go":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"goto":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"if":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"import":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"interface":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"map":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"package":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"range":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"return":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"select":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"struct":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"switch":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"type":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"var":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"false":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"true":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint8":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint16":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint32":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint64":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int8":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int16":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int32":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int64":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"float32":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"float64":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"complex64":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"complex128":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"byte":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"rune":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uintptr":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"string":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"make":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"new":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"==":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					query = ""
+					continue
+				default:
+					goto keyOk
 				}
+
+			keyOk:
 
 				// Checking if there are any !s to process
 				var indexed = regexp.MustCompile(`"([^"]+!)"`) // "email!":
@@ -1572,8 +1774,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["sort-key"] = sortKey
 
 					for k, s := range andOrSplit {
-						re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
-						querySplitNested := re.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), "where", ""), "from", "")), -1)
+						querySplitNested := qsreg.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSuffix(s, ";"), "where", ""), "from", "")), -1)
 
 						if len(querySplitNested) < 3 {
 							text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
@@ -1583,6 +1784,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						body["keys"] = append(body["keys"].([]interface{}), querySplitNested[len(querySplitNested)-3])
 						body["oprs"] = append(body["oprs"].([]interface{}), querySplitNested[len(querySplitNested)-2])
+
 						body["lock"] = false // lock on read.  There can be many clusters reading at one time.
 
 						switch {
@@ -1729,7 +1931,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				}
 
 				if !strings.Contains(query, "where ") {
-					querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
+					qsreg := regexp.MustCompile("'.+'|\".+\"|\\S+")
+
+					querySplit := qsreg.FindAllString(strings.ReplaceAll(strings.ReplaceAll(query, "in", ""), "from", ""), -1)
+					//querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
 
 					// update 1 in users where name == 'jackson' && age == 44 set name = 'alex', age = 28;
 
@@ -1882,8 +2087,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 
 				} else {
+					qsreg := regexp.MustCompile("'.+'|\".+\"|\\S+")
 
-					querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(query, "in", ""))), " "), "from", ""), " ")
+					//querySplit := qsreg.FindAllString(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSuffix(query, ";"), "in", ""), "from", ""), -1)
+					querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.TrimSuffix(query, ";"), "in", ""))), " "), "from", ""), " ")
 
 					// update 1 in users where name == 'jackson' && age == 44 set name = 'alex', age = 28;
 					var setStartIndex uint
@@ -1898,11 +2105,11 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["limit"] = querySplit[1]
 					body["skip"] = 0
 
-					if len(querySplit) < 3 {
-						text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
-						query = ""
-						continue
-					}
+					//if len(querySplit) < 3 {
+					//	text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
+					//	query = ""
+					//	continue
+					//}
 
 					body["collection"] = querySplit[2]
 					if !strings.Contains(query, "where ") {
@@ -1991,8 +2198,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					andOrSplit := r.Split(strings.Join(querySplit[:setStartIndex], " "), -1)
 
 					for k, s := range andOrSplit {
-						re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
-						querySplitNested := re.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), "where", ""), "from", "")), -1)
+						querySplitNested := qsreg.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSuffix(s, ";"), "where", ""), "from", "")), -1)
 
 						if len(querySplitNested) < 3 {
 							text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
@@ -2173,7 +2379,11 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					query = query[:strings.Index(query, "order by ")]
 				}
 
-				querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
+				qsreg := regexp.MustCompile("'.+'|\".+\"|\\S+")
+
+				querySplit := qsreg.FindAllString(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""), -1)
+
+				//querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
 
 				if !strings.Contains(query, "where ") {
 					body := make(map[string]interface{})
@@ -2269,9 +2479,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["sort-key"] = sortKey
 
 					for k, s := range andOrSplit {
-						re := regexp.MustCompile(`[^\s";]+|"([^";]*)"|[^\s';]+|'([^';]*)"`)
-						querySplitNested := re.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "where", ""), "from", ""))), " "), "from", ""), "where", ""), "from", "")), -1)
-
+						querySplitNested := qsreg.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSuffix(s, ";"), "where", ""), "from", "")), -1)
 						if len(querySplitNested) < 3 {
 							text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
 							query = ""
