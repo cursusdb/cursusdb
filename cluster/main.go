@@ -1287,11 +1287,13 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								continue
 							}
 
-							for _, a := range arr {
-								body["values"] = append(body["values"].([]interface{}), a)
-								body["keys"] = append(body["keys"].([]interface{}), strings.TrimSpace(strings.TrimSuffix(indx[1], "!"))) // add key for query
-								body["oprs"] = append(body["oprs"].([]interface{}), "==")
+							for j, a := range arr {
 
+								body["values"] = append(body["values"].([]interface{}), a)
+								if j == 0 {
+									body["keys"] = append(body["keys"].([]interface{}), strings.TrimSpace(strings.TrimSuffix(indx[1], "!"))) // add key for query
+									body["oprs"] = append(body["oprs"].([]interface{}), "==")
+								}
 							}
 
 							res := cursus.QueryNodesRet(body)
@@ -1537,8 +1539,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							continue
 						}
 					}
-
-					log.Println(body)
 
 					err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 					if err != nil {

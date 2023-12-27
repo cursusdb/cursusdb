@@ -1159,7 +1159,6 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 					}
 				}
 
-				log.Println(vs)
 				vType := fmt.Sprintf("%T", vs.([]interface{})[m])
 
 				_, ok := d[k.(string)]
