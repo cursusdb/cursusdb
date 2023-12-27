@@ -50,6 +50,11 @@ https://hub.docker.com/repositories/cursusdb (SOON)
 - NODE.JS https://github.com/cursusdb/cursusdb-node ``IN TESTING``
 - PYTHON https://github.com/cursusdb/cursusdb-py ``IN PROGRESS``
 
+## Prebuilt Binaries
+You can find the latest stable release prebuilt binaries at
+https://cursusdb.com/downloads
+
+
 ## Document Expectation & Document Relation
 CursusDB expects simple JSON objects. For example take this user object:
 
