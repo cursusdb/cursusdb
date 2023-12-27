@@ -217,6 +217,22 @@ curush>collections;
 [{"127.0.0.1:7682": {"collections":["losers","winners","users"]}}]
 ```
 
+### Deleting collections?
+When you remove every document from a collection the collection is removed i.e
+
+``` 
+delete * from losers;
+```
+
+``` 
+..."1 Document(s) deleted successfully.","statusCode":2000}}]
+```
+
+```
+curush>collections;
+[{"127.0.0.1:7682": {"collections":["winners","users"]}}]
+```
+
 ## Query Language
 Case-sensitive.. Keep it lowercase as the example.
 
