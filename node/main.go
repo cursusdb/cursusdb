@@ -74,23 +74,23 @@ type Curode struct {
 
 // Config is the CursusDB cluster config struct
 type Config struct {
-	Replicas                   []Replica `yaml:"replicas"`                                 // Replicas are replica of this current node
-	TLSCert                    string    `yaml:"tls-cert"`                                 // TLS cert path
-	TLSKey                     string    `yaml:"tls-key"`                                  // TLS cert key
-	Host                       string    `yaml:"host"`                                     // Node host i.e 0.0.0.0 usually
-	TLS                        bool      `default:"false" yaml:"tls"`                      // Use TLS?
-	Port                       int       `yaml:"port"`                                     // Node port
-	Key                        string    `yaml:"key"`                                      // Key for a cluster to communicate with the node and also used to resting data.
-	MaxMemory                  uint64    `yaml:"max-memory"`                               // Default 10240MB = 10 GB (1024 * 10)
-	LogMaxLines                int       `yaml:"log-max-lines"`                            // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
-	Logging                    bool      `default:"false" yaml:"logging"`                  // Log to file ?
-	ReplicationSyncTime        int       `yaml:"replication-sync-time"`                    // in minutes default is every 10 minutes
-	TLSReplication             bool      `default:"false" yaml:"tls-replication"`          // If your cluster node replicas are running TLS then configure this to true
-	AutomaticBackups           bool      `default:"false" yaml:"automatic-backups"`        // If for some reason a .cdat gets corrupt you can choose to have the system save a state of your .cdat file every set n amount of time.  (default is every 8 hours(480 minutes) to make a backup of your nodes data under /backups directory(which the system will create inside your binary executable location) files are named like so .cdat_YYMMDDHHMMSS in your set timezone
-	AutomaticBackupTime        int       `yaml:"automatic-backup-time"`                    // Automatic node backup time.  Default is 8 (hours)
-	AutomaticBackupCleanup     bool      `default:"false" yaml:"automatic-backup-cleanup"` // If set true node will clean up backups that are older than AutomaticBackupCleanupTime days old
-	AutomaticBackupCleanupDays int       `yaml:"automatic-backup-cleanup-days"`            // Clean up old .cdat backups that are n amount days old only used if AutomaticBackups is set true default is 30 days
-	Timezone                   string    `default:"Local" yaml:"timezone"`                 // i.e America/Chicago default is local system time
+	Replicas                    []Replica `yaml:"replicas"`                                 // Replicas are replica of this current node
+	TLSCert                     string    `yaml:"tls-cert"`                                 // TLS cert path
+	TLSKey                      string    `yaml:"tls-key"`                                  // TLS cert key
+	Host                        string    `yaml:"host"`                                     // Node host i.e 0.0.0.0 usually
+	TLS                         bool      `default:"false" yaml:"tls"`                      // Use TLS?
+	Port                        int       `yaml:"port"`                                     // Node port
+	Key                         string    `yaml:"key"`                                      // Key for a cluster to communicate with the node and also used to resting data.
+	MaxMemory                   uint64    `yaml:"max-memory"`                               // Default 10240MB = 10 GB (1024 * 10)
+	LogMaxLines                 int       `yaml:"log-max-lines"`                            // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
+	Logging                     bool      `default:"false" yaml:"logging"`                  // Log to file ?
+	ReplicationSyncTime         int       `yaml:"replication-sync-time"`                    // in minutes default is every 10 minutes
+	TLSReplication              bool      `default:"false" yaml:"tls-replication"`          // If your cluster node replicas are running TLS then configure this to true
+	AutomaticBackups            bool      `default:"false" yaml:"automatic-backups"`        // If for some reason a .cdat gets corrupt you can choose to have the system save a state of your .cdat file every set n amount of time.  (default is every 8 hours(480 minutes) to make a backup of your nodes data under /backups directory(which the system will create inside your binary executable location) files are named like so .cdat_YYMMDDHHMMSS in your set timezone
+	AutomaticBackupTime         int       `yaml:"automatic-backup-time"`                    // Automatic node backup time.  Default is 8 (hours)
+	AutomaticBackupCleanup      bool      `default:"false" yaml:"automatic-backup-cleanup"` // If set true node will clean up backups that are older than AutomaticBackupCleanupTime days old
+	AutomaticBackupCleanupHours int       `yaml:"automatic-backup-cleanup-hours"`           // Clean up old .cdat backups that are n amount hours old only used if AutomaticBackups is set true default is 12 hours
+	Timezone                    string    `default:"Local" yaml:"timezone"`                 // i.e America/Chicago default is local system time
 
 }
 
@@ -145,9 +145,9 @@ func main() {
 		curode.Config.Host = "0.0.0.0"   // Set default host of 0.0.0.0
 		curode.Config.LogMaxLines = 1000 // truncate at 1000 lines as default
 		curode.Config.Timezone = "Local"
-		curode.Config.ReplicationSyncTime = 10        // default of every 10 minutes
-		curode.Config.AutomaticBackupCleanupDays = 30 // Set default of 30 days in which to delete old backed up .cdat files
-		curode.Config.AutomaticBackupTime = 8         // Automatically backup node data to backups folder every 8 hours if AutomaticBackups is enabled
+		curode.Config.ReplicationSyncTime = 10         // default of every 10 minutes
+		curode.Config.AutomaticBackupCleanupHours = 12 // Set default of 12 hours in which to delete old backed up .cdat files
+		curode.Config.AutomaticBackupTime = 60         // Automatically backup node data to backups folder every 1 hour by default if AutomaticBackups is enabled
 
 		fmt.Println("Node key is required.  A node key is shared with your cluster and will encrypt all your data at rest and allow for only connections that contain a correct Key: header value matching the hashed key you provide.")
 		fmt.Print("key> ")
@@ -2198,7 +2198,7 @@ func (curode *Curode) AutomaticBackup() {
 			}
 
 			if time.Now().After(f) {
-				f = time.Now().Add(time.Hour * time.Duration(curode.Config.AutomaticBackupTime))
+				f = time.Now().Add(time.Minute * time.Duration(curode.Config.AutomaticBackupTime))
 				sc <- 0
 				time.Sleep(time.Nanosecond * 1000000)
 			} else {
@@ -2226,7 +2226,7 @@ func (curode *Curode) AutomaticBackup() {
 				}
 
 				for _, backup := range backups {
-					if backup.ModTime().After(time.Now().Add((time.Hour * time.Duration(24)) * time.Duration(curode.Config.AutomaticBackupCleanupDays))) {
+					if backup.ModTime().After(time.Now().Add(time.Hour * time.Duration(curode.Config.AutomaticBackupCleanupHours))) {
 						e := os.Remove(fmt.Sprintf("%s/backups/%s", workingDir, backup.Name()))
 						if e != nil {
 							curode.Printl(fmt.Sprintf("%d Could not remove .cdat backup %s %s", 209, backup.Name(), err.Error()), "ERROR")

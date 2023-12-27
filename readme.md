@@ -28,7 +28,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - File logging and automatic log truncation based on ``log-max-lines`` config
 - Automatic reconnect of any lost node or node replica
 - Automatic node backups if ``automatic-backup`` within ``.curodeconfig`` is set to true
-- Automatic node backup clean up if ``automatic-backup-cleanup`` within ``.curodeconfig`` is set to true.  ``automatic-backup-cleanup-time`` is in days.
+- Automatic node backup clean up if ``automatic-backup-cleanup`` within ``.curodeconfig`` is set to true.
 - Automatic node recovery if data is corrupt if ``automatic-backup`` configured
 
 **There are no databases like MySQL let's say where you can have multiples.  A cluster is your database that spreads data across many nodes.**
