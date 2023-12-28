@@ -958,7 +958,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 					request["count"] = false
 				}
 
-				results := curode.Select(request["collection"].(string), request["keys"], request["values"], int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"], request["lock"].(bool), request["conditions"].([]interface{}), false, request["sort-pos"].(string), request["sort-key"].(string), request["count"].(bool))
+				results := curode.Select(request["collection"].(string), request["keys"], request["values"], int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"], request["lock"].(bool), request["conditions"].([]interface{}), false, request["sort-pos"].(string), request["sort-key"].(string), request["count"].(bool), false)
 				r, _ := json.Marshal(results)
 				text.PrintfLine(string(r))
 				continue
@@ -1082,7 +1082,7 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 }
 
 // Select is the node data select method
-func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}, del bool, sortPos string, sortKey string, count bool) []interface{} {
+func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}, del bool, sortPos string, sortKey string, count bool, update bool) []interface{} {
 	// sortPos = desc OR asc
 	// sortKey = createdAt for example a unix timestamp of 1703234712 or firstName with a value of Alex sorting will sort alphabetically
 
@@ -1137,6 +1137,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 			}
 
 			// add document to objects
+			if update {
+				d["$indx"] = i
+			}
+
 			objects = append(objects, d)
 
 			if del {
@@ -2033,22 +2037,34 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 			if slices.Contains(conditions, "&&") {
 				if conditionsMetDocument >= len(conditions) {
+					if update {
+						d["$indx"] = i
+					}
 					objects = append(objects, d)
 					if del {
 						tbd = append(tbd, int64(i))
 					}
 				} else if slices.Contains(conditions, "||") && conditionsMetDocument > 0 {
+					if update {
+						d["$indx"] = i
+					}
 					objects = append(objects, d)
 					if del {
 						tbd = append(tbd, int64(i))
 					}
 				}
 			} else if slices.Contains(conditions, "||") && conditionsMetDocument > 0 {
+				if update {
+					d["$indx"] = i
+				}
 				objects = append(objects, d)
 				if del {
 					tbd = append(tbd, int64(i))
 				}
 			} else if conditionsMetDocument > 0 && len(conditions) == 1 {
+				if update {
+					d["$indx"] = i
+				}
 				objects = append(objects, d)
 				if del {
 					tbd = append(tbd, int64(i))
@@ -2134,7 +2150,7 @@ cont:
 // Delete is the node data delete method
 func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}, sortPos string, sortKey string) []interface{} {
 	var deleted []interface{}
-	for _, doc := range curode.Select(collection, ks, vs, vol, skip, oprs, lock, conditions, true, sortPos, sortKey, false) {
+	for _, doc := range curode.Select(collection, ks, vs, vol, skip, oprs, lock, conditions, true, sortPos, sortKey, false, false) {
 		deleted = append(deleted, doc)
 	}
 
@@ -2144,23 +2160,29 @@ func (curode *Curode) Delete(collection string, ks interface{}, vs interface{}, 
 // Update is the node data update method
 func (curode *Curode) Update(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}, uks []interface{}, nvs []interface{}, sortPos string, sortKey string) []interface{} {
 	var updated []interface{}
-	for i, doc := range curode.Select(collection, ks, vs, vol, skip, oprs, lock, conditions, false, sortPos, sortKey, false) {
-		for m, _ := range uks {
+	for _, doc := range curode.Select(collection, ks, vs, vol, skip, oprs, lock, conditions, false, sortPos, sortKey, false, true) {
+		curode.Data.Writers[collection].Lock()
+		ne := make(map[string]interface{})
 
-			curode.Data.Writers[collection].Lock()
-			ne := make(map[string]interface{})
+		indx := 0
 
-			for kk, vv := range doc.(map[string]interface{}) {
+		for kk, vv := range doc.(map[string]interface{}) {
+			if kk == "$indx" {
+				indx = vv.(int)
+			} else {
 				ne[kk] = vv
 			}
+		}
+
+		for m, _ := range uks {
 
 			ne[uks[m].(string)] = nvs[m]
 
-			curode.Data.Map[collection][i] = ne
-			updated = append(updated, curode.Data.Map[collection][i])
-			curode.Data.Writers[collection].Unlock()
-
 		}
+
+		curode.Data.Map[collection][indx] = ne
+		updated = append(updated, curode.Data.Map[collection][indx])
+		curode.Data.Writers[collection].Unlock()
 	}
 
 	return updated
