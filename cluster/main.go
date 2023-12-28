@@ -2369,7 +2369,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				query = ""
 				continue
-			case strings.HasPrefix(query, "delete key in"):
+			case strings.HasPrefix(query, "delete key"):
+				// delete key KEY in COLLECTION;
+				// removes key from all documents within a collection
+
 				text.PrintfLine("Unimplemented")
 				//text.PrintfLine("%d Document key removed from collection successfully.", 212)
 
