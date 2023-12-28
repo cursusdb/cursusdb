@@ -137,7 +137,8 @@ func main() {
 		cursus.Config.NodeReaderSize = 2097152 // Default node reader size of 2097152 bytes (2MB).. Pretty large json response
 		cursus.Config.Host = "0.0.0.0"         // Default host of 0.0.0.0
 		cursus.Config.LogMaxLines = 1000       // Default of 1000 lines then truncate/clear
-		cursus.Config.Timezone = "Local"
+		cursus.Config.Timezone = "Local"       // Default is system local time
+
 		// Get initial database user credentials
 		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
 		fmt.Print("username> ")
@@ -257,7 +258,7 @@ func main() {
 	os.Exit(0) // exit
 }
 
-// SaveConfig save cluster config such as created users and so forth on shutdown
+// SaveConfig save cluster config such as created users and so forth on shutdown (Don't make changes to .cursusconfig when running as on shutdown changes will get overwritten)
 func (cursus *Cursus) SaveConfig() {
 	config, err := os.OpenFile(".cursusconfig", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0777)
 	if err != nil {
@@ -399,7 +400,7 @@ func (cursus *Cursus) ConnectToNodes() {
 		// Iterate over configured nodes and connect
 		for _, n := range cursus.Config.Nodes {
 
-			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+			// Resolve TCP addr
 			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Host, n.Port))
 			if err != nil {
 				fmt.Println("ConnectToNodes(): ", err.Error())
@@ -411,7 +412,6 @@ func (cursus *Cursus) ConnectToNodes() {
 			conn, err := net.DialTCP("tcp", nil, tcpAddr)
 			if err != nil {
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
-
 				os.Exit(1)
 			}
 
@@ -492,7 +492,7 @@ func (cursus *Cursus) ConnectToNodes() {
 							Node: Node{
 								Host: rep.Host,
 								Port: rep.Port,
-							},
+							}, // Referring to main node
 							Ok: true,
 							Mu: &sync.Mutex{},
 						})
@@ -618,10 +618,10 @@ func (cursus *Cursus) SignalListener() {
 	defer cursus.Wg.Done()
 	for {
 		select {
-		case sig := <-cursus.SignalChannel:
+		case sig := <-cursus.SignalChannel: // Start graceful shutdown of cluster
 			cursus.Printl(fmt.Sprintf("SignalListener(): Received signal %s starting database cluster shutdown.", sig), "INFO")
 			cursus.TCPListener.Close()
-			cursus.ContextCancel()
+			cursus.ContextCancel() // Send context shutdown to stop all long running go routines
 
 			// Close all node connections
 			for _, nc := range cursus.NodeConnections {
@@ -635,7 +635,7 @@ func (cursus *Cursus) SignalListener() {
 
 			}
 
-			cursus.SaveConfig()
+			cursus.SaveConfig() // Save config
 			return
 		default:
 			time.Sleep(time.Nanosecond * 1000000)
@@ -651,7 +651,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", cursus.Config.Host, cursus.Config.Port))
 	if err != nil {
 		cursus.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
-		cursus.SignalChannel <- os.Interrupt
+		cursus.SignalChannel <- os.Interrupt // Send interrupt signal to channel to stop cluster
 		return
 	}
 
@@ -659,7 +659,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 	cursus.TCPListener, err = net.ListenTCP("tcp", cursus.TCPAddr)
 	if err != nil {
 		cursus.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
-		cursus.SignalChannel <- os.Interrupt
+		cursus.SignalChannel <- os.Interrupt // Send interrupt signal to channel to stop cluster
 		return
 	}
 
@@ -667,7 +667,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 
 		conn, err := cursus.TCPListener.Accept()
 		if err != nil {
-			cursus.SignalChannel <- os.Interrupt
+			cursus.SignalChannel <- os.Interrupt // Send interrupt signal to channel to stop cluster
 			return
 		}
 
@@ -676,7 +676,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 			cert, err := tls.LoadX509KeyPair(cursus.Config.TLSCert, cursus.Config.TLSKey)
 			if err != nil {
 				cursus.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
-				cursus.SignalChannel <- os.Interrupt
+				cursus.SignalChannel <- os.Interrupt // Send interrupt signal to channel to stop cluster
 				return
 			}
 
@@ -685,7 +685,8 @@ func (cursus *Cursus) StartTCP_TLS() {
 			}
 
 			tlsUpgrade := tls.Server(conn, cursus.TLSConfig)
-			tlsUpgrade.Handshake()
+			tlsUpgrade.Handshake() // Upgrade client connection
+
 			conn = net.Conn(tlsUpgrade)
 		}
 
@@ -695,7 +696,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 			return
 		}
 
-		// Split AT -> Authentication:
+		// Split at Authentication:
 		authSpl := strings.Split(strings.TrimSpace(auth), "Authentication:")
 		if len(authSpl) != 2 { // length not equal 2?  not good return error
 			conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 1, "Missing authentication header.")))
@@ -732,6 +733,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 
 		cursus.Wg.Add(1)
 		go cursus.HandleClientConnection(conn, u)
+		// .. continue on and take next client connection
 	}
 }
 
@@ -791,7 +793,7 @@ func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, coll
 			}
 		}
 		return i
-	})()
+	})() // Get non node replica count
 
 	if nonReplicaCount >= 10 {
 		nodeRetries = nonReplicaCount * 2 // Amount of times to retry another node if the chosen node is at peak allocation or unavailable
@@ -799,32 +801,33 @@ func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, coll
 		nodeRetries = 10
 	}
 
-	// Setting up document hashmap
+	// Setting up document
 	doc := make(map[string]interface{})
 
-	// Unmarshal insert json into hashmap
+	// Unmarshal insert json into CursusDB document
 	err := json.Unmarshal([]byte(insert), &doc)
 	if err != nil {
-		connection.Text.PrintfLine("%d Unmarsharable JSON insert", 4000)
+		connection.Text.PrintfLine("%d Unmarsharable JSON insert.", 4000)
 		return
 	}
 
 	doc["$id"] = id // We have already verified the id to not exist
 
-	jsonMap := make(map[string]interface{}) // Return JSON
+	requestMap := make(map[string]interface{}) // request structure for node to understand
 
-	jsonMap["document"] = doc
-	jsonMap["action"] = "insert"
+	requestMap["document"] = doc
+	requestMap["action"] = "insert"
 
-	jsonMap["collection"] = collection
+	requestMap["collection"] = collection
 
-	jsonString, err := json.Marshal(jsonMap)
+	jsonString, err := json.Marshal(requestMap)
 	if err != nil {
 		connection.Text.PrintfLine("Cannot insert. %s", err.Error())
 		return
 	}
 
 	goto query
+
 query:
 	rand.Seed(time.Now().UnixNano())
 
@@ -837,45 +840,56 @@ query:
 	}
 
 ok:
-	node.Mu.Lock()
-	defer node.Mu.Unlock()
-	node.Text.PrintfLine("%s", string(jsonString)) // Send the query over
+
 	if !cursus.Config.TLSNode {
-		node.Conn.SetReadDeadline(time.Now().Add(time.Second * 2))
+		node.Conn.SetReadDeadline(time.Now().Add(time.Second))
 		node.Conn.SetNoDelay(true)
 	} else {
-		node.SecureConn.SetReadDeadline(time.Now().Add(time.Second * 2))
+		node.SecureConn.SetReadDeadline(time.Now().Add(time.Second))
 	}
+
+	goto insert
+
+insert:
+	node.Mu.Lock()
+	node.Text.PrintfLine("%s", string(jsonString)) // Send the query over
 
 	response, err := node.Text.ReadLine()
 	if err != nil {
+		node.Mu.Unlock()
 		node.Ok = false
 		if nodeRetries > -1 {
 			nodeRetries -= 1
 			currentNode := node
-
 			goto findNode
 
 		findNode:
+
 			if nodeRetries == -1 {
-				node.Ok = false
 				connection.Text.PrintfLine("%d No node was available for insert.", 104)
 				return
 			}
 
 			node = cursus.NodeConnections[(0 + rand.Intn((len(cursus.NodeConnections)-1)-0+1))] // Pick another node, not the current one we have selected prior
 
-			if fmt.Sprintf("%s:%d", node.Node.Host, node.Node.Port) == fmt.Sprintf("%s:%d", currentNode.Node.Host, currentNode.Node.Port) { // To not retry same node
-				nodeRetries -= 1
-				goto findNode
+			if len(cursus.Config.Nodes) > 1 {
+				if fmt.Sprintf("%s:%d", node.Node.Host, node.Node.Port) == fmt.Sprintf("%s:%d", currentNode.Node.Host, currentNode.Node.Port) { // To not retry same node
+					nodeRetries -= 1
+					goto findNode
+				} else {
+					goto insert
+				}
 			} else {
 				goto query
 			}
 		} else {
-			goto query
+			connection.Text.PrintfLine("%d No node was available for insert.", 104)
+			return
 		}
 
 	}
+
+	node.Mu.Unlock()
 
 	if strings.HasPrefix(response, "100") {
 		// Node was at peak allocation.
@@ -2818,22 +2832,23 @@ func (cursus *Cursus) RemoveUser(username string) error {
 		}
 	}
 
-	return errors.New(fmt.Sprintf("%d No user found %s", 102, username))
+	return errors.New(fmt.Sprintf("%d No user found %s.", 102, username))
 }
 
 // LostReconnect connects to lost node or replica connections, or will try to.
 func (cursus *Cursus) LostReconnect() {
-	defer cursus.Wg.Done()
+	defer cursus.Wg.Done() // Defer to return to waitgroup
 
 	for {
-		if cursus.Context.Err() != nil {
+		if cursus.Context.Err() != nil { // On signal break out of for loop
 			break
 		}
 
-		for i, nc := range cursus.NodeConnections {
-			if !nc.Ok {
-				if cursus.Config.TLSNode {
-					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+		for i, nc := range cursus.NodeConnections { // Iterate over node connections
+			if !nc.Ok { // Check if node connection is not ok
+				if cursus.Config.TLSNode { // Is TLS node configured?
+
+					// Resolve TCP addr
 					tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port))
 					if err != nil {
 						fmt.Println("LostReconnect(): ", err.Error())
@@ -2852,7 +2867,7 @@ func (cursus *Cursus) LostReconnect() {
 					conn.SetKeepAlive(true) // forever
 
 					// Configure TLS
-					config := tls.Config{InsecureSkipVerify: false}
+					config := tls.Config{InsecureSkipVerify: false} // Either ServerName or InsecureSkipVerify will do it
 
 					// Create TLS client connection
 					secureConn := tls.Client(conn, &config)
@@ -2883,7 +2898,8 @@ func (cursus *Cursus) LostReconnect() {
 					cursus.Printl("LostReconnect(): Reconnected to lost connection "+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
 					time.Sleep(time.Nanosecond * 1000000)
 				} else {
-					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+
+					// Resolve TCP addr
 					tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port))
 					if err != nil {
 						time.Sleep(time.Nanosecond * 1000000)
