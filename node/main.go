@@ -939,7 +939,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				updatedDocs := curode.DeleteKeyFromColl(request["collection"].(string), request["key"].(string))
 				if updatedDocs == 0 {
 					response["statusCode"] = 4022
-					response["message"] = "No documents found to alter with key removal"
+					response["message"] = "No documents found to alter."
 					response["updated"] = updatedDocs
 				} else {
 					response["statusCode"] = 4021

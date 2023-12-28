@@ -487,7 +487,7 @@ delete user USERNAME;
 - ``4019`` Update sets are missing
 - ``4020`` In is required
 - ``4021`` Document key removed from collection successfully
-- ``4022`` No documents found to alter with key removal
+- ``4022`` No documents found to alter
 ### Ports
 Default cluster port: ``7681``
 Default node port: ``7682``
