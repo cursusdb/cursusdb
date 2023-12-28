@@ -379,7 +379,7 @@ curush> new user someusername, somepassword, RW;
 Getting all database users.  User with RW permission required.
 
 ```
-list users;
+users;
 ```
 
 command returns JSON array of database users. 
