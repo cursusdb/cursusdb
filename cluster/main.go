@@ -1114,7 +1114,6 @@ query:
 	goto fin
 
 unavailable:
-	mu.Lock()
 
 	n.Ok = false
 
@@ -1132,7 +1131,6 @@ unavailable:
 				attemptedReplicas = append(attemptedReplicas, fmt.Sprintf("%s:%d", r.Host, r.Port))
 
 				if retries > -1 {
-					mu.Unlock()
 					goto query
 				} else {
 					break
@@ -1141,13 +1139,6 @@ unavailable:
 		}
 	}
 
-	if len(n.Node.Replicas) > 0 {
-		(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s and replicas %s unavailable."}`, n.Conn.RemoteAddr().String(), strings.Join(attemptedReplicas, ","))
-	} else {
-		(*responses)[n.Conn.RemoteAddr().String()] = fmt.Sprintf(`{"statusCode": 105, "message": "Node %s unavailable."}`, n.Conn.RemoteAddr().String())
-	}
-
-	mu.Unlock()
 	return
 fin:
 	return
