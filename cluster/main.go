@@ -1243,13 +1243,17 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				query = ""
 				continue
-			// Query starts with insert
+
+			// Processing read query as CDQL
 			case strings.HasPrefix(query, "insert "):
-				retries := 3 // how many times to retry if node is not available for uniqueness isn`t met
+				// start insert
+				// insert into users({"firstName": "John", "lastName": "Doe"});
+
+				retries := 5 // how many times to retry if node is not available for uniqueness isn`t met for $id
 				// query is not valid
 				// must have a full prefix of 'insert into '
 				if !strings.HasPrefix(query, "insert into ") {
-					text.PrintfLine(fmt.Sprintf("%d Invalid insert query missing 'insert into'", 4009))
+					text.PrintfLine(fmt.Sprintf("%d Invalid insert query missing 'insert into'.", 4009))
 					query = "" // Clear query variable and listen for another
 					continue
 				}
@@ -1262,7 +1266,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				collection := strings.ReplaceAll(strings.Split(query, "({\"")[0], "insert into ", "")
 
 				if len(insertJson) != 2 {
-					text.PrintfLine(fmt.Sprintf("%d Invalid insert query is missing parentheses", 4010))
+					text.PrintfLine(fmt.Sprintf("%d Invalid insert query is missing parentheses.", 4010))
 					query = ""
 					continue
 				}
@@ -1679,6 +1683,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							retries -= 1
 							goto retry // $id already exist
 						} else {
+							text.PrintfLine(fmt.Sprintf("%d No unique $id could be found for insert.", 4023)) // Wouldn't happen ever but if it does the system as you can see would try at least 5 times
 							goto cont
 						}
 					}
@@ -1686,7 +1691,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				goto insert
 			retry:
-				body["values"].([]interface{})[0] = uuid.New().String()
+				body["values"].([]interface{})[0] = uuid.New().String() // Generate new uuid
 
 				res = cursus.QueryNodesRet(body)
 				for _, r := range res {
@@ -1707,7 +1712,11 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				query = ""
 				continue
+				// end insert
 			case strings.HasPrefix(query, "select "):
+				// start select
+				// select LIMIT from COLLECTION SET KEY = V SET KEY = V;
+				// update LIMIT from COLLECTION where KEY = V && KEY = V order by KEY desc;
 
 				if !strings.Contains(query, "from ") {
 					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
@@ -1983,7 +1992,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				}
 				// end select
 			case strings.HasPrefix(query, "update "):
-				// Start of update
+				// start update
 				// update LIMIT in COLLECTION SET KEY = V SET KEY = V;
 				// update LIMIT in COLLECTION where KEY = V && KEY = V order by KEY desc SET KEY = V;
 
@@ -2392,6 +2401,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				}
 				// end update
 			case strings.HasPrefix(query, "delete user"):
+				// start delete user
+				// delete user USERNAME
 				splQ := strings.Split(query, "delete user ")
 
 				if len(splQ) != 2 {
@@ -2411,7 +2422,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				query = ""
 				continue
+				// end delete user
 			case strings.HasPrefix(query, "delete key "):
+				// start delete key
 				// delete key KEY in COLLECTION;
 				// removes key from all documents within a collection
 
@@ -2444,9 +2457,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				query = ""
 				continue
-
+				// end delete key
 			case strings.HasPrefix(query, "delete "):
-				// Start of delete action
+				// start delete
 				// delete 1 from users where name == 'alex' && last == 'padula';
 				if !strings.Contains(query, "from ") {
 					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
@@ -2473,8 +2486,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				qsreg := regexp.MustCompile("'.+'|\".+\"|\\S+")
 
 				querySplit := qsreg.FindAllString(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""), -1)
-
-				//querySplit := strings.Split(strings.ReplaceAll(strings.Join(strings.Fields(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""))), " "), "from", ""), " ")
 
 				if !strings.Contains(query, "where ") {
 					body := make(map[string]interface{})
@@ -2705,7 +2716,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 				}
 				// end delete
-			case strings.HasPrefix(query, "new user "): // new user username, password, RW
+			case strings.HasPrefix(query, "new user "):
+				// start new user
+				// new user username, password, RW
 				splQ := strings.Split(query, "new user ")
 
 				// now we split at comma if value is equal to 2
@@ -2733,7 +2746,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				text.PrintfLine(fmt.Sprintf("%d New database user %s created successfully.", 200, strings.TrimSpace(splQComma[0])))
 				query = ""
 				continue
+				// end new user
 			case strings.HasPrefix(query, "users"):
+				// start users
 				var users []string
 
 				for _, u := range cursus.Config.Users {
@@ -2745,24 +2760,24 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					users = append(users, string(username))
 				}
 
-				//usersJson := new(strings.Builder)
-				//json.NewEncoder(usersJson).Encode(users)
 				usersJsonArr, err := json.Marshal(users)
 				if err != nil {
-					cursus.Printl(fmt.Sprintf("HandleClientConnection(): "+"%d Could not marshal users list array.", 203), "ERROR")
+					text.PrintfLine("%d Could not marshal users list array.", 203)
 					query = ""
 					continue
 				}
 
-				text.PrintfLine(string(usersJsonArr))
+				text.PrintfLine(string(usersJsonArr)) // returns ["john", "jane", "jill"]
 
 				query = ""
 				continue
+				// end users
 			default:
+				// start invalid
 				text.PrintfLine("%d Invalid command/query.", 4005)
 				query = ""
 				continue
-
+				// end invalid
 			}
 
 		}
@@ -2771,7 +2786,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 // IsString is a provided string a string literal?  "hello world"  OR 'hello world'
 func (cursus *Cursus) IsString(str string) bool {
-
 	switch {
 	case strings.HasPrefix(str, "\"") && strings.HasSuffix(str, "\""): // has " and "
 		return true
@@ -2787,7 +2801,6 @@ func (cursus *Cursus) IsInt(str string) bool {
 	if _, err := strconv.Atoi(str); err == nil { // Atoi because, why not?
 		return true
 	}
-
 	return false
 }
 
@@ -2796,7 +2809,6 @@ func (cursus *Cursus) IsFloat(str string) bool {
 	if _, err := strconv.ParseFloat(str, 64); err == nil {
 		return true
 	}
-
 	return false
 }
 
@@ -2805,7 +2817,6 @@ func (cursus *Cursus) IsBool(str string) bool {
 	if _, err := strconv.ParseBool(str); err == nil {
 		return true
 	}
-
 	return false
 }
 
@@ -2822,7 +2833,7 @@ func (cursus *Cursus) RemoveUser(username string) error {
 		encodeUsername := base64.StdEncoding.EncodeToString([]byte(username))
 		for i, user := range cursus.Config.Users {
 			if strings.Split(user, ":")[0] == encodeUsername {
-				cursus.ConfigMu.Lock()
+				cursus.ConfigMu.Lock() // Always lock config when modifying it for concurrent client cases
 				cursus.Config.Users[i] = cursus.Config.Users[len(cursus.Config.Users)-1]
 				cursus.Config.Users[len(cursus.Config.Users)-1] = ""
 				cursus.Config.Users = cursus.Config.Users[:len(cursus.Config.Users)-1]
@@ -2835,7 +2846,7 @@ func (cursus *Cursus) RemoveUser(username string) error {
 	return errors.New(fmt.Sprintf("%d No user found %s.", 102, username))
 }
 
-// LostReconnect connects to lost node or replica connections, or will try to.
+// LostReconnect connects to lost node or node replica connections, or will try to.
 func (cursus *Cursus) LostReconnect() {
 	defer cursus.Wg.Done() // Defer to return to waitgroup
 
@@ -2927,7 +2938,6 @@ func (cursus *Cursus) LostReconnect() {
 
 					// Did response start with a 0?  This indicates successful authentication
 					if strings.HasPrefix(string(authBuf[:r]), "0") {
-
 						cursus.NodeConnections[i] = &NodeConnection{
 							Conn: conn,
 							Text: textproto.NewConn(conn),
