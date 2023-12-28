@@ -943,8 +943,8 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 					response["updated"] = updatedDocs
 				} else {
 					response["statusCode"] = 4021
-					response["message"] = "Document key removed from collection successfully"
-					response["updated"] = updatedDocs
+					response["message"] = "Document key removed from collection successfully."
+					response["altered"] = updatedDocs
 				}
 
 				r, _ := json.Marshal(response)

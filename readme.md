@@ -355,6 +355,19 @@ Response joined if each node has 1 match and there is 5 nodes
 {"count":5} 
 ```
 
+### Deleting a key within documents in a collection 
+It's very simple to alter a collections documents.  Say you want to remove the ``y`` key from a documents like below:
+``` 
+[{"$id":"fcb773f6-2d77-45fe-a860-9dd94f5e7c07","x":5,"y":7},{"$id":"a567925e-dbb1-405e-b4ac-12522b33d07e","x":2,"y":4},{"$id":"4fa938f6-6813-4db9-9955-f5e3c81a9c0b","x":55,"y":9}]}]
+```
+
+Simple using a native client:
+``` 
+curush>delete key y in example;
+[{"127.0.0.1:7682": {"message":"Document key removed from collection successfully.","statusCode":4021,"altered":3}}]
+```
+
+
 ### Uniqueness
 using ``key!`` will make sure the value is unique across all nodes!
 ``` 
