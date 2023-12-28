@@ -1169,7 +1169,12 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 				if ok {
 
 					if d[k.(string)] == nil {
-						conditionsMetDocument += 1
+						if oprs.([]interface{})[m] == "==" {
+							if reflect.DeepEqual(vs.([]interface{})[m], nil) {
+								conditionsMetDocument += 1
+							}
+						}
+
 						continue
 					}
 
