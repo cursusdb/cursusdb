@@ -1551,26 +1551,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["values"].([]interface{})[0] = strings.TrimPrefix(body["values"].([]interface{})[0].(string), "\"")
 								body["values"].([]interface{})[0] = strings.TrimSuffix(body["values"].([]interface{})[0].(string), "'")
 								body["values"].([]interface{})[0] = strings.TrimPrefix(body["values"].([]interface{})[0].(string), "'")
-							} else if cursus.IsBool(body["values"].([]interface{})[0].(string)) {
-
-								b, err := strconv.ParseBool(body["values"].([]interface{})[0].(string))
-								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
-									query = ""
-									continue
-								}
-
-								body["values"].([]interface{})[0] = b
-							} else if cursus.IsFloat(body["values"].([]interface{})[0].(string)) {
-
-								f, err := strconv.ParseFloat(body["values"].([]interface{})[0].(string), 64)
-								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
-									query = ""
-									continue
-								}
-
-								body["values"].([]interface{})[0] = f
 							} else if cursus.IsInt(body["values"].([]interface{})[0].(string)) {
 								i, err := strconv.Atoi(body["values"].([]interface{})[0].(string))
 								if err != nil {
@@ -1581,6 +1561,26 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 								body["values"].([]interface{})[0] = i
 
+							} else if cursus.IsFloat(body["values"].([]interface{})[0].(string)) {
+
+								f, err := strconv.ParseFloat(body["values"].([]interface{})[0].(string), 64)
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+									query = ""
+									continue
+								}
+
+								body["values"].([]interface{})[0] = f
+							} else if cursus.IsBool(body["values"].([]interface{})[0].(string)) {
+
+								b, err := strconv.ParseBool(body["values"].([]interface{})[0].(string))
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+									query = ""
+									continue
+								}
+
+								body["values"].([]interface{})[0] = b
 							}
 
 							res := cursus.QueryNodesRet(body)
@@ -1848,26 +1848,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
-						} else if cursus.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
-							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
-								query = ""
-								continue
-							}
-
-							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
-						} else if cursus.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
-							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
-								query = ""
-								continue
-							}
-
-							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
 						} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
@@ -1878,6 +1858,26 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = i
 
+						} else if cursus.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
+						} else if cursus.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
 						}
 
 					}
@@ -2029,26 +2029,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								val = strings.TrimPrefix(val.(string), "\"")
 								val = strings.TrimSuffix(val.(string), "'")
 								val = strings.TrimPrefix(val.(string), "'")
-							} else if cursus.IsBool(val.(string)) {
-
-								b, err := strconv.ParseBool(val.(string))
-								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
-									query = ""
-									goto extCont5
-								}
-
-								val = b
-							} else if cursus.IsFloat(val.(string)) {
-
-								f, err := strconv.ParseFloat(val.(string), 64)
-								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
-									query = ""
-									goto extCont5
-								}
-
-								val = f
 							} else if cursus.IsInt(val.(string)) {
 								i, err := strconv.Atoi(val.(string))
 								if err != nil {
@@ -2059,6 +2039,26 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 								val = i
 
+							} else if cursus.IsFloat(val.(string)) {
+
+								f, err := strconv.ParseFloat(val.(string), 64)
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+									query = ""
+									goto extCont5
+								}
+
+								val = f
+							} else if cursus.IsBool(val.(string)) {
+
+								b, err := strconv.ParseBool(val.(string))
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+									query = ""
+									goto extCont5
+								}
+
+								val = b
 							}
 							body["new-values"] = append(body["new-values"].([]interface{}), val)
 						}
@@ -2169,26 +2169,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								val = strings.TrimPrefix(val.(string), "\"")
 								val = strings.TrimSuffix(val.(string), "'")
 								val = strings.TrimPrefix(val.(string), "'")
-							} else if cursus.IsBool(val.(string)) {
-
-								b, err := strconv.ParseBool(val.(string))
-								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
-									query = ""
-									goto extCont3
-								}
-
-								val = b
-							} else if cursus.IsFloat(val.(string)) {
-
-								f, err := strconv.ParseFloat(val.(string), 64)
-								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
-									query = ""
-									goto extCont3
-								}
-
-								val = f
 							} else if cursus.IsInt(val.(string)) {
 								i, err := strconv.Atoi(val.(string))
 								if err != nil {
@@ -2199,6 +2179,26 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 								val = i
 
+							} else if cursus.IsFloat(val.(string)) {
+
+								f, err := strconv.ParseFloat(val.(string), 64)
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+									query = ""
+									goto extCont3
+								}
+
+								val = f
+							} else if cursus.IsBool(val.(string)) {
+
+								b, err := strconv.ParseBool(val.(string))
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+									query = ""
+									goto extCont3
+								}
+
+								val = b
 							}
 							body["new-values"] = append(body["new-values"].([]interface{}), val)
 						}
@@ -2259,26 +2259,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
-						} else if cursus.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
-							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
-								query = ""
-								continue
-							}
-
-							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
-						} else if cursus.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
-							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
-								query = ""
-								continue
-							}
-
-							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
 						} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
@@ -2289,6 +2269,26 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = i
 
+						} else if cursus.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
+						} else if cursus.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
 						}
 
 					}
@@ -2549,26 +2549,6 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "\"")
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimSuffix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = strings.TrimPrefix(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "'")
-						} else if cursus.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
-							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
-								query = ""
-								continue
-							}
-
-							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
-						} else if cursus.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
-
-							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
-							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
-								query = ""
-								continue
-							}
-
-							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
 						} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
@@ -2579,6 +2559,26 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = i
 
+						} else if cursus.IsFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = f
+						} else if cursus.IsBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
+
+							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
+							if err != nil {
+								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+								query = ""
+								continue
+							}
+
+							body["values"].([]interface{})[len(body["values"].([]interface{}))-1] = b
 						}
 
 					}
