@@ -125,7 +125,7 @@ func main() {
 
 	gob.Register([]interface{}(nil)) // Fixes {"k": []}
 
-	signal.Notify(curode.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(curode.SignalChannel, syscall.SIGINT, syscall.SIGTERM) // setup signal channel
 
 	// Check if .curodeconfig exists
 	if _, err := os.Stat("./.curodeconfig"); errors.Is(err, os.ErrNotExist) {
@@ -916,7 +916,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 		err = json.Unmarshal([]byte(strings.TrimSpace(string(read))), &request)
 		if err != nil {
 			response["statusCode"] = 4000
-			response["message"] = "Unmarshalable JSON"
+			response["message"] = "Unmarshalable JSON."
 			r, _ := json.Marshal(response)
 			text.PrintfLine(string(r))
 			continue
@@ -1019,7 +1019,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 			default:
 
 				response["statusCode"] = 4002
-				response["message"] = "Invalid/Non-existent action"
+				response["message"] = "Invalid/Non-existent action."
 				r, _ := json.Marshal(response)
 
 				text.PrintfLine(string(r))
@@ -1027,7 +1027,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 			}
 		} else {
 			response["statusCode"] = 4001
-			response["message"] = "Missing action" // Missing select, insert
+			response["message"] = "Missing action." // Missing select, insert
 			r, _ := json.Marshal(response)
 
 			text.PrintfLine(string(r))
@@ -1048,26 +1048,26 @@ func (curode *Curode) CurrentMemoryUsage() uint64 {
 // Insert into node collection
 func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, text *textproto.Conn) error {
 	if curode.CurrentMemoryUsage() >= curode.Config.MaxMemory {
-		return errors.New(fmt.Sprintf("%d node is at peak allocation", 100))
+		return errors.New(fmt.Sprintf("%d node is at peak allocation.", 100))
 	}
 
 	jsonStr, err := json.Marshal(jsonMap)
 	if err != nil {
-		return errors.New(fmt.Sprintf("%d Could not marshal JSON", 4012))
+		return errors.New(fmt.Sprintf("%d Could not marshal JSON.", 4012))
 	}
 
 	if strings.Contains(string(jsonStr), "[{\"") {
-		return errors.New(fmt.Sprintf("%d Nested JSON objects not permitted", 4003))
+		return errors.New(fmt.Sprintf("%d Nested JSON objects not permitted.", 4003))
 	} else if strings.Contains(string(jsonStr), ": {\"") {
-		return errors.New(fmt.Sprintf("%d Nested JSON objects not permitted", 4003))
+		return errors.New(fmt.Sprintf("%d Nested JSON objects not permitted.", 4003))
 	} else if strings.Contains(string(jsonStr), ":{\"") {
-		return errors.New(fmt.Sprintf("%d Nested JSON objects not permitted", 4003))
+		return errors.New(fmt.Sprintf("%d Nested JSON objects not permitted.", 4003))
 	}
 
 	doc := make(map[string]interface{})
 	err = json.Unmarshal([]byte(jsonStr), &doc)
 	if err != nil {
-		return errors.New(fmt.Sprintf("%d Unmarsharable JSON insert", 4000))
+		return errors.New(fmt.Sprintf("%d Unmarsharable JSON insert.", 4000))
 	}
 	writeMu, ok := curode.Data.Writers[collection]
 	if ok {
@@ -1082,13 +1082,13 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 
 	response := make(map[string]interface{})
 	response["statusCode"] = 2000
-	response["message"] = "Document inserted"
+	response["message"] = "Document inserted successfully."
 
 	response["insert"] = doc
 
 	responseMap, err := json.Marshal(response)
 	if err != nil {
-		return errors.New(fmt.Sprintf("%d Could not marshal JSON", 4012))
+		return errors.New(fmt.Sprintf("%d Could not marshal JSON.", 4012))
 	}
 
 	text.PrintfLine(string(responseMap))

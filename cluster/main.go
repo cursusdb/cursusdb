@@ -1167,10 +1167,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 		read, err := text.ReadLine()                                    // read line from client
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				if cursus.Context.Err() != nil {
+				if cursus.Context.Err() != nil { // if signaled to shutdown
 					break
 				}
-				continue
+				continue // continue on listening to client
 			} else {
 				break
 			}
@@ -1183,14 +1183,14 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 			query += strings.TrimSpace(string(read)) + " "
 		}
 
-		if strings.HasPrefix(query, "ping") {
+		if strings.HasPrefix(query, "ping") { // ping
 			text.PrintfLine("pong")
 			query = ""
 			continue
 		} else if strings.HasSuffix(query, ";") { // Does line end with a semicolon?
 			cursus.Printl(fmt.Sprintf("HandleClientConnection(): %s query(%s)", conn.RemoteAddr().String(), query), "INFO")
 
-			//Check user permission and check if their allowed to use the specific action
+			// Check user permission and check if their allowed to use the specific action
 			switch user["permission"] {
 			case "R":
 				if strings.HasPrefix(query, "update") {
@@ -1227,13 +1227,18 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 			query = ""
 			continue
 
-		allowed:
+		allowed: // User is allowed
 
 			switch {
 			// query starts with collections
 			case strings.HasPrefix(query, "collections"):
+				// get all cluster collections
+
+				// Start node request
 				body := make(map[string]interface{})
 				body["action"] = "collections"
+
+				// query nodes
 				err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
 				if err != nil {
 					text.PrintfLine(err.Error())
@@ -1263,7 +1268,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				insertJson := insertJsonRegex.FindStringSubmatch(query) // Get insert JSON
 
-				collection := strings.ReplaceAll(strings.Split(query, "({\"")[0], "insert into ", "")
+				collection := strings.ReplaceAll(strings.Split(query, "({\"")[0], "insert into ", "") // Get collection
 
 				if len(insertJson) != 2 {
 					text.PrintfLine(fmt.Sprintf("%d Invalid insert query is missing parentheses.", 4010))
@@ -1510,7 +1515,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					query = ""
 					continue
 				default:
-					goto keyOk
+					goto keyOk // insert key is ok
 				}
 
 			keyOk:
@@ -1529,7 +1534,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					// Read json key VALUE(s)!
 					kValue := regexp.MustCompile(fmt.Sprintf(`"%s"\s*:\s*(true|false|null|[A-Za-z]|\[.*?\]|[0-9]*[.]?[0-9]+|".*?"|'.*?')`, indx[1]))
 
-					// body map for node submission
+					// Create node request
 					body := make(map[string]interface{})
 					body["action"] = "select"       // We will select 1 from all nodes with provided key value
 					body["limit"] = 1               // limit of 1 of course
@@ -1557,7 +1562,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							var arr []interface{}
 							err := json.Unmarshal([]byte(kValue.FindStringSubmatch(query)[1]), &arr)
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unmarsharable JSON insert ", 4000))
+								text.PrintfLine(fmt.Sprintf("%d Unmarsharable JSON insert.", 4000))
 								query = ""
 								continue
 							}
@@ -1576,7 +1581,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								if !strings.EqualFold(r, "null") {
 									result := make(map[string]interface{})
 									result["statusCode"] = 4004
-									result["message"] = fmt.Sprintf("Document already exists")
+									result["message"] = fmt.Sprintf("Document already exists.")
 
 									r, _ := json.Marshal(result)
 									text.PrintfLine(string(r))
@@ -1600,7 +1605,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							} else if cursus.IsInt(body["values"].([]interface{})[0].(string)) {
 								i, err := strconv.Atoi(body["values"].([]interface{})[0].(string))
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable int value.", 4015))
 									query = ""
 									continue
 								}
@@ -1611,7 +1616,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 								f, err := strconv.ParseFloat(body["values"].([]interface{})[0].(string), 64)
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable float value.", 4014))
 									query = ""
 									continue
 								}
@@ -1621,7 +1626,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 								b, err := strconv.ParseBool(body["values"].([]interface{})[0].(string))
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value.", 4013))
 									query = ""
 									continue
 								}
@@ -1719,7 +1724,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				// update LIMIT from COLLECTION where KEY = V && KEY = V order by KEY desc;
 
 				if !strings.Contains(query, "from ") {
-					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
+					text.PrintfLine(fmt.Sprintf("%d From is required.", 4006))
 					query = ""
 					continue
 				}
@@ -1752,7 +1757,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["limit"] = querySplit[1]
 
 					if len(querySplit) == 2 {
-						text.PrintfLine(fmt.Sprintf("%d Missing limit value", 4016))
+						text.PrintfLine(fmt.Sprintf("%d Missing limit value.", 4016))
 						query = ""
 						continue
 					}
@@ -1779,7 +1784,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							if len(strings.Split(body["limit"].(string), ",")) == 2 {
 								body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer %s", 501, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
 									query = ""
 									continue
 								}
@@ -1787,7 +1792,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
 									body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 									if err != nil {
-										text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer %s", 502, err.Error()))
+										text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
 										query = ""
 										continue
 									}
@@ -1802,7 +1807,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						} else {
 							body["limit"], err = strconv.Atoi(body["limit"].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer %s", 501, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
 								query = ""
 								continue
 							}
@@ -1902,7 +1907,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable int value.", 4015))
 								query = ""
 								continue
 							}
@@ -1913,7 +1918,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable float value.", 4014))
 								query = ""
 								continue
 							}
@@ -1923,7 +1928,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value.", 4013))
 								query = ""
 								continue
 							}
@@ -1997,7 +2002,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				// update LIMIT in COLLECTION where KEY = V && KEY = V order by KEY desc SET KEY = V;
 
 				if !strings.Contains(query, "in ") {
-					text.PrintfLine(fmt.Sprintf("%d In is required", 4020))
+					text.PrintfLine(fmt.Sprintf("%d In is required.", 4020))
 					query = ""
 					continue
 				}
@@ -2028,7 +2033,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["limit"] = querySplit[1]
 
 					if len(querySplit) == 2 {
-						text.PrintfLine(fmt.Sprintf("%d Missing limit value", 4016))
+						text.PrintfLine(fmt.Sprintf("%d Missing limit value.", 4016))
 						query = ""
 						continue
 					}
@@ -2053,7 +2058,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 					// Get new key values
 					if len(strings.Split(query, "set ")) == 1 {
-						text.PrintfLine(fmt.Sprintf("%d Update sets are missing", 4019))
+						text.PrintfLine(fmt.Sprintf("%d Update sets are missing.", 4019))
 						query = ""
 						continue
 					}
@@ -2066,7 +2071,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["update-keys"] = append(body["update-keys"].([]interface{}), strings.TrimSpace(spl[0]))
 							var val interface{}
 							if len(spl) != 2 {
-								text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
+								text.PrintfLine(fmt.Sprintf("%d Set is missing =.", 4008))
 								query = ""
 								goto extCont5
 							}
@@ -2083,7 +2088,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							} else if cursus.IsInt(val.(string)) {
 								i, err := strconv.Atoi(val.(string))
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable int value.", 4015))
 									query = ""
 									goto extCont5
 								}
@@ -2094,7 +2099,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 								f, err := strconv.ParseFloat(val.(string), 64)
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable float value.", 4014))
 									query = ""
 									goto extCont5
 								}
@@ -2104,7 +2109,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 								b, err := strconv.ParseBool(val.(string))
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value.", 4013))
 									query = ""
 									goto extCont5
 								}
@@ -2122,7 +2127,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							var err error
 							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer %s", 501, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
 								query = ""
 								continue
 							}
@@ -2130,7 +2135,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
 								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer %s", 502, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
 									query = ""
 									continue
 								}
@@ -2146,7 +2151,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						var err error
 						body["limit"], err = strconv.Atoi(body["limit"].(string))
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer %s", 502, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
 							query = ""
 							continue
 						}
@@ -2193,7 +2198,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 					// Get new key values
 					if len(strings.Split(query, "set ")) == 1 {
-						text.PrintfLine(fmt.Sprintf("%d Update sets are missing", 4019))
+						text.PrintfLine(fmt.Sprintf("%d Update sets are missing.", 4019))
 						query = ""
 						continue
 					}
@@ -2206,7 +2211,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							body["update-keys"] = append(body["update-keys"].([]interface{}), strings.TrimSpace(spl[0]))
 							var val interface{}
 							if len(spl) != 2 {
-								text.PrintfLine(fmt.Sprintf("%d Set is missing =", 4008))
+								text.PrintfLine(fmt.Sprintf("%d Set is missing =.", 4008))
 								query = ""
 								goto extCont3
 							}
@@ -2223,7 +2228,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							} else if cursus.IsInt(val.(string)) {
 								i, err := strconv.Atoi(val.(string))
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable int value.", 4015))
 									query = ""
 									goto extCont3
 								}
@@ -2234,7 +2239,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 								f, err := strconv.ParseFloat(val.(string), 64)
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable float value.", 4014))
 									query = ""
 									goto extCont3
 								}
@@ -2244,7 +2249,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 								b, err := strconv.ParseBool(val.(string))
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value.", 4013))
 									query = ""
 									goto extCont3
 								}
@@ -2313,7 +2318,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable int value.", 4015))
 								query = ""
 								continue
 							}
@@ -2324,7 +2329,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable float value.", 4014))
 								query = ""
 								continue
 							}
@@ -2334,7 +2339,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value.", 4013))
 								query = ""
 								continue
 							}
@@ -2462,7 +2467,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				// start delete
 				// delete 1 from users where name == 'alex' && last == 'padula';
 				if !strings.Contains(query, "from ") {
-					text.PrintfLine(fmt.Sprintf("%d From is required", 4006))
+					text.PrintfLine(fmt.Sprintf("%d From is required.", 4006))
 					query = ""
 					continue
 				}
@@ -2493,7 +2498,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["limit"] = querySplit[1]
 
 					if len(querySplit) == 2 {
-						text.PrintfLine(fmt.Sprintf("%d Missing limit value", 4016))
+						text.PrintfLine(fmt.Sprintf("%d Missing limit value.", 4016))
 						query = ""
 						continue
 					}
@@ -2519,7 +2524,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							var err error
 							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer %s", 501, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
 								query = ""
 								continue
 							}
@@ -2527,7 +2532,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
 								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer %s", 502, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
 									query = ""
 									continue
 								}
@@ -2543,7 +2548,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						var err error
 						body["limit"], err = strconv.Atoi(body["limit"].(string))
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer %s", 502, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
 							query = ""
 							continue
 						}
@@ -2629,7 +2634,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						} else if cursus.IsInt(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string)) {
 							i, err := strconv.Atoi(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable int value", 4015))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable int value.", 4015))
 								query = ""
 								continue
 							}
@@ -2640,7 +2645,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							f, err := strconv.ParseFloat(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), 64)
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable float value", 4014))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable float value.", 4014))
 								query = ""
 								continue
 							}
@@ -2650,7 +2655,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 							b, err := strconv.ParseBool(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value", 4013))
+								text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value.", 4013))
 								query = ""
 								continue
 							}

@@ -24,7 +24,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Unique k:v across all nodes using exclamation at end of key name ``email!``
 - Secure by default with shared key and users
 - Highly configurable
-- Lightweight core code under 4,500 lines of code in total
+- Lightweight core code under 5300 lines of code in total
 - File logging and automatic log truncation based on ``log-max-lines`` config
 - Automatic reconnect of any lost node or node replica
 - Automatic node backups if ``automatic-backup`` within ``.curodeconfig`` is set to true
@@ -480,7 +480,7 @@ delete user USERNAME;
 - ``4012`` Could not marshal JSON
 - ``4013`` Unparsable boolean value
 - ``4014`` Unparsable float value
-- ``4015`` Unparsable int value
+- ``4015`` Unparsable integer value
 - ``4016`` Missing limit value
 - ``4017`` Invalid query
 - ``4018`` Unmarsharable JSON
