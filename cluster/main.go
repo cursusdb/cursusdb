@@ -891,9 +891,9 @@ insert:
 
 	node.Mu.Unlock()
 
-	if strings.HasPrefix(response, "100") {
+	if strings.Contains(response, "\"statusCode\":\"100\"") {
 		// Node was at peak allocation.
-		cursus.Printl("InsertIntoNode(): %s was at peak allocation.  Consider providing more memory to node.", node.Conn.RemoteAddr().String())
+		cursus.Printl(fmt.Sprintf("InsertIntoNode(): %s was at peak allocation.  Consider providing more memory to node.", node.Conn.RemoteAddr().String()), "WARN")
 		// Picking another node and trying again
 		if nodeRetries > -1 {
 			nodeRetries -= 1
