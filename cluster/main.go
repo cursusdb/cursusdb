@@ -1188,7 +1188,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				} else if strings.HasPrefix(query, "new user") {
 					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
 					goto continueOn // User not allowed
-				} else if strings.HasPrefix(query, "list users") {
+				} else if strings.HasPrefix(query, "users") {
 					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
 					goto continueOn // User not allowed
 				} else if strings.HasPrefix(query, "delete user") {
@@ -1231,7 +1231,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				continue
 			// Query starts with insert
 			case strings.HasPrefix(query, "insert "):
-				retries := 3 // how many times to retry if node is not available for uniqueness isnt met
+				retries := 3 // how many times to retry if node is not available for uniqueness isn`t met
 				// query is not valid
 				// must have a full prefix of 'insert into '
 				if !strings.HasPrefix(query, "insert into ") {
@@ -1264,6 +1264,34 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"$indx":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"in":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"like":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"not like":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"!like":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"where":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"from":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"*":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
@@ -2369,12 +2397,36 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				query = ""
 				continue
-			case strings.HasPrefix(query, "delete key"):
+			case strings.HasPrefix(query, "delete key "):
 				// delete key KEY in COLLECTION;
 				// removes key from all documents within a collection
 
-				text.PrintfLine("Unimplemented")
-				//text.PrintfLine("%d Document key removed from collection successfully.", 212)
+				body := make(map[string]interface{})
+				body["action"] = "delete key"
+
+				if !strings.Contains(query, "in") {
+					text.PrintfLine(fmt.Sprintf("%d delete key missing in.", 213))
+					query = ""
+					continue
+				}
+
+				querySplit := strings.Split(strings.TrimPrefix(query, "delete key "), "in")
+
+				if len(querySplit) < 2 {
+					text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
+					query = ""
+					continue
+				}
+
+				body["key"] = strings.TrimSpace(querySplit[0])
+				body["collection"] = strings.TrimSpace(strings.TrimSuffix(querySplit[1], ";"))
+
+				err = cursus.QueryNodes(&Connection{Conn: conn, Text: text, User: nil}, body)
+				if err != nil {
+					text.PrintfLine(err.Error())
+					query = ""
+					continue
+				}
 
 				query = ""
 				continue

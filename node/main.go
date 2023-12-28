@@ -935,6 +935,21 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				r, _ := json.Marshal(response)
 				text.PrintfLine(string(r))
 				continue
+			case strings.EqualFold(action.(string), "delete key"):
+				updatedDocs := curode.DeleteKeyFromColl(request["collection"].(string), request["key"].(string))
+				if updatedDocs == 0 {
+					response["statusCode"] = 4022
+					response["message"] = "No documents found to alter with key removal"
+					response["updated"] = updatedDocs
+				} else {
+					response["statusCode"] = 4021
+					response["message"] = "Document key removed from collection successfully"
+					response["updated"] = updatedDocs
+				}
+
+				r, _ := json.Marshal(response)
+				text.PrintfLine(string(r))
+				continue
 			case strings.EqualFold(action.(string), "delete"):
 
 				results := curode.Delete(request["collection"].(string), request["keys"], request["values"], int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"], request["lock"].(bool), request["conditions"].([]interface{}), request["sort-pos"].(string), request["sort-key"].(string))
@@ -1079,6 +1094,26 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 	text.PrintfLine(string(responseMap))
 
 	return nil
+}
+
+// DeleteKeyFromColl Deletes key from all collection documents
+func (curode *Curode) DeleteKeyFromColl(collection string, key string) int {
+	var objects int
+	l, ok := curode.Data.Writers[collection]
+	if ok {
+		l.Lock()
+		defer l.Unlock()
+	}
+
+	for _, d := range curode.Data.Map[collection] {
+		_, ok = d[key]
+		if ok {
+			delete(d, key)
+			objects += 1
+		}
+	}
+
+	return objects
 }
 
 // Select is the node data select method

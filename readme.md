@@ -440,7 +440,7 @@ delete user USERNAME;
 - ``209`` - Could not remove .cdat backup {FILE NAME} (with description)
 - ``210`` - Could not get node working directory for automatic recovery (with description)
 - ``211`` - Node data backup was successful
-- ``212`` - Document key removed from collection successfully
+- ``213`` - Delete key missing in
 - ``500`` - Unknown error (with description)
 - ``501`` - Limit skip must be an integer (with description)
 - ``502`` - Could not convert limit value to integer (with description)
@@ -469,10 +469,12 @@ delete user USERNAME;
 - ``4014`` Unparsable float value
 - ``4015`` Unparsable int value
 - ``4016`` Missing limit value
-- ``4017`` Invalid query operator
+- ``4017`` Invalid query
 - ``4018`` Unmarsharable JSON
 - ``4019`` Update sets are missing
-
+- ``4020`` In is required
+- ``4021`` Document key removed from collection successfully
+- ``4022`` No documents found to alter with key removal
 ### Ports
 Default cluster port: ``7681``
 Default node port: ``7682``
