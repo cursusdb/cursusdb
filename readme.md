@@ -30,6 +30,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Automatic node backups if ``automatic-backup`` within ``.curodeconfig`` is set to true
 - Automatic node backup clean up if ``automatic-backup-cleanup`` within ``.curodeconfig`` is set to true.
 - Automatic node recovery if data is corrupt if ``automatic-backup`` configured
+- DEFLATE compressed data format on nodes
 
 **There are no databases like MySQL let's say where you can have multiples.  A cluster is your database that spreads data across many nodes.**
 
@@ -454,6 +455,8 @@ delete user USERNAME;
 - ``210`` - Could not get node working directory for automatic recovery (with description)
 - ``211`` - Node data backup was successful
 - ``213`` - Delete key missing in
+- ``214`` - Node was unrecoverable after all attempts
+- ``215`` - Attempting automatic recovery with latest backup
 - ``500`` - Unknown error (with description)
 - ``501`` - Limit skip must be an integer (with description)
 - ``502`` - Could not convert limit value to integer (with description)
@@ -462,7 +465,6 @@ delete user USERNAME;
 - ``505`` - Key cannot use reserved word
 - ``506`` - Where is missing values
 - ``505`` - Key cannot use reserved symbol
-- 
 #### Document
 - ``2000`` Document inserted/updated/deleted
 - ``4000`` Unmarsharable JSON insert

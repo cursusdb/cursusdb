@@ -42,7 +42,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
-	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -100,6 +100,7 @@ type Config struct {
 	LogMaxLines    int      `yaml:"log-max-lines"`                 // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
 	JoinResponses  bool     `default:"true" yaml:"join-responses"` // Joins all nodes results limiting at n
 	Logging        bool     `default:"false" yaml:"logging"`       // Log to file ?
+	LogQuery       bool     `default:"false" yaml:"log-query"`     // Log incoming queries
 	Timezone       string   `default:"Local" yaml:"timezone"`      // i.e America/Chicago default is local system time.  On the cluster we use the Timezone for logging purposes.
 }
 
@@ -145,7 +146,7 @@ func main() {
 		username, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main(): ", err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -156,7 +157,7 @@ func main() {
 		password, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main(): ", err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -167,7 +168,7 @@ func main() {
 		key, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main(): ", err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -186,7 +187,7 @@ func main() {
 		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777) // Create .cursusconfig yaml file
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main(): ", err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -196,7 +197,7 @@ func main() {
 		yamlData, err := yaml.Marshal(&cursus.Config)
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main(): ", err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -207,7 +208,7 @@ func main() {
 		clusterConfigFile, err := os.ReadFile("./.cursusconfig")
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main(): ", err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -215,7 +216,7 @@ func main() {
 		err = yaml.Unmarshal(clusterConfigFile, &cursus.Config)
 		if err != nil {
 			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main(): ", err.Error())
+			fmt.Println("main():", err.Error())
 			os.Exit(1)
 		}
 
@@ -223,7 +224,7 @@ func main() {
 			cursus.LogMu = &sync.Mutex{} // Cluster log mutex
 			cursus.LogFile, err = os.OpenFile("cursus.log", os.O_CREATE|os.O_RDWR, 0777)
 			if err != nil {
-				fmt.Println("main(): ", "Could not open log file - ", err.Error())
+				fmt.Println("main():", "Could not open log file - ", err.Error())
 				os.Exit(1)
 			}
 		}
@@ -271,8 +272,7 @@ func (cursus *Cursus) SaveConfig() {
 	// Marshal config to yaml
 	yamlConfig, err := yaml.Marshal(&cursus.Config)
 	if err != nil {
-		cursus.Printl(fmt.Sprintf("SaveConfig(): %s", err.Error()), "ERROR")
-		fmt.Println("SaveConfig(): ", err.Error())
+		cursus.Printl(fmt.Sprintf("SaveConfig(): Could not marshal config file %s", err.Error()), "ERROR")
 		os.Exit(1)
 	}
 
@@ -380,7 +380,7 @@ func (cursus *Cursus) Printl(data string, level string) {
 		} else {
 			tz, err := time.LoadLocation(cursus.Config.Timezone)
 			if err != nil {
-				fmt.Println(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error()))
+				log.Println(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error()))
 				return
 			}
 
@@ -919,7 +919,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 	wgPara := &sync.WaitGroup{}
 	muPara := &sync.RWMutex{}
 	for _, n := range cursus.NodeConnections {
-		if !n.Replica && n.Ok {
+		if !n.Replica {
 			wgPara.Add(1)
 			go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
 		}
@@ -1036,7 +1036,7 @@ func (cursus *Cursus) QueryNodesRet(body map[string]interface{}) map[string]stri
 	wgPara := &sync.WaitGroup{}
 	muPara := &sync.RWMutex{}
 	for _, n := range cursus.NodeConnections {
-		if !n.Replica && n.Ok {
+		if !n.Replica {
 			wgPara.Add(1)
 			go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
 		}
@@ -1053,7 +1053,12 @@ func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGro
 	n.Mu.Lock()
 	defer n.Mu.Unlock()
 
-	retries := len(n.Node.Replicas) // retry a node replica
+	retries := len(n.Node.Replicas) * 10 // retry a node replica
+
+	if retries == 1 {
+		retries = 10
+	}
+
 	retriesGeneral := 10
 
 	var attemptedReplicas []string
@@ -1063,10 +1068,10 @@ func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGro
 query:
 
 	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cursus.Config.NodeReaderSize)
-	n.Conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 
 	n.Text.PrintfLine("%s", string(body))
 
+	n.Conn.SetReadDeadline(time.Now().Add(time.Second))
 	line, err := n.Text.ReadLine()
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
@@ -1095,16 +1100,19 @@ query:
 				n.Ok = false
 				goto unavailable
 			}
-		}
-		if len(n.Node.Replicas) == 0 {
-			retriesGeneral -= retriesGeneral
-
-			if retriesGeneral > 0 {
-				goto query
-			}
-			goto unavailable
 		} else {
-			goto unavailable
+			n.Ok = false
+			if len(n.Node.Replicas) == 0 {
+				retriesGeneral -= retriesGeneral
+
+				if retriesGeneral > 0 {
+					goto query
+				}
+
+				goto unavailable
+			} else {
+				goto unavailable
+			}
 		}
 	}
 
@@ -1114,35 +1122,68 @@ query:
 	goto fin
 
 unavailable:
-
 	n.Ok = false
 
 	// Retry on a node replica if configured
 	for _, r := range n.Node.Replicas {
 		for _, nc := range cursus.NodeConnections {
 			if nc.Node.Host == r.Host && nc.Replica == true {
-				if slices.Contains(attemptedReplicas, fmt.Sprintf("%s:%d", r.Host, r.Port)) {
-					continue
+				if len(n.Node.Replicas) > 1 {
+					if len(attemptedReplicas) == 0 {
+						attemptedReplicas = append(attemptedReplicas, fmt.Sprintf("%s:%d", r.Host, r.Port))
+						goto cont
+					}
+
+					if len(attemptedReplicas) > 1 {
+						if attemptedReplicas[len(attemptedReplicas)-1] == fmt.Sprintf("%s:%d", r.Host, r.Port) {
+							continue
+						}
+					} else {
+						if attemptedReplicas[0] == fmt.Sprintf("%s:%d", r.Host, r.Port) {
+							continue
+						}
+					}
+
 				}
+
+				goto cont
+			cont:
 
 				n = nc
 				retries -= 1
 
-				attemptedReplicas = append(attemptedReplicas, fmt.Sprintf("%s:%d", r.Host, r.Port))
-
 				if retries > -1 {
 					goto query
 				} else {
-					break
+					goto br
 				}
 			}
 		}
 	}
 
+	goto br
+
+br:
+
 	if len(n.Node.Replicas) > 0 {
-		cursus.Printl(fmt.Sprintf("%d Node %s and replicas %s unavailable.", 105, n.Conn.RemoteAddr().String(), strings.Join(attemptedReplicas, ",")), "WARNING")
+		cursus.Printl(fmt.Sprintf("QueryNode(): %d Node %s and replicas %s unavailable.", 105, n.Conn.RemoteAddr().String(), strings.Join((func(s []string) []string {
+			if len(s) < 1 {
+				return s
+			}
+
+			sort.Strings(s)
+			prev := 1
+			for curr := 1; curr < len(s); curr++ {
+				if s[curr-1] != s[curr] {
+					s[prev] = s[curr]
+					prev++
+				}
+			}
+
+			return s[:prev]
+		})(attemptedReplicas), ",")), "WARNING")
 	} else {
-		cursus.Printl(fmt.Sprintf(`%d Node %s unavailable.`, 105, n.Conn.RemoteAddr().String()), "WARNING")
+		cursus.Printl(fmt.Sprintf(`QueryNode(): %d Node %s unavailable.`, 105, n.Conn.RemoteAddr().String()), "WARNING")
 	}
 
 	return
@@ -2864,7 +2905,7 @@ func (cursus *Cursus) LostReconnect() {
 					// Resolve TCP addr
 					tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port))
 					if err != nil {
-						fmt.Println("LostReconnect(): ", err.Error())
+						cursus.Printl(fmt.Sprintf("LostReconnect(): %s", err.Error()), "ERROR")
 						time.Sleep(time.Nanosecond * 1000000)
 						continue
 					}

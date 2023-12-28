@@ -24,16 +24,15 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
+	"curode/flate"
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -140,11 +139,11 @@ func main() {
 		// Defer close node config
 		defer nodeConfigFile.Close()
 
-		curode.Config.Port = 7682        // Set default CursusDB node port
-		curode.Config.MaxMemory = 10240  // Max memory 10GB default
-		curode.Config.Host = "0.0.0.0"   // Set default host of 0.0.0.0
-		curode.Config.LogMaxLines = 1000 // truncate at 1000 lines as default
-		curode.Config.Timezone = "Local"
+		curode.Config.Port = 7682                      // Set default CursusDB node port
+		curode.Config.MaxMemory = 10240                // Max memory 10GB default
+		curode.Config.Host = "0.0.0.0"                 // Set default host of 0.0.0.0
+		curode.Config.LogMaxLines = 1000               // truncate at 1000 lines as default
+		curode.Config.Timezone = "Local"               // Local is systems local time
 		curode.Config.ReplicationSyncTime = 10         // default of every 10 minutes
 		curode.Config.AutomaticBackupCleanupHours = 12 // Set default of 12 hours in which to delete old backed up .cdat files
 		curode.Config.AutomaticBackupTime = 60         // Automatically backup node data to backups folder every 1 hour by default if AutomaticBackups is enabled
@@ -200,132 +199,114 @@ func main() {
 
 	}
 
-	datafile := "./.cdat"        // If .cdat is corrupted we will try again with a backup
-	var latestBackup fs.FileInfo // When we search /backups directory we look for latest backup also we use this variable to check if we already attempted to use this backup
-	backupCount := 0             // Will populate then decrement when we read backups directory if the directory exists
-	backedUp := false            // If a backup occurred
-
-	goto readData
-
-readData:
-
-	// Read rested data from .cdat file
-	if _, err := os.Stat(fmt.Sprintf("%s", datafile)); errors.Is(err, os.ErrNotExist) { // Not exists we create it
+	if _, err := os.Stat(fmt.Sprintf("%s", ".cdat")); errors.Is(err, os.ErrNotExist) { // Not exists we create it
 		curode.Printl(fmt.Sprintf("main(): No previous data to read.  Creating new .cdat file."), "INFO")
 	} else {
-		curode.Printl(fmt.Sprintf("main(): Node data read into memory."), "INFO")
-		dataFile, err := os.Open(fmt.Sprintf("%s", datafile)) // Open .cdat
 
-		// Temporary decrypted data file.. to be unserialized into map
-		fDFTmp, err := os.OpenFile(fmt.Sprintf("%s.tmp", datafile), os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
-		if err != nil {
-			fmt.Println("main():", err.Error())
-			os.Exit(1)
-		}
+		datafile := "./.cdat"        // If .cdat is corrupted we will try again with a backup
+		var latestBackup fs.FileInfo // When we search /backups directory we look for latest backup also we use this variable to check if we already attempted to use this backup
+		backupCount := 0             // Will populate then decrement when we read backups directory if the directory exists
+		backedUp := false            // If a backup occurred
 
-		// Read encrypted data file
-		reader := bufio.NewReader(dataFile)
-		buf := make([]byte, 8192)
+		goto readData
 
-		defer dataFile.Close()
+	readData:
 
-		for {
-			read, err := reader.Read(buf)
-
-			if err != nil {
-				if err != io.EOF {
-					fmt.Println("main():", err.Error())
-					os.Exit(1)
-				}
-				break
-			}
-
-			if read > 0 {
-				decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
-				if err != nil {
-					fmt.Println("main():", err.Error())
-					os.Exit(1)
-					return
-				}
-
-				serialized, err := curode.Decrypt(decodedKey[:], buf[:read])
-				if err != nil {
-					fmt.Println("main(): Data file corrupt!", err.Error())
-					os.Remove(fmt.Sprintf("%s.tmp", datafile))
-					// Data file is corrupt.. If node has backups configured grab last working state.
-					if curode.Config.AutomaticBackups {
-						workingDir, err := os.Getwd()
-						if err != nil {
-							curode.Printl(fmt.Sprintf("%d Could not get node working directory for automatic recovery. %s", 210, err.Error()), "ERROR")
-							os.Exit(1)
-						}
-
-						// Read backups and remove any backups older than AutomaticBackupCleanupTime days old
-						backups, err := ioutil.ReadDir(fmt.Sprintf("%s/backups", workingDir))
-						if err != nil {
-							curode.Printl(fmt.Sprintf("%d Could not read node backups directory %s", 208, err.Error()), "ERROR")
-							os.Exit(1)
-						}
-
-						backupCount = len(backups)
-
-						for _, backup := range backups {
-							backedUp = true
-							if latestBackup == nil {
-								latestBackup = backup
-							} else {
-								if backup.ModTime().Before(latestBackup.ModTime()) && latestBackup.Name() != backup.Name() {
-									latestBackup = backup
-								}
-							}
-						}
-
-						if backupCount > -1 {
-							backupCount -= 1
-							datafile = fmt.Sprintf(fmt.Sprintf("%s/backups/%s", workingDir, latestBackup.Name()))
-							goto readData
-						}
-
-					}
-
-					os.Exit(1)
-					return
-				}
-
-				fDFTmp.Write(serialized) // Decrypt serialized
-			}
-		}
-		fDFTmp.Close()
-
-		fDFTmp, err = os.OpenFile(fmt.Sprintf("%s.tmp", datafile), os.O_RDONLY, 0777)
+		cdat, err := os.OpenFile(fmt.Sprintf(datafile), os.O_RDONLY, 0777)
 		if err != nil {
 			curode.Printl("main(): "+fmt.Sprintf(err.Error()), "ERROR")
 			os.Exit(1)
 		}
 
-		d := gob.NewDecoder(fDFTmp)
+		var in io.Reader
 
-		// Now with all serialized data we encode into data hashmap
-		err = d.Decode(&curode.Data.Map)
+		decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
 		if err != nil {
 			fmt.Println("main():", err.Error())
 			os.Exit(1)
+			return
 		}
 
-		fDFTmp.Close()
+		in = flate.NewReader(cdat, decodedKey)
 
-		os.Remove(fmt.Sprintf("%s.tmp", datafile)) // Remove temp
+		dec := gob.NewDecoder(in)
+
+		err = dec.Decode(&curode.Data.Map)
+		if err != nil {
+			goto corrupt
+		}
+
+		in.(io.Closer).Close()
+
+		goto ok
+
+	corrupt:
+		fmt.Println("main(): Data file corrupt!", err.Error())
+		os.Remove(fmt.Sprintf("%s.tmp", datafile))
+		// Data file is corrupt.. If node has backups configured grab last working state.
+
+		if curode.Config.AutomaticBackups {
+			fmt.Println("main():", fmt.Sprintf("main(): %d Attempting automatic recovery with latest backup.", 215))
+
+			workingDir, err := os.Getwd()
+			if err != nil {
+				curode.Printl(fmt.Sprintf("main(): %d Could not get node working directory for automatic recovery. %s", 210, err.Error()), "ERROR")
+				os.Exit(1)
+			}
+
+			// Read backups and remove any backups older than AutomaticBackupCleanupTime days old
+			backups, err := ioutil.ReadDir(fmt.Sprintf("%s/backups", workingDir))
+			if err != nil {
+				curode.Printl(fmt.Sprintf("main(): %d Could not read node backups directory %s", 208, err.Error()), "ERROR")
+				os.Exit(1)
+			}
+
+			if backupCount == 0 {
+				backupCount = len(backups)
+			}
+
+			backupCount -= 1
+
+			for _, backup := range backups {
+				backedUp = true
+				if latestBackup == nil {
+					latestBackup = backup
+				} else {
+					if backup.ModTime().Before(latestBackup.ModTime()) && latestBackup.Name() != backup.Name() {
+						latestBackup = backup
+					}
+				}
+			}
+
+			if backupCount != 0 {
+				datafile = fmt.Sprintf(fmt.Sprintf("%s/backups/%s", workingDir, latestBackup.Name()))
+				goto readData
+			} else {
+				fmt.Println(fmt.Sprintf("main(): %d Node was unrecoverable after all attempts.", 214))
+				os.Exit(1)
+			}
+
+		} else {
+			fmt.Println(fmt.Sprintf("main(): %d Node was unrecoverable after all attempts.  Consider setting up automatic backups.", 214))
+			os.Exit(1)
+			return
+		}
+
+	ok:
+
+		if backedUp {
+			curode.Printl(fmt.Sprintf("main(): %d Node data backup was successful.", 211), "INFO")
+		}
+
+		cdat.Close()
 
 		// Setup collection mutexes
 		for c, _ := range curode.Data.Map {
 			curode.Data.Writers[c] = &sync.RWMutex{}
 		}
 
-		if backedUp {
-			curode.Printl(fmt.Sprintf("main(): %d Node data backup was successful.", 211), "INFO")
-		}
-
 		curode.Printl(fmt.Sprintf("main(): Collection mutexes created."), "INFO")
+
 	}
 
 	// Parse flags
@@ -351,39 +332,10 @@ readData:
 
 	curode.Wg.Wait() // Wait for go routines to finish
 
+	curode.WriteToFile(false) // Write database data to file
+
 	os.Exit(0) // exit
-}
 
-// Decrypt decrypts .cdat file to temporary serialized data file to be read
-func (curode *Curode) Decrypt(key, ciphertext []byte) ([]byte, error) {
-	aead, err := chacha20poly1305.New(key)
-	if err != nil {
-		return nil, err
-	}
-	if len(ciphertext) < aead.NonceSize() {
-		return nil, errors.New("ciphertext too short")
-	}
-
-	// Split nonce and ciphertext.
-	nonce, ciphertext := ciphertext[:aead.NonceSize()], ciphertext[aead.NonceSize():]
-
-	return aead.Open(nil, nonce, ciphertext, nil)
-}
-
-// Encrypt encrypts a temporary serialized .cdat serialized file with chacha
-func (curode *Curode) Encrypt(key, plaintext []byte) ([]byte, error) {
-	aead, err := chacha20poly1305.New(key)
-	if err != nil {
-		return nil, err
-	}
-
-	totalLen := aead.NonceSize() + len(plaintext) + aead.Overhead()
-	nonce := make([]byte, aead.NonceSize(), totalLen)
-	if _, err := rand.Read(nonce); err != nil {
-		return nil, err
-	}
-
-	return aead.Seal(nonce, nonce, plaintext, nil), nil
 }
 
 // SignalListener listens for system signals
@@ -394,7 +346,6 @@ func (curode *Curode) SignalListener() {
 		case sig := <-curode.SignalChannel:
 			curode.Printl(fmt.Sprintf("SignalListener(): Received signal %s starting database shutdown.", sig), "INFO")
 			curode.TCPListener.Close() // Close up TCP/TLS listener
-			curode.WriteToFile(false)  // Write database data to file
 			curode.ContextCancel()     // Cancel context, used for loops and so forth
 			return
 		default:
@@ -507,7 +458,6 @@ func (curode *Curode) SyncOut() {
 						// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
 						tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", r.Host, r.Port))
 						if err != nil {
-							fmt.Println("SyncOut():", err.Error())
 							curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
 							continue
 						}
@@ -540,6 +490,7 @@ func (curode *Curode) SyncOut() {
 
 								// Handle sync after auth
 								// Serialize current data
+								// We should do gob.NewEncoder(conn) and will
 								b := new(bytes.Buffer)
 
 								e := gob.NewEncoder(b)
@@ -621,13 +572,13 @@ func (curode *Curode) Printl(data string, level string) {
 			curode.LogFile.Close()
 			err := os.Truncate(curode.LogFile.Name(), 0)
 			if err != nil {
-				curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
+				curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] Printl(): %s %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
 				return
 			}
 
 			tz, err := time.LoadLocation(curode.Config.Timezone)
 			if err != nil {
-				curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error())))
+				curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] Printl(): %s %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error())))
 				return
 			}
 
@@ -640,7 +591,7 @@ func (curode *Curode) Printl(data string, level string) {
 		} else {
 			tz, err := time.LoadLocation(curode.Config.Timezone)
 			if err != nil {
-				fmt.Println(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error()))
+				fmt.Println(fmt.Sprintf("[%s][%s] Printl(): %s %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error()))
 				return
 			}
 
@@ -655,6 +606,7 @@ func (curode *Curode) Printl(data string, level string) {
 
 // WriteToFile will write the current node data to a .cdat file encrypted with your node key.
 func (curode *Curode) WriteToFile(backup bool) {
+
 	var t time.Time // Time for if backup is enabled
 
 	if backup {
@@ -673,116 +625,58 @@ func (curode *Curode) WriteToFile(backup bool) {
 		curode.Printl(fmt.Sprintf("WriteToFile(): Starting to write node data to backup file."), "INFO")
 	}
 
-	var fTmp *os.File
-	var err error
-
 	if !backup {
-		// Create temporary .cdat which is all serialized data.  An encryption is performed after the fact to not consume memory.
-		fTmp, err = os.OpenFile(".cdat.tmp", os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
+		var out io.Writer
+
+		f, err := os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
 		if err != nil {
 			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
 			curode.SignalChannel <- os.Interrupt
 			return
 		}
+
+		decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
+		if err != nil {
+			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+			curode.SignalChannel <- os.Interrupt
+			return
+		}
+		out, _ = flate.NewWriter(f, flate.BestCompression, decodedKey)
+
+		enc := gob.NewEncoder(out)
+
+		enc.Encode(curode.Data.Map)
+
+		out.(io.Closer).Close()
 	} else {
-		fTmp, err = os.OpenFile(fmt.Sprintf("backups/.cdat.%d.tmp", t.Unix()), os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0777)
+		var out io.Writer
+
+		f, err := os.OpenFile(fmt.Sprintf("backups/.cdat.%d", t.Unix()), os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
 		if err != nil {
 			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
 			curode.SignalChannel <- os.Interrupt
 			return
 		}
-	}
 
-	e := gob.NewEncoder(fTmp)
-
-	// Encoding the map
-	err = e.Encode(curode.Data.Map)
-	if err != nil {
-		curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
-		curode.SignalChannel <- os.Interrupt
-		return
-	}
-
-	fTmp.Close()
-
-	if !backup {
-		// After serialization encrypt temp data file
-		fTmp, err = os.OpenFile(".cdat.tmp", os.O_RDONLY, 0777)
+		decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
 		if err != nil {
 			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
 			curode.SignalChannel <- os.Interrupt
 			return
 		}
-	} else {
-		// After serialization encrypt temp data file
-		fTmp, err = os.OpenFile(fmt.Sprintf("backups/.cdat.%d.tmp", t.Unix()), os.O_RDONLY, 0777)
-		if err != nil {
-			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
-			curode.SignalChannel <- os.Interrupt
-			return
-		}
-	}
+		out, _ = flate.NewWriter(f, flate.BestCompression, decodedKey)
 
-	//
-	reader := bufio.NewReader(fTmp)
-	buf := make([]byte, 8192)
+		enc := gob.NewEncoder(out)
 
-	var f *os.File
+		enc.Encode(curode.Data.Map)
 
-	if !backup {
-		f, err = os.OpenFile(".cdat", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
-		if err != nil {
-			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
-			curode.SignalChannel <- os.Interrupt
-			return
-		}
-	} else {
-		f, err = os.OpenFile(fmt.Sprintf("backups/.cdat.%d", t.Unix()), os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
-		if err != nil {
-			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
-			curode.SignalChannel <- os.Interrupt
-			return
-		}
-	}
+		out.(io.Closer).Close()
 
-	defer f.Close()
-
-	for {
-		read, err := reader.Read(buf)
-
-		if err != nil {
-			if err != io.EOF {
-				curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
-				curode.SignalChannel <- os.Interrupt
-				return
-			}
-			break
-		}
-
-		if read > 0 {
-			decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
-			if err != nil {
-				curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
-				curode.SignalChannel <- os.Interrupt
-				return
-			}
-
-			cipherblock, err := curode.Encrypt(decodedKey[:], buf[:read])
-			if err != nil {
-				curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
-				curode.SignalChannel <- os.Interrupt
-				return
-			}
-
-			f.Write(cipherblock)
-		}
 	}
 
 	if !backup {
-		os.Remove(".cdat.tmp")
 		curode.Printl(fmt.Sprintf("WriteToFile(): Node data written to file successfully."), "INFO")
 	} else {
-		os.Remove(fmt.Sprintf("backups/.cdat.%d.tmp", t.Unix()))
 		curode.Printl(fmt.Sprintf("WriteToFile(): Node backup data written to file successfully."), "INFO")
 	}
 
@@ -2235,14 +2129,14 @@ func (curode *Curode) AutomaticBackup() {
 
 	workingDir, err := os.Getwd()
 	if err != nil {
-		curode.Printl(fmt.Sprintf("%d Could not get node working directory for automatic backup %s", 206, err.Error()), "ERROR")
+		curode.Printl(fmt.Sprintf("AutomaticBackup(): %d Could not get node working directory for automatic backup %s", 206, err.Error()), "ERROR")
 		return
 	}
 
 	// Check if /backups exists or not and create it
 	if _, err = os.Stat(fmt.Sprintf("%s/backups", workingDir)); errors.Is(err, os.ErrNotExist) {
 		if err = os.Mkdir(fmt.Sprintf("%s/backups", workingDir), os.ModePerm); err != nil {
-			curode.Printl(fmt.Sprintf("%d Could not create automatic backups directory %s", 207, err.Error()), "ERROR")
+			curode.Printl(fmt.Sprintf("AutomaticBackup(): %d Could not create automatic backups directory %s", 207, err.Error()), "ERROR")
 			return
 		}
 	}
@@ -2283,7 +2177,7 @@ func (curode *Curode) AutomaticBackup() {
 				// Read backups and remove any backups older than AutomaticBackupCleanupTime days old
 				backups, err := ioutil.ReadDir(fmt.Sprintf("%s/backups", workingDir)) // read backups directory
 				if err != nil {
-					curode.Printl(fmt.Sprintf("%d Could not read node backups directory %s", 208, err.Error()), "ERROR")
+					curode.Printl(fmt.Sprintf("AutomaticBackup(): %d Could not read node backups directory %s", 208, err.Error()), "ERROR")
 					time.Sleep(time.Second)
 					continue
 				}
@@ -2292,7 +2186,7 @@ func (curode *Curode) AutomaticBackup() {
 					if backup.ModTime().After(time.Now().Add(time.Hour * time.Duration(curode.Config.AutomaticBackupCleanupHours))) {
 						e := os.Remove(fmt.Sprintf("%s/backups/%s", workingDir, backup.Name()))
 						if e != nil {
-							curode.Printl(fmt.Sprintf("%d Could not remove .cdat backup %s %s", 209, backup.Name(), err.Error()), "ERROR")
+							curode.Printl(fmt.Sprintf("AutomaticBackup(): %d Could not remove .cdat backup %s %s", 209, backup.Name(), err.Error()), "ERROR")
 							continue
 						}
 					}
