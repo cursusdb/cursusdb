@@ -1194,6 +1194,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				} else if strings.HasPrefix(query, "delete user") {
 					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
 					goto continueOn // User not allowed
+				} else if strings.HasPrefix(query, "delete key") {
+					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
+					goto continueOn // User not allowed
 				} else if strings.HasPrefix(query, "delete") {
 					text.PrintfLine(fmt.Sprintf("%d User not authorized", 4))
 					goto continueOn // User not allowed, ret
@@ -1253,6 +1256,14 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				// Check reserved words based on https://go.dev/ref/spec and CursusDB system reserved words
 				switch {
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"count":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"$id":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"$indx":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
@@ -2338,6 +2349,33 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 				}
 				// end update
+			case strings.HasPrefix(query, "delete user"):
+				splQ := strings.Split(query, "delete user ")
+
+				if len(splQ) != 2 {
+					text.PrintfLine("%d Invalid command/query.", 4005)
+					query = ""
+					continue
+				}
+
+				err = cursus.RemoveUser(splQ[1])
+				if err != nil {
+					text.PrintfLine(err.Error())
+					query = ""
+					continue
+				}
+
+				text.PrintfLine("%d Database user %s removed successfully.", 201, strings.TrimSuffix(splQ[1], ";"))
+
+				query = ""
+				continue
+			case strings.HasPrefix(query, "delete key in"):
+				text.PrintfLine("Unimplemented")
+				//text.PrintfLine("%d Document key removed from collection successfully.", 212)
+
+				query = ""
+				continue
+
 			case strings.HasPrefix(query, "delete "):
 				// Start of delete action
 				// delete 1 from users where name == 'alex' && last == 'padula';

@@ -440,6 +440,7 @@ delete user USERNAME;
 - ``209`` - Could not remove .cdat backup {FILE NAME} (with description)
 - ``210`` - Could not get node working directory for automatic recovery (with description)
 - ``211`` - Node data backup was successful
+- ``212`` - Document key removed from collection successfully
 - ``500`` - Unknown error (with description)
 - ``501`` - Limit skip must be an integer (with description)
 - ``502`` - Could not convert limit value to integer (with description)
