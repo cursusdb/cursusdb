@@ -1226,7 +1226,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 			query = ""
 			continue
 		} else if strings.HasSuffix(query, ";") { // Does line end with a semicolon?
-			cursus.Printl(fmt.Sprintf("HandleClientConnection(): %s query(%s)", conn.RemoteAddr().String(), query), "INFO")
+
+			if cursus.Config.LogQuery { // Only log if configuration set as queries can contain harmful personal information
+				cursus.Printl(fmt.Sprintf("HandleClientConnection(): %s query(%s)", conn.RemoteAddr().String(), query), "INFO")
+			}
 
 			// Check user permission and check if their allowed to use the specific action
 			switch user["permission"] {
