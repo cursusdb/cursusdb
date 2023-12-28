@@ -1139,6 +1139,12 @@ unavailable:
 		}
 	}
 
+	if len(n.Node.Replicas) > 0 {
+		cursus.Printl(fmt.Sprintf("%d Node %s and replicas %s unavailable.", 105, n.Conn.RemoteAddr().String(), strings.Join(attemptedReplicas, ",")), "WARNING")
+	} else {
+		cursus.Printl(fmt.Sprintf(`%d Node %s unavailable.`, 105, n.Conn.RemoteAddr().String()), "WARNING")
+	}
+
 	return
 fin:
 	return
