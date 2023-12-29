@@ -2,6 +2,8 @@
 
 <img src="images/cursusdb.svg" width="314">
 
+----
+
 ## Cursus Database System
 CursusDB is a fast open source in-memory document oriented database offering security, persistence, distribution, availability and an SQL like query language.
 
@@ -37,6 +39,8 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 
 **There are no databases like MySQL let's say where you can have multiples.  A cluster is your database that spreads data across many nodes.**
 
+---
+
 ![drawing3.png](images/drawing3.png)
 
 ![drawing5.png](images/drawing5.png)
@@ -57,43 +61,6 @@ https://hub.docker.com/repositories/cursusdb (SOON)
 ## Prebuilt Binaries
 You can find the latest stable release prebuilt binaries at
 https://cursusdb.com/downloads
-
-
-## Document Expectation & Document Relation
-CursusDB expects simple JSON objects. For example take this user object:
-
-```{"username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]}```
-
-This is an object CursusDB likes.
-
-imagine you insert this object into a users collection:
-
-```insert into users({"username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]})```
-
-```{"insert":{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90", "username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]},"message":"Document inserted","statusCode":2000}```
-You can see username and email are set up to be unique using the suffixed ``!``. If CursusDB finds a user with that email or username you'll get back a 4004 error which means document already exists.
-
-Now lets say this user can have many posts.
-We will create a posts collection with the first post containing the users $id we created.
-
-```insert into posts({"title": "First Post", "body": "This is a test post", "userId": "17cc0a83-f78e-4cb2-924f-3a194dedec90", "createdOn": 1703626015})```
-
-As you can see we sorta just related data so now it's fairly easy to query the database and say hey give me all the users posts like so:
-
-```select * from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90";```
-
-Remember how we had the createdOn as a unix timestamp on our posts documents? Awesome we can sort all the posts and paginate them!
-
-Skipping 10 and grabbing 10
-
-```select 10,10 from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90" order by createdOn desc;```
-
-Let`s say we want to sort the posts by title alphabetically:
-
-```select * from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90" order by title asc;```
-
-This is how data should be related on CursusDB either a user has many posts or lets say a user has one account profile well same thing just repeat the process.
-
 
 ## Cluster & Node Building & Initial Setup
 Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
@@ -137,6 +104,7 @@ log-max-lines: 1000
 join-responses: false
 logging: false
 timezone: Local
+log-query: false
 ```
 - nodes - database cluster nodes.  i.e an ip/fqdn + port combination (cluster1.example.com:7682)
 - tls-node - whether the cluster will connect to nodes via tls
@@ -150,7 +118,7 @@ timezone: Local
 - join-responses - join all node responses and limit based on provided n
 - logging - start logging to file
 - timezone - Default is Local but format allowed is for example America/Toronto
-
+- log-query - Logs client ip and their query to logs and std out if enabled
 
 Let's put in under nodes a local node we will start shortly.
 ``` 
@@ -226,28 +194,6 @@ Using curush or native client
 ```
 > ping;
 > pong;
-```
-
-## Get collections
-```
-curush>collections;
-[{"127.0.0.1:7682": {"collections":["losers","winners","users"]}}]
-```
-
-### Deleting collections?
-When you remove every document from a collection the collection is removed i.e
-
-``` 
-delete * from losers;
-```
-
-``` 
-..."1 Document(s) deleted successfully.","statusCode":2000}}]
-```
-
-```
-curush>collections;
-[{"127.0.0.1:7682": {"collections":["winners","users"]}}]
 ```
 
 ## Query Language
@@ -378,7 +324,48 @@ using ``key!`` will make sure the value is unique across all nodes!
 insert into users({"email!": "test@example.com" ...});
 ```
 
-### Database Users
+### Operators
+- ``>``
+- ``>=``
+- ``<``
+- ``>=``
+- ``==``
+- ``=``
+- ``!=``
+
+### Conditionals
+- ``&&``
+- ``||``
+
+### Actions
+- ``select``
+- ``update``
+- ``delete``
+
+## Get collections
+```
+curush>collections;
+[{"127.0.0.1:7682": {"collections":["losers","winners","users"]}}]
+```
+
+### Deleting collections?
+When you remove every document from a collection the collection is removed i.e
+
+``` 
+delete * from losers;
+```
+
+``` 
+..."1 Document(s) deleted successfully.","statusCode":2000}}]
+```
+
+```
+curush>collections;
+[{"127.0.0.1:7682": {"collections":["winners","users"]}}]
+```
+
+
+## Database Users
 CursusDB has 2 permissions R(read) and (RW).  RW can select, insert, delete, update and add new users whereas users with just R can only read.
 
 ``` 
@@ -399,7 +386,7 @@ Getting all database users.  User with RW permission required.
 users;
 ```
 
-command returns JSON array of database users. 
+command returns JSON array of database users.
 ``` 
 ["alex","daniel"]
 ```
@@ -409,25 +396,7 @@ command returns JSON array of database users.
 delete user USERNAME;
 ```
 
-### Operators
-- ``>``
-- ``>=``
-- ``<``
-- ``>=``
-- ``==``
-- ``=``
-- ``!=``
-
-### Conditionals
-- ``&&``
-- ``||``
-
-### Actions
-- ``select``
-- ``update``
-- ``delete``
-
-### Status codes
+## Status codes
 #### Authentication / Authorization
 - ``0`` Authentication successful.
 - ``1`` Unable to read authentication header.
@@ -495,7 +464,7 @@ delete user USERNAME;
 - ``4022`` No documents found to alter
 - ``4023`` No unique $id could be found for insert
 
-### Ports
+## Ports
 Default cluster port: ``7681``
 Default node port: ``7682``
 
@@ -528,7 +497,7 @@ Logs can have either level:
 [INFO][26 Dec 23 08:34 EST] WriteToFile(): Node data written to file successfully.
 ```
 
-#### Example using curush querying cluster
+### Example using curush querying cluster
 ``` 
 ./curush -host 0.0.0.0
 Username> ******
@@ -567,7 +536,6 @@ join-responses: false
 
 is required to see results for each node.
 
-
 ``join-responses`` joins all documents from nodes and limits based on limit.  For example..
 
 ``` 
@@ -581,6 +549,43 @@ The ``select 3`` portion the cluster will get depending on set amount of nodes s
 If you set ``tls-node`` on the cluster to true the cluster will expect all nodes to be listening on tls.
 
 If you set ``tls-replication`` on a cluster node to true the cluster node will expect all node replicas to be listening on tls.
+
+
+## Document Expectation & Document Relation
+CursusDB expects simple JSON objects. For example take this user object:
+
+```{"username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]}```
+
+This is an object CursusDB likes.
+
+imagine you insert this object into a users collection:
+
+```insert into users({"username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]})```
+
+```{"insert":{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90", "username!": "alex", "email!": "alex@test.com", "password": "xxx", "interests": ["programming", "music", "botany"]},"message":"Document inserted","statusCode":2000}```
+You can see username and email are set up to be unique using the suffixed ``!``. If CursusDB finds a user with that email or username you'll get back a 4004 error which means document already exists.
+
+Now lets say this user can have many posts.
+We will create a posts collection with the first post containing the users $id we created.
+
+```insert into posts({"title": "First Post", "body": "This is a test post", "userId": "17cc0a83-f78e-4cb2-924f-3a194dedec90", "createdOn": 1703626015})```
+
+As you can see we sorta just related data so now it's fairly easy to query the database and say hey give me all the users posts like so:
+
+```select * from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90";```
+
+Remember how we had the createdOn as a unix timestamp on our posts documents? Awesome we can sort all the posts and paginate them!
+
+Skipping 10 and grabbing 10
+
+```select 10,10 from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90" order by createdOn desc;```
+
+Let`s say we want to sort the posts by title alphabetically:
+
+```select * from posts where userId = "17cc0a83-f78e-4cb2-924f-3a194dedec90" order by title asc;```
+
+This is how data should be related on CursusDB either a user has many posts or lets say a user has one account profile well same thing just repeat the process.
+
 
 ## Issues 
 Please report issues, enhancements, etc at:
