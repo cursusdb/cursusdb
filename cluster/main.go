@@ -1051,11 +1051,11 @@ func (cursus *Cursus) QueryNodesRet(body map[string]interface{}) map[string]stri
 // QueryNode queries a specific node
 func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGroup, mu *sync.RWMutex, responses *map[string]string, action string) {
 	defer wg.Done() // defer returning go routine to waitgroup
-	n.Mu.Lock()     // lock node for query ( may not be needed, I have to test more.. really not needed for reads )
+	n.Mu.Lock()
 
 	defer n.Mu.Unlock()
 
-	mn := n // main node
+	mn := n // non replica main node
 
 	retriesReplica := len(n.Node.Replicas) // Retry on configured node read replicas
 
