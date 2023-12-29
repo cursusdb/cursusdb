@@ -1532,6 +1532,26 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
 					query = ""
 					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"&&":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"||":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `">":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"<":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					query = ""
+					continue
+				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"=":`):
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					query = ""
+					continue
 				default:
 					goto keyOk // insert key is ok
 				}
@@ -2742,16 +2762,16 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 			case strings.HasPrefix(query, "new user "):
 				// start new user
 				// new user username, password, RW
-				splQ := strings.Split(query, "new user ")
+				splitQuery := strings.Split(query, "new user ")
 
 				// now we split at comma if value is equal to 2
-				if len(splQ) != 2 {
+				if len(splitQuery) != 2 {
 					text.PrintfLine("%d Invalid command/query.", 4005)
 					query = ""
 					continue
 				}
 
-				splQComma := strings.Split(splQ[1], ",")
+				splQComma := strings.Split(splitQuery[1], ",")
 
 				if len(splQComma) != 3 {
 					text.PrintfLine("%d Invalid command/query.", 4005)
@@ -2774,8 +2794,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				// start users
 				var users []string
 
+				// Get users based on in memory config
 				for _, u := range cursus.Config.Users {
-					username, err := base64.StdEncoding.DecodeString(strings.Split(u, ":")[0])
+					username, err := base64.StdEncoding.DecodeString(strings.Split(u, ":")[0]) // get username splitting at :
 					if err != nil {
 						cursus.Printl("HandleClientConnection(): "+fmt.Sprintf("%d Could not decode user username.", 202), "ERROR")
 						continue
