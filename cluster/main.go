@@ -1295,6 +1295,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				}
 
 				// Check reserved words based on https://go.dev/ref/spec and CursusDB system reserved words
+				// What has been commented out has been tested inserting and reading like so
+				// insert into test({"case": "test"});
+				// select * from test where case = 'test';
 				switch {
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"count":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
@@ -1312,10 +1315,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"like":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"like":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"not like":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
@@ -1328,22 +1331,22 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"from":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"from":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"*":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"break":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"case":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"break":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"case":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"chan":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
@@ -1372,15 +1375,11 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"for":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"for":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"func":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"go":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
@@ -1396,10 +1395,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"import":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"import":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"interface":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
@@ -1408,18 +1407,18 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"package":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"range":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"return":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"package":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"range":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"return":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"select":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
@@ -1520,10 +1519,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"make":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"make":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"new":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
@@ -1895,8 +1894,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["sort-key"] = sortKey
 
 					for k, s := range andOrSplit {
-						querySplitNested := qsreg.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSuffix(s, ";"), "where", ""), "from", "")), -1)
-
+						querySplitNested := qsreg.FindAllString(strings.TrimSpace(strings.Replace(strings.Replace(strings.TrimSuffix(s, ";"), "from", "", 1), "where", "", 1)), -1)
 						if len(querySplitNested) < 3 {
 							text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
 							query = ""
@@ -1927,10 +1925,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
 
-						if k < len(andOrSplit)-1 {
-							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+						lindx := strings.Index(query, fmt.Sprintf("%s %s %v", querySplitNested[len(querySplitNested)-3], querySplitNested[len(querySplitNested)-2], body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+						valLen := len(fmt.Sprintf("%s %s %v", querySplitNested[len(querySplitNested)-3], querySplitNested[len(querySplitNested)-2], body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
 
+						if len(query[lindx+valLen:]) > 3 {
 							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
 						}
 
@@ -2300,18 +2298,34 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					for k, s := range andOrSplit {
 						var querySplitNested []string
 						if strings.Contains(s, "set") {
-							querySplitNested = qsreg.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSuffix(s[:strings.Index(s, "set")], ";"), "where", ""), "from", "")), -1)
+							if strings.Count(s, "where") > 1 {
+								querySplitNested = qsreg.FindAllString(strings.TrimSpace(strings.Replace(strings.TrimSuffix(s[:strings.Index(s, "set")], ";"), "where", "", 1)), -1)
+
+							} else {
+								querySplitNested = qsreg.FindAllString(strings.TrimSpace(strings.TrimSuffix(s[:strings.Index(s, "set")], ";")), -1)
+							}
+
 							if len(querySplitNested) < 3 {
 								text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
 								query = ""
 								continue
 							}
+
 						} else {
-							querySplitNested = qsreg.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSuffix(s, ";"), "where", ""), "from", "")), -1)
-							if len(querySplitNested) < 3 {
-								text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
-								query = ""
-								continue
+							if strings.Count(s, "where") > 1 {
+								querySplitNested = qsreg.FindAllString(strings.TrimSpace(strings.Replace(strings.TrimSuffix(s, ";"), "where", "", 1)), -1)
+								if len(querySplitNested) < 3 {
+									text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
+									query = ""
+									continue
+								}
+							} else {
+								querySplitNested = qsreg.FindAllString(strings.TrimSpace(strings.TrimSuffix(s, ";")), -1)
+								if len(querySplitNested) < 3 {
+									text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
+									query = ""
+									continue
+								}
 							}
 						}
 
@@ -2338,11 +2352,11 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						body["values"] = append(body["values"].([]interface{}), strings.TrimSpace(strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";")))
 
-						if k < len(andOrSplit)-1 {
-							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+						lindx := strings.Index(strings.TrimRight(strings.Split(query, "set")[0], "set "), fmt.Sprintf("%s %s %v", querySplitNested[len(querySplitNested)-3], querySplitNested[len(querySplitNested)-2], body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+						valLen := len(fmt.Sprintf("%s %s %v", querySplitNested[len(querySplitNested)-3], querySplitNested[len(querySplitNested)-2], body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
 
-							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
+						if len(strings.Split(query, "set")[0][lindx+valLen:]) > 2 {
+							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(strings.Split(query, "set")[0][lindx+valLen:lindx+valLen+3]))
 						}
 
 						if strings.EqualFold(body["values"].([]interface{})[len(body["values"].([]interface{}))-1].(string), "null") {
@@ -2623,7 +2637,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					body["sort-key"] = sortKey
 
 					for k, s := range andOrSplit {
-						querySplitNested := qsreg.FindAllString(strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSuffix(s, ";"), "where", ""), "from", "")), -1)
+						querySplitNested := qsreg.FindAllString(strings.TrimSpace(strings.Replace(strings.Replace(strings.TrimSuffix(s, ";"), "from", "", 1), "where", "", 1)), -1)
+
 						if len(querySplitNested) < 3 {
 							text.PrintfLine(fmt.Sprintf("%d Invalid query.", 4017))
 							query = ""
@@ -2653,10 +2668,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 						body["values"] = append(body["values"].([]interface{}), strings.TrimSuffix(querySplitNested[len(querySplitNested)-1], ";"))
 
-						if k < len(andOrSplit)-1 {
-							lindx := strings.LastIndex(query, fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
-							valLen := len(fmt.Sprintf("%v", body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+						lindx := strings.Index(query, fmt.Sprintf("%s %s %v", querySplitNested[len(querySplitNested)-3], querySplitNested[len(querySplitNested)-2], body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
+						valLen := len(fmt.Sprintf("%s %s %v", querySplitNested[len(querySplitNested)-3], querySplitNested[len(querySplitNested)-2], body["values"].([]interface{})[len(body["values"].([]interface{}))-1]))
 
+						if len(query[lindx+valLen:]) > 3 {
 							body["conditions"] = append(body["conditions"].([]string), strings.TrimSpace(query[lindx+valLen:lindx+valLen+3]))
 						}
 
