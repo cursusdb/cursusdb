@@ -30,7 +30,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Automatic node backups if ``automatic-backup`` within ``.curodeconfig`` is set to true
 - Automatic node backup clean up if ``automatic-backup-cleanup`` within ``.curodeconfig`` is set to true.
 - Automatic node recovery if data is corrupt if ``automatic-backup`` configured
-- DEFLATE compressed data format on nodes
+- Node data(.cdat) and node backups(/backups/cdat.unixtime) are created by taking what's in memory serializing it, encrypting it and compressing it block by block on shutdown ChaCha DEFLATE
 
 **There are no databases like MySQL let's say where you can have multiples.  A cluster is your database that spreads data across many nodes.**
 
