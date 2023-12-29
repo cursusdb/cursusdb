@@ -106,19 +106,19 @@ logging: false
 timezone: Local
 log-query: false
 ```
-- nodes - database cluster nodes.  i.e an ip/fqdn + port combination (cluster1.example.com:7682)
-- tls-node - whether the cluster will connect to nodes via tls
-- tls-cert - path to your tls cert for cluster
-- tls-key - path to your tls key for cluster
-- tls - enable or disable tls 
-- port - cluster port
-- key - encoded shared key
-- users - array of database users serialized, and encoded.
-- node-reader-size - the max size of a response from a node
-- join-responses - join all node responses and limit based on provided n
-- logging - start logging to file
-- timezone - Default is Local but format allowed is for example America/Toronto
-- log-query - Logs client ip and their query to logs and std out if enabled
+- **nodes** - database cluster nodes.  i.e an ip/fqdn + port combination (cluster1.example.com:7682)
+- **tls-node** - whether the cluster will connect to nodes via tls
+- **tls-cert** - path to your tls cert for cluster
+- **tls-key** - path to your tls key for cluster
+- **tls** - enable or disable tls 
+- **port** - cluster port
+- **key** - encoded shared key
+- **users** - array of database users serialized, and encoded.
+- **node-reader-size** - the max size of a response from a node
+- **join-responses** - join all node responses and limit based on provided n
+- **logging** - start logging to file
+- **timezone** - Default is Local but format allowed is for example America/Toronto
+- **log-query** - Logs client ip and their query to logs and std out if enabled
 
 Let's put in under nodes a local node we will start shortly.
 ``` 
@@ -155,6 +155,7 @@ On inserts every document will get a unique ``$id `` key which is unique across 
 ![img_8.png](images/img_8.png)
 
 If we try and insert the same document we will get an error stating an existing document already exists.  This is because we set ``email`` with and ``!`` 
+
 ![img_9.png](images/img_9.png)
 
 ## Node Replicating
@@ -484,10 +485,10 @@ Within your yaml configs you can set ``log-max-lines`` this option will tell eit
 [LEVEL][YOUR CONFIGURED TZ RFC822 DATE] DATA
 
 Logs can have either level:
-- ERROR
-- INFO
-- FATAL
-- WARN
+- <span style="color: red">ERROR</span>
+- <span style="color: purple">FATAL</span>
+- <span style="color: yellow">INFO</span>
+- <span style="color: orange">WARN</span>
 
 ``` 
 [INFO][26 Dec 23 08:34 EST] main(): Node data read into memory.
