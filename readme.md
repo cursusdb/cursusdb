@@ -430,6 +430,8 @@ delete user USERNAME;
 - ``213`` - Delete key missing in
 - ``214`` - Node was unrecoverable after all attempts
 - ``215`` - Attempting automatic recovery with latest backup
+- ``216`` - Starting to sync to with master node
+- ``217`` - Synced up with master node (with addr)
 - ``500`` - Unknown error (with description)
 - ``501`` - Limit skip must be an integer (with description)
 - ``502`` - Could not convert limit value to integer (with description)
