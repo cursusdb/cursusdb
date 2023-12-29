@@ -2954,55 +2954,80 @@ func (cursus *Cursus) LostReconnect() {
 					// Did response start with a 0?  This indicates successful authentication
 					if strings.HasPrefix(string(authBuf[:r]), "0") {
 
-						cursus.NodeConnections[i] = &NodeConnection{
-							Conn:       conn,
-							SecureConn: secureConn,
-							Text:       textproto.NewConn(secureConn),
-							Node:       nc.Node,
-							Mu:         &sync.Mutex{},
-							Ok:         true,
+						if !nc.Replica {
+							cursus.NodeConnections[i] = &NodeConnection{
+								Conn:       conn,
+								SecureConn: secureConn,
+								Text:       textproto.NewConn(secureConn),
+								Node:       nc.Node,
+								Mu:         &sync.Mutex{},
+								Ok:         true,
+							}
+						} else {
+							cursus.NodeConnections[i] = &NodeConnection{
+								Conn:       conn,
+								SecureConn: secureConn,
+								Text:       textproto.NewConn(secureConn),
+								Node:       nc.Node,
+								Mu:         &sync.Mutex{},
+								Ok:         true,
+								Replica:    true,
+							}
 						}
-
 					}
 
-					cursus.Printl("LostReconnect(): Reconnected to lost connection "+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
+				}
+
+				cursus.Printl("LostReconnect(): Reconnected to lost connection "+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
+				time.Sleep(time.Nanosecond * 1000000)
+			} else {
+
+				// Resolve TCP addr
+				tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port))
+				if err != nil {
 					time.Sleep(time.Nanosecond * 1000000)
-				} else {
+					continue
+				}
 
-					// Resolve TCP addr
-					tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port))
-					if err != nil {
-						time.Sleep(time.Nanosecond * 1000000)
-						continue
-					}
+				// Dial tcp address up
+				conn, err := net.DialTCP("tcp", nil, tcpAddr)
+				if err != nil {
+					time.Sleep(time.Nanosecond * 1000000)
+					continue
+				}
 
-					// Dial tcp address up
-					conn, err := net.DialTCP("tcp", nil, tcpAddr)
-					if err != nil {
-						time.Sleep(time.Nanosecond * 1000000)
-						continue
-					}
+				// We will keep the node connection alive until shutdown
+				conn.SetKeepAlive(true) // forever
 
-					// We will keep the node connection alive until shutdown
-					conn.SetKeepAlive(true) // forever
+				// Authenticate with node passing shared key wrapped in base64
+				conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
 
-					// Authenticate with node passing shared key wrapped in base64
-					conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
+				// Authentication response buffer
+				authBuf := make([]byte, 1024)
 
-					// Authentication response buffer
-					authBuf := make([]byte, 1024)
+				// Read response back from node
+				r, _ := conn.Read(authBuf[:])
 
-					// Read response back from node
-					r, _ := conn.Read(authBuf[:])
+				// Did response start with a 0?  This indicates successful authentication
+				if strings.HasPrefix(string(authBuf[:r]), "0") {
 
-					// Did response start with a 0?  This indicates successful authentication
-					if strings.HasPrefix(string(authBuf[:r]), "0") {
+					if !nc.Replica {
 						cursus.NodeConnections[i] = &NodeConnection{
-							Conn: conn,
-							Text: textproto.NewConn(conn),
-							Node: nc.Node,
-							Mu:   &sync.Mutex{},
-							Ok:   true,
+							Conn:    conn,
+							Text:    textproto.NewConn(conn),
+							Node:    nc.Node,
+							Mu:      &sync.Mutex{},
+							Ok:      true,
+							Replica: false,
+						}
+					} else {
+						cursus.NodeConnections[i] = &NodeConnection{
+							Conn:    conn,
+							Text:    textproto.NewConn(conn),
+							Node:    nc.Node,
+							Mu:      &sync.Mutex{},
+							Ok:      true,
+							Replica: true,
 						}
 					}
 
