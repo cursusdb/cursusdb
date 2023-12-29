@@ -972,6 +972,981 @@ func (curode *Curode) DeleteKeyFromColl(collection string, key string) int {
 	return objects
 }
 
+func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd []int64, collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, conditions []interface{}, del bool, update bool, objs *[]interface{}) {
+
+	conditionsMetDocument := 0 // conditions met as in th first condition would be key == v lets say the next would be && or || etc..
+
+	// if keys, values and operators are nil
+	// This could be a case of "select * from users;" for example if passing skip and volume checks
+	if ks == nil && vs == nil && oprs == nil {
+
+		// decrement skip and continue
+		if skip != 0 {
+			skip = skip - 1
+			return
+		}
+
+		// if a volume is set check if we are at wanted document volume for query
+		if vol != -1 {
+			if len(*objs) == vol { // Does currently collected documents equal desired volume?
+				return
+			}
+		}
+
+		// add document to objects
+		if update {
+			curode.Data.Map[collection][i]["$indx"] = i
+		}
+
+		mu.Lock()
+		*objs = append(*objs, curode.Data.Map[collection][i])
+
+		if del {
+			tbd = append(tbd, int64(i))
+		}
+		mu.Unlock()
+		return
+	} else {
+
+		// range over provided keys
+		for m, k := range ks.([]interface{}) {
+
+			if oprs.([]interface{})[m] == "" {
+				return
+			}
+
+			if vol != -1 {
+				if len(*objs) == vol {
+					return
+				}
+			}
+
+			vType := fmt.Sprintf("%T", vs.([]interface{})[m])
+
+			_, ok := curode.Data.Map[collection][i][k.(string)]
+			if ok {
+
+				if curode.Data.Map[collection][i][k.(string)] == nil {
+					if oprs.([]interface{})[m] == "==" {
+						if reflect.DeepEqual(vs.([]interface{})[m], nil) {
+							conditionsMetDocument += 1
+						}
+					}
+
+					continue
+				}
+
+				if reflect.TypeOf(curode.Data.Map[collection][i][k.(string)]).Kind() == reflect.Slice {
+					for _, dd := range curode.Data.Map[collection][i][k.(string)].([]interface{}) {
+
+						if vol != -1 {
+							if len(*objs) == vol {
+								return
+							}
+						}
+
+						if reflect.TypeOf(dd).Kind() == reflect.Float64 {
+							if vType == "int" {
+								var interfaceI int = int(dd.(float64))
+
+								if oprs.([]interface{})[m] == "==" {
+									if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+
+										(func() {
+											for _, o := range *objs {
+												if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+													goto exists
+												}
+											}
+											if skip != 0 {
+												skip = skip - 1
+												goto exists
+											}
+											conditionsMetDocument += 1
+										exists:
+										})()
+
+									}
+								} else if oprs.([]interface{})[m] == "!=" {
+									if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+
+										(func() {
+											for _, o := range *objs {
+												if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+													goto exists
+												}
+											}
+											if skip != 0 {
+												skip = skip - 1
+												goto exists
+											}
+											conditionsMetDocument += 1
+										exists:
+										})()
+									}
+								} else if oprs.([]interface{})[m] == ">" {
+									if vType == "int" {
+										if interfaceI > vs.([]interface{})[m].(int) {
+
+											(func() {
+												for _, o := range *objs {
+													if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+														goto exists
+													}
+												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
+												}
+												conditionsMetDocument += 1
+											exists:
+											})()
+
+										}
+									}
+								} else if oprs.([]interface{})[m] == "<" {
+									if vType == "int" {
+										if interfaceI < vs.([]interface{})[m].(int) {
+
+											(func() {
+												for _, o := range *objs {
+													if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+														goto exists
+													}
+												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
+												}
+												conditionsMetDocument += 1
+											exists:
+											})()
+
+										}
+									}
+								} else if oprs.([]interface{})[m] == ">=" {
+									if vType == "int" {
+										if interfaceI >= vs.([]interface{})[m].(int) {
+
+											(func() {
+												for _, o := range *objs {
+													if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+														goto exists
+													}
+												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
+												}
+												conditionsMetDocument += 1
+											exists:
+											})()
+
+										}
+									}
+								} else if oprs.([]interface{})[m] == "<=" {
+									if vType == "int" {
+										if interfaceI <= vs.([]interface{})[m].(int) {
+
+											(func() {
+												for _, o := range *objs {
+													if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+														goto exists
+													}
+												}
+												if skip != 0 {
+													skip = skip - 1
+													goto exists
+												}
+												conditionsMetDocument += 1
+											exists:
+											})()
+
+										}
+									}
+								}
+							} else if vType == "float64" {
+								var interfaceI float64 = dd.(float64)
+
+								if oprs.([]interface{})[m] == "==" {
+
+									if bytes.Equal([]byte(fmt.Sprintf("%f", float64(interfaceI))), []byte(fmt.Sprintf("%f", float64(vs.([]interface{})[m].(float64))))) {
+
+										(func() {
+											for _, o := range *objs {
+												if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+													goto exists
+												}
+											}
+											if skip != 0 {
+												skip = skip - 1
+												goto exists
+											}
+											conditionsMetDocument += 1
+										exists:
+										})()
+
+									}
+								} else if oprs.([]interface{})[m] == "!=" {
+									if float64(interfaceI) != vs.([]interface{})[m].(float64) {
+
+										(func() {
+											for _, o := range *objs {
+												if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+													goto exists
+												}
+											}
+											if skip != 0 {
+												skip = skip - 1
+												goto exists
+											}
+											conditionsMetDocument += 1
+										exists:
+										})()
+
+									}
+								} else if oprs.([]interface{})[m] == ">" {
+									if float64(interfaceI) > vs.([]interface{})[m].(float64) {
+
+										(func() {
+											for _, o := range *objs {
+												if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+													goto exists
+												}
+											}
+											if skip != 0 {
+												skip = skip - 1
+												goto exists
+											}
+											conditionsMetDocument += 1
+										exists:
+										})()
+
+									}
+
+								} else if oprs.([]interface{})[m] == "<" {
+									if float64(interfaceI) < vs.([]interface{})[m].(float64) {
+
+										(func() {
+											for _, o := range *objs {
+												if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+													goto exists
+												}
+											}
+											if skip != 0 {
+												skip = skip - 1
+												goto exists
+											}
+											conditionsMetDocument += 1
+										exists:
+										})()
+
+									}
+
+								} else if oprs.([]interface{})[m] == ">=" {
+
+									if float64(interfaceI) >= vs.([]interface{})[m].(float64) {
+
+										(func() {
+											for _, o := range *objs {
+												if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+													goto exists
+												}
+											}
+											if skip != 0 {
+												skip = skip - 1
+												goto exists
+											}
+											conditionsMetDocument += 1
+										exists:
+										})()
+
+									}
+
+								} else if oprs.([]interface{})[m] == "<=" {
+									if float64(interfaceI) <= vs.([]interface{})[m].(float64) {
+
+										(func() {
+											for _, o := range *objs {
+												if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+													goto exists
+												}
+											}
+											if skip != 0 {
+												skip = skip - 1
+												goto exists
+											}
+											conditionsMetDocument += 1
+										exists:
+										})()
+
+									}
+
+								}
+							}
+						} else if reflect.TypeOf(dd).Kind() == reflect.Map {
+							//for kkk, ddd := range dd.(map[string]interface{}) {
+							//	// unimplemented
+							//}
+						} else {
+							// string
+							if oprs.([]interface{})[m] == "like" {
+								vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
+								vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
+								vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "(MISSING)", "")
+								vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
+								vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
+								vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
+								vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
+
+								if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
+									// Get index of % and check if on left or right of string
+									percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
+									sMiddle := len(vs.([]interface{})[m].(string)) / 2
+									right := sMiddle <= percIndex
+
+									if right {
+										r := regexp.MustCompile(`^(.*?)%`)
+										patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+										for j, _ := range patterns {
+											patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+										}
+
+										for _, p := range patterns {
+											// does value start with p
+
+											if strings.HasPrefix(dd.(string), p) {
+												if skip != 0 {
+													skip = skip - 1
+													goto s
+												}
+												conditionsMetDocument += 1
+
+											s:
+												continue
+											}
+										}
+									} else {
+										r := regexp.MustCompile(`\%(.*)`)
+										patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+										for j, _ := range patterns {
+											patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+										}
+
+										for _, p := range patterns {
+											// does value end with p
+											if strings.HasSuffix(dd.(string), p) {
+												if skip != 0 {
+													skip = skip - 1
+													goto s2
+												}
+												conditionsMetDocument += 1
+
+											s2:
+												continue
+											}
+										}
+									}
+								} else {
+
+									r := regexp.MustCompile(`%(.*?)%`)
+									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+									for j, _ := range patterns {
+										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+									}
+
+									for _, p := range patterns {
+										// does value contain p
+										if strings.Count(dd.(string), p) > 0 {
+											if skip != 0 {
+												skip = skip - 1
+												goto s3
+											}
+											conditionsMetDocument += 1
+
+										s3:
+											continue
+										}
+									}
+								}
+							} else if oprs.([]interface{})[m] == "!like" {
+								vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
+								vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
+								vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
+								vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
+								vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
+								vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
+
+								// select * from users where firstName not like 'alex%'
+								if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
+									// Get index of % and check if on left or right of string
+									percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
+									sMiddle := len(vs.([]interface{})[m].(string)) / 2
+									right := sMiddle <= percIndex
+
+									if right {
+										r := regexp.MustCompile(`^(.*?)%`)
+										patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+										for j, _ := range patterns {
+											patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+										}
+
+										for _, p := range patterns {
+											// does value start with p
+											if !strings.HasPrefix(dd.(string), p) {
+												if skip != 0 {
+													skip = skip - 1
+													goto s4
+												}
+												conditionsMetDocument += 1
+
+											s4:
+												continue
+											}
+										}
+									} else {
+										r := regexp.MustCompile(`\%(.*)`)
+										patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+										for j, _ := range patterns {
+											patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+										}
+
+										for _, p := range patterns {
+											// does value end with p
+											if !strings.HasSuffix(dd.(string), p) {
+												if skip != 0 {
+													skip = skip - 1
+													goto s5
+												}
+												conditionsMetDocument += 1
+
+											s5:
+												continue
+											}
+										}
+									}
+								} else {
+
+									r := regexp.MustCompile(`%(.*?)%`)
+									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+									for j, _ := range patterns {
+										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+									}
+
+									for _, p := range patterns {
+										// does value contain p
+										if strings.Count(dd.(string), p) == 0 {
+											if skip != 0 {
+												skip = skip - 1
+												goto s6
+											}
+											conditionsMetDocument += 1
+
+										s6:
+											continue
+										}
+									}
+								}
+							} else if oprs.([]interface{})[m] == "==" {
+								if reflect.DeepEqual(dd, vs.([]interface{})[m]) {
+
+									(func() {
+										for _, o := range *objs {
+											if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+												goto exists
+											}
+										}
+										if skip != 0 {
+											skip = skip - 1
+											goto exists
+										}
+										conditionsMetDocument += 1
+									exists:
+									})()
+
+								}
+							} else if oprs.([]interface{})[m] == "!=" {
+								if !reflect.DeepEqual(dd, vs.([]interface{})[m]) {
+
+									(func() {
+										for _, o := range *objs {
+											if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+												goto exists
+											}
+										}
+										if skip != 0 {
+											skip = skip - 1
+											goto exists
+										}
+										conditionsMetDocument += 1
+									exists:
+									})()
+
+								}
+							}
+						}
+
+					}
+				} else if vType == "int" {
+					var interfaceI int = int(curode.Data.Map[collection][i][k.(string)].(float64))
+
+					if oprs.([]interface{})[m] == "==" {
+						if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+
+							(func() {
+
+								if skip != 0 {
+									skip = skip - 1
+									goto exists
+								}
+								conditionsMetDocument += 1
+							exists:
+							})()
+
+						}
+					} else if oprs.([]interface{})[m] == "!=" {
+						if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
+
+							(func() {
+
+								if skip != 0 {
+									skip = skip - 1
+									goto exists
+								}
+								conditionsMetDocument += 1
+							exists:
+							})()
+
+						}
+					} else if oprs.([]interface{})[m] == ">" {
+						if vType == "int" {
+							if interfaceI > vs.([]interface{})[m].(int) {
+
+								(func() {
+									for _, o := range *objs {
+										if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+											goto exists
+										}
+									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
+									}
+									conditionsMetDocument += 1
+								exists:
+								})()
+
+							}
+						}
+					} else if oprs.([]interface{})[m] == "<" {
+						if vType == "int" {
+							if interfaceI < vs.([]interface{})[m].(int) {
+
+								(func() {
+									for _, o := range *objs {
+										if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+											goto exists
+										}
+									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
+									}
+									conditionsMetDocument += 1
+								exists:
+								})()
+
+							}
+						}
+					} else if oprs.([]interface{})[m] == ">=" {
+						if vType == "int" {
+							if interfaceI >= vs.([]interface{})[m].(int) {
+
+								(func() {
+									for _, o := range *objs {
+										if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+											goto exists
+										}
+									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
+									}
+									conditionsMetDocument += 1
+								exists:
+								})()
+
+							}
+						}
+					} else if oprs.([]interface{})[m] == "<=" {
+						if vType == "int" {
+							if interfaceI <= vs.([]interface{})[m].(int) {
+
+								(func() {
+									for _, o := range *objs {
+										if reflect.DeepEqual(o, curode.Data.Map[collection][i]) {
+											goto exists
+										}
+									}
+									if skip != 0 {
+										skip = skip - 1
+										goto exists
+									}
+									conditionsMetDocument += 1
+								exists:
+								})()
+
+							}
+						}
+					}
+				} else if vType == "float64" {
+					var interfaceI float64 = curode.Data.Map[collection][i][k.(string)].(float64)
+
+					if oprs.([]interface{})[m] == "==" {
+
+						if bytes.Equal([]byte(fmt.Sprintf("%f", float64(interfaceI))), []byte(fmt.Sprintf("%f", float64(vs.([]interface{})[m].(float64))))) {
+
+							(func() {
+
+								if skip != 0 {
+									skip = skip - 1
+									goto exists
+								}
+								conditionsMetDocument += 1
+							exists:
+							})()
+
+						}
+					} else if oprs.([]interface{})[m] == "!=" {
+						if float64(interfaceI) != vs.([]interface{})[m].(float64) {
+
+							(func() {
+
+								if skip != 0 {
+									skip = skip - 1
+									goto exists
+								}
+								conditionsMetDocument += 1
+							exists:
+							})()
+
+						}
+					} else if oprs.([]interface{})[m] == ">" {
+						if float64(interfaceI) > vs.([]interface{})[m].(float64) {
+
+							(func() {
+
+								if skip != 0 {
+									skip = skip - 1
+									goto exists
+								}
+								conditionsMetDocument += 1
+							exists:
+							})()
+
+						}
+
+					} else if oprs.([]interface{})[m] == "<" {
+						if float64(interfaceI) < vs.([]interface{})[m].(float64) {
+
+							(func() {
+
+								if skip != 0 {
+									skip = skip - 1
+									goto exists
+								}
+								conditionsMetDocument += 1
+							exists:
+							})()
+
+						}
+
+					} else if oprs.([]interface{})[m] == ">=" {
+
+						if float64(interfaceI) >= vs.([]interface{})[m].(float64) {
+
+							(func() {
+
+								if skip != 0 {
+									skip = skip - 1
+									goto exists
+								}
+								conditionsMetDocument += 1
+							exists:
+							})()
+
+						}
+
+					} else if oprs.([]interface{})[m] == "<=" {
+						if float64(interfaceI) <= vs.([]interface{})[m].(float64) {
+
+							(func() {
+
+								if skip != 0 {
+									skip = skip - 1
+									goto exists
+								}
+								conditionsMetDocument += 1
+							exists:
+							})()
+
+						}
+
+					}
+				} else { // string
+
+					if oprs.([]interface{})[m] == "like" {
+						vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
+						vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
+						vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
+						vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
+						vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
+						vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
+
+						// select * from users where firstName like 'alex%'
+						if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
+							// Get index of % and check if on left or right of string
+							percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
+							sMiddle := len(vs.([]interface{})[m].(string)) / 2
+							right := sMiddle <= percIndex
+
+							if right {
+								r := regexp.MustCompile(`^(.*?)%`)
+								patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+								for j, _ := range patterns {
+									patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+								}
+
+								for _, p := range patterns {
+									// does value start with p
+									if strings.HasPrefix(curode.Data.Map[collection][i][k.(string)].(string), p) {
+										if skip != 0 {
+											skip = skip - 1
+											goto sk
+										}
+										conditionsMetDocument += 1
+
+									sk:
+										continue
+									}
+								}
+							} else {
+								r := regexp.MustCompile(`\%(.*)`)
+								patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+								for j, _ := range patterns {
+									patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+								}
+
+								for _, p := range patterns {
+									// does value end with p
+									if strings.HasSuffix(curode.Data.Map[collection][i][k.(string)].(string), p) {
+										if skip != 0 {
+											skip = skip - 1
+											goto sk2
+										}
+										conditionsMetDocument += 1
+
+									sk2:
+										continue
+									}
+								}
+							}
+						} else {
+
+							r := regexp.MustCompile(`%(.*?)%`)
+							patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+							for j, _ := range patterns {
+								patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+							}
+
+							for _, p := range patterns {
+								// does value contain p
+								if strings.Count(curode.Data.Map[collection][i][k.(string)].(string), p) > 0 {
+									if skip != 0 {
+										skip = skip - 1
+										goto sk3
+									}
+									conditionsMetDocument += 1
+
+								sk3:
+									continue
+								}
+							}
+						}
+					} else if oprs.([]interface{})[m] == "!like" {
+						vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
+						vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
+						vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
+						vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
+						vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
+						vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
+
+						// select * from users where firstName not like 'alex%'
+						if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
+							// Get index of % and check if on left or right of string
+							percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
+							sMiddle := len(vs.([]interface{})[m].(string)) / 2
+							right := sMiddle <= percIndex
+
+							if right {
+								r := regexp.MustCompile(`^(.*?)%`)
+								patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+								for j, _ := range patterns {
+									patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+								}
+
+								for _, p := range patterns {
+									// does value start with p
+
+									if !strings.HasPrefix(curode.Data.Map[collection][i][k.(string)].(string), p) {
+										if skip != 0 {
+											skip = skip - 1
+											goto sk4
+										}
+										conditionsMetDocument += 1
+
+									sk4:
+										continue
+									}
+								}
+							} else {
+								r := regexp.MustCompile(`\%(.*)`)
+								patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+								for j, _ := range patterns {
+									patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+								}
+
+								for _, p := range patterns {
+									// does value end with p
+									if !strings.HasSuffix(curode.Data.Map[collection][i][k.(string)].(string), p) {
+										if skip != 0 {
+											skip = skip - 1
+											goto sk5
+										}
+										conditionsMetDocument += 1
+
+									sk5:
+										continue
+									}
+								}
+							}
+						} else {
+
+							r := regexp.MustCompile(`%(.*?)%`)
+							patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
+
+							for j, _ := range patterns {
+								patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
+							}
+
+							for _, p := range patterns {
+								// does value contain p
+								if strings.Count(curode.Data.Map[collection][i][k.(string)].(string), p) == 0 {
+									if skip != 0 {
+										skip = skip - 1
+										goto sk6
+									}
+									conditionsMetDocument += 1
+
+								sk6:
+									continue
+								}
+							}
+						}
+					} else if oprs.([]interface{})[m] == "==" {
+						if reflect.DeepEqual(curode.Data.Map[collection][i][k.(string)], vs.([]interface{})[m]) {
+
+							(func() {
+
+								if skip != 0 {
+									skip = skip - 1
+									goto exists
+								}
+								conditionsMetDocument += 1
+							exists:
+							})()
+
+						}
+					} else if oprs.([]interface{})[m] == "!=" {
+						if !reflect.DeepEqual(curode.Data.Map[collection][i][k.(string)], vs.([]interface{})[m]) {
+
+							(func() {
+
+								if skip != 0 {
+									skip = skip - 1
+									goto exists
+								}
+								conditionsMetDocument += 1
+							exists:
+							})()
+
+						}
+					}
+
+				}
+			}
+		}
+
+		if slices.Contains(conditions, "&&") {
+			if conditionsMetDocument >= len(conditions) {
+				if update {
+					curode.Data.Map[collection][i]["$indx"] = i
+				}
+				mu.Lock()
+				*objs = append(*objs, curode.Data.Map[collection][i])
+				if del {
+					tbd = append(tbd, int64(i))
+				}
+				mu.Unlock()
+			} else if slices.Contains(conditions, "||") && conditionsMetDocument > 0 {
+				if update {
+					curode.Data.Map[collection][i]["$indx"] = i
+				}
+				mu.Lock()
+				*objs = append(*objs, curode.Data.Map[collection][i])
+				if del {
+					tbd = append(tbd, int64(i))
+				}
+				mu.Unlock()
+			}
+		} else if slices.Contains(conditions, "||") && conditionsMetDocument > 0 {
+			if update {
+				curode.Data.Map[collection][i]["$indx"] = i
+			}
+			mu.Lock()
+			*objs = append(*objs, curode.Data.Map[collection][i])
+			if del {
+				tbd = append(tbd, int64(i))
+			}
+			mu.Unlock()
+		} else if conditionsMetDocument > 0 && len(conditions) == 1 {
+			if update {
+				curode.Data.Map[collection][i]["$indx"] = i
+			}
+			mu.Lock()
+			*objs = append(*objs, curode.Data.Map[collection][i])
+			if del {
+				tbd = append(tbd, int64(i))
+			}
+
+			mu.Unlock()
+		}
+
+	}
+
+}
+
 // Select is the node data select method
 func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, lock bool, conditions []interface{}, del bool, sortPos string, sortKey string, count bool, update bool) []interface{} {
 	// sortPos = desc OR asc
@@ -1005,997 +1980,44 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	//The && operator displays a document if all the conditions are TRUE.
 	//The || operator displays a record if any of the conditions are TRUE.
 
-	// Split collection and conquer from top to bottom in parallel
-	middle := len(curode.Data.Map[collection])
+	if len(curode.Data.Map[collection]) > 6 {
 
-	searchWg := &sync.WaitGroup{}
+		// Split collection and conquer from top to bottom in parallel
+		middle := len(curode.Data.Map[collection]) / 2
 
-	// top to middle search
-	go func(wg *sync.WaitGroup) {
-		defer wg.Done()
+		searchWg := &sync.WaitGroup{}
+		searchResMu := &sync.RWMutex{}
 
-		for i := 0; i > middle-1; i++ {
-			log.Println(curode.Data.Map[collection][i])
-		}
-	}(searchWg)
+		// top to middle search
+		searchWg.Add(1)
+		go func(wg *sync.WaitGroup, mid int, objs *[]interface{}, mu *sync.RWMutex) {
+			defer wg.Done()
+			for i := 0; i <= mid; i++ {
+				if curode.Context.Err() != nil {
+					return
+				}
 
-	// bottom to middle search
-	go func(wg *sync.WaitGroup) {
-		defer wg.Done()
-		for i := middle; i >= 0; i++ {
-			log.Println(curode.Data.Map[collection][i])
-		}
-	}(searchWg)
-
-	// Linearly search collection documents by using a range loop
-	for i, d := range curode.Data.Map[collection] {
-
-		conditionsMetDocument := 0 // conditions met as in th first condition would be key == v lets say the next would be && or || etc..
-
-		// if keys, values and operators are nil
-		// This could be a case of "select * from users;" for example if passing skip and volume checks
-		if ks == nil && ks == nil && oprs == nil {
-
-			// decrement skip and continue
-			if skip != 0 {
-				skip = skip - 1
-				continue
+				curode.Search(searchResMu, i, tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
 			}
+		}(searchWg, middle, &objects, searchResMu)
 
-			// if a volume is set check if we are at wanted document volume for query
-			if vol != -1 {
-				if len(objects) == vol { // Does currently collected documents equal desired volume?
-					goto cont // return pretty much
+		// bottom to middle search
+		searchWg.Add(1)
+		go func(wg *sync.WaitGroup, mid int, objs *[]interface{}, mu *sync.RWMutex) {
+			defer wg.Done()
+			for i := len(curode.Data.Map[collection]) - 1; i > mid; i-- {
+				if curode.Context.Err() != nil {
+					return
 				}
+
+				curode.Search(searchResMu, i, tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
 			}
+		}(searchWg, middle, &objects, searchResMu)
 
-			// add document to objects
-			if update {
-				d["$indx"] = i
-			}
-
-			objects = append(objects, d)
-
-			if del {
-				tbd = append(tbd, int64(i))
-			}
-
-			continue
-		} else {
-
-			// range over provided keys
-			for m, k := range ks.([]interface{}) {
-
-				if oprs.([]interface{})[m] == "" {
-					return nil
-				}
-
-				if vol != -1 {
-					if len(objects) == vol {
-						goto cont
-					}
-				}
-
-				vType := fmt.Sprintf("%T", vs.([]interface{})[m])
-
-				_, ok := d[k.(string)]
-				if ok {
-
-					if d[k.(string)] == nil {
-						if oprs.([]interface{})[m] == "==" {
-							if reflect.DeepEqual(vs.([]interface{})[m], nil) {
-								conditionsMetDocument += 1
-							}
-						}
-
-						continue
-					}
-
-					if reflect.TypeOf(d[k.(string)]).Kind() == reflect.Slice {
-						for _, dd := range d[k.(string)].([]interface{}) {
-
-							if vol != -1 {
-								if len(objects) == vol {
-									goto cont
-								}
-							}
-
-							if reflect.TypeOf(dd).Kind() == reflect.Float64 {
-								if vType == "int" {
-									var interfaceI int = int(dd.(float64))
-
-									if oprs.([]interface{})[m] == "==" {
-										if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
-
-											(func() {
-												for _, o := range objects {
-													if reflect.DeepEqual(o, d) {
-														goto exists
-													}
-												}
-												if skip != 0 {
-													skip = skip - 1
-													goto exists
-												}
-												conditionsMetDocument += 1
-											exists:
-											})()
-
-										}
-									} else if oprs.([]interface{})[m] == "!=" {
-										if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
-
-											(func() {
-												for _, o := range objects {
-													if reflect.DeepEqual(o, d) {
-														goto exists
-													}
-												}
-												if skip != 0 {
-													skip = skip - 1
-													goto exists
-												}
-												conditionsMetDocument += 1
-											exists:
-											})()
-										}
-									} else if oprs.([]interface{})[m] == ">" {
-										if vType == "int" {
-											if interfaceI > vs.([]interface{})[m].(int) {
-
-												(func() {
-													for _, o := range objects {
-														if reflect.DeepEqual(o, d) {
-															goto exists
-														}
-													}
-													if skip != 0 {
-														skip = skip - 1
-														goto exists
-													}
-													conditionsMetDocument += 1
-												exists:
-												})()
-
-											}
-										}
-									} else if oprs.([]interface{})[m] == "<" {
-										if vType == "int" {
-											if interfaceI < vs.([]interface{})[m].(int) {
-
-												(func() {
-													for _, o := range objects {
-														if reflect.DeepEqual(o, d) {
-															goto exists
-														}
-													}
-													if skip != 0 {
-														skip = skip - 1
-														goto exists
-													}
-													conditionsMetDocument += 1
-												exists:
-												})()
-
-											}
-										}
-									} else if oprs.([]interface{})[m] == ">=" {
-										if vType == "int" {
-											if interfaceI >= vs.([]interface{})[m].(int) {
-
-												(func() {
-													for _, o := range objects {
-														if reflect.DeepEqual(o, d) {
-															goto exists
-														}
-													}
-													if skip != 0 {
-														skip = skip - 1
-														goto exists
-													}
-													conditionsMetDocument += 1
-												exists:
-												})()
-
-											}
-										}
-									} else if oprs.([]interface{})[m] == "<=" {
-										if vType == "int" {
-											if interfaceI <= vs.([]interface{})[m].(int) {
-
-												(func() {
-													for _, o := range objects {
-														if reflect.DeepEqual(o, d) {
-															goto exists
-														}
-													}
-													if skip != 0 {
-														skip = skip - 1
-														goto exists
-													}
-													conditionsMetDocument += 1
-												exists:
-												})()
-
-											}
-										}
-									}
-								} else if vType == "float64" {
-									var interfaceI float64 = dd.(float64)
-
-									if oprs.([]interface{})[m] == "==" {
-
-										if bytes.Equal([]byte(fmt.Sprintf("%f", float64(interfaceI))), []byte(fmt.Sprintf("%f", float64(vs.([]interface{})[m].(float64))))) {
-
-											(func() {
-												for _, o := range objects {
-													if reflect.DeepEqual(o, d) {
-														goto exists
-													}
-												}
-												if skip != 0 {
-													skip = skip - 1
-													goto exists
-												}
-												conditionsMetDocument += 1
-											exists:
-											})()
-
-										}
-									} else if oprs.([]interface{})[m] == "!=" {
-										if float64(interfaceI) != vs.([]interface{})[m].(float64) {
-
-											(func() {
-												for _, o := range objects {
-													if reflect.DeepEqual(o, d) {
-														goto exists
-													}
-												}
-												if skip != 0 {
-													skip = skip - 1
-													goto exists
-												}
-												conditionsMetDocument += 1
-											exists:
-											})()
-
-										}
-									} else if oprs.([]interface{})[m] == ">" {
-										if float64(interfaceI) > vs.([]interface{})[m].(float64) {
-
-											(func() {
-												for _, o := range objects {
-													if reflect.DeepEqual(o, d) {
-														goto exists
-													}
-												}
-												if skip != 0 {
-													skip = skip - 1
-													goto exists
-												}
-												conditionsMetDocument += 1
-											exists:
-											})()
-
-										}
-
-									} else if oprs.([]interface{})[m] == "<" {
-										if float64(interfaceI) < vs.([]interface{})[m].(float64) {
-
-											(func() {
-												for _, o := range objects {
-													if reflect.DeepEqual(o, d) {
-														goto exists
-													}
-												}
-												if skip != 0 {
-													skip = skip - 1
-													goto exists
-												}
-												conditionsMetDocument += 1
-											exists:
-											})()
-
-										}
-
-									} else if oprs.([]interface{})[m] == ">=" {
-
-										if float64(interfaceI) >= vs.([]interface{})[m].(float64) {
-
-											(func() {
-												for _, o := range objects {
-													if reflect.DeepEqual(o, d) {
-														goto exists
-													}
-												}
-												if skip != 0 {
-													skip = skip - 1
-													goto exists
-												}
-												conditionsMetDocument += 1
-											exists:
-											})()
-
-										}
-
-									} else if oprs.([]interface{})[m] == "<=" {
-										if float64(interfaceI) <= vs.([]interface{})[m].(float64) {
-
-											(func() {
-												for _, o := range objects {
-													if reflect.DeepEqual(o, d) {
-														goto exists
-													}
-												}
-												if skip != 0 {
-													skip = skip - 1
-													goto exists
-												}
-												conditionsMetDocument += 1
-											exists:
-											})()
-
-										}
-
-									}
-								}
-							} else if reflect.TypeOf(dd).Kind() == reflect.Map {
-								//for kkk, ddd := range dd.(map[string]interface{}) {
-								//	// unimplemented
-								//}
-							} else {
-								// string
-								if oprs.([]interface{})[m] == "like" {
-									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
-									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
-									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "(MISSING)", "")
-									vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
-									vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
-									vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
-									vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
-
-									if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
-										// Get index of % and check if on left or right of string
-										percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
-										sMiddle := len(vs.([]interface{})[m].(string)) / 2
-										right := sMiddle <= percIndex
-
-										if right {
-											r := regexp.MustCompile(`^(.*?)%`)
-											patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-											for j, _ := range patterns {
-												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-											}
-
-											for _, p := range patterns {
-												// does value start with p
-
-												if strings.HasPrefix(dd.(string), p) {
-													if skip != 0 {
-														skip = skip - 1
-														goto s
-													}
-													conditionsMetDocument += 1
-
-												s:
-													continue
-												}
-											}
-										} else {
-											r := regexp.MustCompile(`\%(.*)`)
-											patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-											for j, _ := range patterns {
-												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-											}
-
-											for _, p := range patterns {
-												// does value end with p
-												if strings.HasSuffix(dd.(string), p) {
-													if skip != 0 {
-														skip = skip - 1
-														goto s2
-													}
-													conditionsMetDocument += 1
-
-												s2:
-													continue
-												}
-											}
-										}
-									} else {
-
-										r := regexp.MustCompile(`%(.*?)%`)
-										patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-										for j, _ := range patterns {
-											patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-										}
-
-										for _, p := range patterns {
-											// does value contain p
-											if strings.Count(dd.(string), p) > 0 {
-												if skip != 0 {
-													skip = skip - 1
-													goto s3
-												}
-												conditionsMetDocument += 1
-
-											s3:
-												continue
-											}
-										}
-									}
-								} else if oprs.([]interface{})[m] == "!like" {
-									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
-									vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
-									vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
-									vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
-									vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
-									vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
-
-									// select * from users where firstName not like 'alex%'
-									if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
-										// Get index of % and check if on left or right of string
-										percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
-										sMiddle := len(vs.([]interface{})[m].(string)) / 2
-										right := sMiddle <= percIndex
-
-										if right {
-											r := regexp.MustCompile(`^(.*?)%`)
-											patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-											for j, _ := range patterns {
-												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-											}
-
-											for _, p := range patterns {
-												// does value start with p
-												if !strings.HasPrefix(dd.(string), p) {
-													if skip != 0 {
-														skip = skip - 1
-														goto s4
-													}
-													conditionsMetDocument += 1
-
-												s4:
-													continue
-												}
-											}
-										} else {
-											r := regexp.MustCompile(`\%(.*)`)
-											patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-											for j, _ := range patterns {
-												patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-											}
-
-											for _, p := range patterns {
-												// does value end with p
-												if !strings.HasSuffix(dd.(string), p) {
-													if skip != 0 {
-														skip = skip - 1
-														goto s5
-													}
-													conditionsMetDocument += 1
-
-												s5:
-													continue
-												}
-											}
-										}
-									} else {
-
-										r := regexp.MustCompile(`%(.*?)%`)
-										patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-										for j, _ := range patterns {
-											patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-										}
-
-										for _, p := range patterns {
-											// does value contain p
-											if strings.Count(dd.(string), p) == 0 {
-												if skip != 0 {
-													skip = skip - 1
-													goto s6
-												}
-												conditionsMetDocument += 1
-
-											s6:
-												continue
-											}
-										}
-									}
-								} else if oprs.([]interface{})[m] == "==" {
-									if reflect.DeepEqual(dd, vs.([]interface{})[m]) {
-
-										(func() {
-											for _, o := range objects {
-												if reflect.DeepEqual(o, d) {
-													goto exists
-												}
-											}
-											if skip != 0 {
-												skip = skip - 1
-												goto exists
-											}
-											conditionsMetDocument += 1
-										exists:
-										})()
-
-									}
-								} else if oprs.([]interface{})[m] == "!=" {
-									if !reflect.DeepEqual(dd, vs.([]interface{})[m]) {
-
-										(func() {
-											for _, o := range objects {
-												if reflect.DeepEqual(o, d) {
-													goto exists
-												}
-											}
-											if skip != 0 {
-												skip = skip - 1
-												goto exists
-											}
-											conditionsMetDocument += 1
-										exists:
-										})()
-
-									}
-								}
-							}
-
-						}
-					} else if vType == "int" {
-						var interfaceI int = int(d[k.(string)].(float64))
-
-						if oprs.([]interface{})[m] == "==" {
-							if reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
-
-								(func() {
-
-									if skip != 0 {
-										skip = skip - 1
-										goto exists
-									}
-									conditionsMetDocument += 1
-								exists:
-								})()
-
-							}
-						} else if oprs.([]interface{})[m] == "!=" {
-							if !reflect.DeepEqual(interfaceI, vs.([]interface{})[m]) {
-
-								(func() {
-
-									if skip != 0 {
-										skip = skip - 1
-										goto exists
-									}
-									conditionsMetDocument += 1
-								exists:
-								})()
-
-							}
-						} else if oprs.([]interface{})[m] == ">" {
-							if vType == "int" {
-								if interfaceI > vs.([]interface{})[m].(int) {
-
-									(func() {
-										for _, o := range objects {
-											if reflect.DeepEqual(o, d) {
-												goto exists
-											}
-										}
-										if skip != 0 {
-											skip = skip - 1
-											goto exists
-										}
-										conditionsMetDocument += 1
-									exists:
-									})()
-
-								}
-							}
-						} else if oprs.([]interface{})[m] == "<" {
-							if vType == "int" {
-								if interfaceI < vs.([]interface{})[m].(int) {
-
-									(func() {
-										for _, o := range objects {
-											if reflect.DeepEqual(o, d) {
-												goto exists
-											}
-										}
-										if skip != 0 {
-											skip = skip - 1
-											goto exists
-										}
-										conditionsMetDocument += 1
-									exists:
-									})()
-
-								}
-							}
-						} else if oprs.([]interface{})[m] == ">=" {
-							if vType == "int" {
-								if interfaceI >= vs.([]interface{})[m].(int) {
-
-									(func() {
-										for _, o := range objects {
-											if reflect.DeepEqual(o, d) {
-												goto exists
-											}
-										}
-										if skip != 0 {
-											skip = skip - 1
-											goto exists
-										}
-										conditionsMetDocument += 1
-									exists:
-									})()
-
-								}
-							}
-						} else if oprs.([]interface{})[m] == "<=" {
-							if vType == "int" {
-								if interfaceI <= vs.([]interface{})[m].(int) {
-
-									(func() {
-										for _, o := range objects {
-											if reflect.DeepEqual(o, d) {
-												goto exists
-											}
-										}
-										if skip != 0 {
-											skip = skip - 1
-											goto exists
-										}
-										conditionsMetDocument += 1
-									exists:
-									})()
-
-								}
-							}
-						}
-					} else if vType == "float64" {
-						var interfaceI float64 = d[k.(string)].(float64)
-
-						if oprs.([]interface{})[m] == "==" {
-
-							if bytes.Equal([]byte(fmt.Sprintf("%f", float64(interfaceI))), []byte(fmt.Sprintf("%f", float64(vs.([]interface{})[m].(float64))))) {
-
-								(func() {
-
-									if skip != 0 {
-										skip = skip - 1
-										goto exists
-									}
-									conditionsMetDocument += 1
-								exists:
-								})()
-
-							}
-						} else if oprs.([]interface{})[m] == "!=" {
-							if float64(interfaceI) != vs.([]interface{})[m].(float64) {
-
-								(func() {
-
-									if skip != 0 {
-										skip = skip - 1
-										goto exists
-									}
-									conditionsMetDocument += 1
-								exists:
-								})()
-
-							}
-						} else if oprs.([]interface{})[m] == ">" {
-							if float64(interfaceI) > vs.([]interface{})[m].(float64) {
-
-								(func() {
-
-									if skip != 0 {
-										skip = skip - 1
-										goto exists
-									}
-									conditionsMetDocument += 1
-								exists:
-								})()
-
-							}
-
-						} else if oprs.([]interface{})[m] == "<" {
-							if float64(interfaceI) < vs.([]interface{})[m].(float64) {
-
-								(func() {
-
-									if skip != 0 {
-										skip = skip - 1
-										goto exists
-									}
-									conditionsMetDocument += 1
-								exists:
-								})()
-
-							}
-
-						} else if oprs.([]interface{})[m] == ">=" {
-
-							if float64(interfaceI) >= vs.([]interface{})[m].(float64) {
-
-								(func() {
-
-									if skip != 0 {
-										skip = skip - 1
-										goto exists
-									}
-									conditionsMetDocument += 1
-								exists:
-								})()
-
-							}
-
-						} else if oprs.([]interface{})[m] == "<=" {
-							if float64(interfaceI) <= vs.([]interface{})[m].(float64) {
-
-								(func() {
-
-									if skip != 0 {
-										skip = skip - 1
-										goto exists
-									}
-									conditionsMetDocument += 1
-								exists:
-								})()
-
-							}
-
-						}
-					} else { // string
-
-						if oprs.([]interface{})[m] == "like" {
-							vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
-							vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
-							vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
-							vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
-							vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
-							vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
-
-							// select * from users where firstName like 'alex%'
-							if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
-								// Get index of % and check if on left or right of string
-								percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
-								sMiddle := len(vs.([]interface{})[m].(string)) / 2
-								right := sMiddle <= percIndex
-
-								if right {
-									r := regexp.MustCompile(`^(.*?)%`)
-									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-									for j, _ := range patterns {
-										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-									}
-
-									for _, p := range patterns {
-										// does value start with p
-										if strings.HasPrefix(d[k.(string)].(string), p) {
-											if skip != 0 {
-												skip = skip - 1
-												goto sk
-											}
-											conditionsMetDocument += 1
-
-										sk:
-											continue
-										}
-									}
-								} else {
-									r := regexp.MustCompile(`\%(.*)`)
-									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-									for j, _ := range patterns {
-										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-									}
-
-									for _, p := range patterns {
-										// does value end with p
-										if strings.HasSuffix(d[k.(string)].(string), p) {
-											if skip != 0 {
-												skip = skip - 1
-												goto sk2
-											}
-											conditionsMetDocument += 1
-
-										sk2:
-											continue
-										}
-									}
-								}
-							} else {
-
-								r := regexp.MustCompile(`%(.*?)%`)
-								patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-								for j, _ := range patterns {
-									patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-								}
-
-								for _, p := range patterns {
-									// does value contain p
-									if strings.Count(d[k.(string)].(string), p) > 0 {
-										if skip != 0 {
-											skip = skip - 1
-											goto sk3
-										}
-										conditionsMetDocument += 1
-
-									sk3:
-										continue
-									}
-								}
-							}
-						} else if oprs.([]interface{})[m] == "!like" {
-							vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!'(MISSING)", "'")
-							vs.([]interface{})[m] = strings.ReplaceAll(vs.([]interface{})[m].(string), "!\"(MISSING)", "\"")
-							vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "'")
-							vs.([]interface{})[m] = strings.TrimPrefix(vs.([]interface{})[m].(string), "\"")
-							vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "'")
-							vs.([]interface{})[m] = strings.TrimSuffix(vs.([]interface{})[m].(string), "\"")
-
-							// select * from users where firstName not like 'alex%'
-							if strings.Count(vs.([]interface{})[m].(string), "%") == 1 {
-								// Get index of % and check if on left or right of string
-								percIndex := strings.Index(vs.([]interface{})[m].(string), "%")
-								sMiddle := len(vs.([]interface{})[m].(string)) / 2
-								right := sMiddle <= percIndex
-
-								if right {
-									r := regexp.MustCompile(`^(.*?)%`)
-									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-									for j, _ := range patterns {
-										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-									}
-
-									for _, p := range patterns {
-										// does value start with p
-
-										if !strings.HasPrefix(d[k.(string)].(string), p) {
-											if skip != 0 {
-												skip = skip - 1
-												goto sk4
-											}
-											conditionsMetDocument += 1
-
-										sk4:
-											continue
-										}
-									}
-								} else {
-									r := regexp.MustCompile(`\%(.*)`)
-									patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-									for j, _ := range patterns {
-										patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-									}
-
-									for _, p := range patterns {
-										// does value end with p
-										if !strings.HasSuffix(d[k.(string)].(string), p) {
-											if skip != 0 {
-												skip = skip - 1
-												goto sk5
-											}
-											conditionsMetDocument += 1
-
-										sk5:
-											continue
-										}
-									}
-								}
-							} else {
-
-								r := regexp.MustCompile(`%(.*?)%`)
-								patterns := r.FindAllString(vs.([]interface{})[m].(string), -1)
-
-								for j, _ := range patterns {
-									patterns[j] = strings.TrimSuffix(strings.TrimPrefix(patterns[j], "%"), "%")
-								}
-
-								for _, p := range patterns {
-									// does value contain p
-									if strings.Count(d[k.(string)].(string), p) == 0 {
-										if skip != 0 {
-											skip = skip - 1
-											goto sk6
-										}
-										conditionsMetDocument += 1
-
-									sk6:
-										continue
-									}
-								}
-							}
-						} else if oprs.([]interface{})[m] == "==" {
-							if reflect.DeepEqual(d[k.(string)], vs.([]interface{})[m]) {
-
-								(func() {
-
-									if skip != 0 {
-										skip = skip - 1
-										goto exists
-									}
-									conditionsMetDocument += 1
-								exists:
-								})()
-
-							}
-						} else if oprs.([]interface{})[m] == "!=" {
-							if !reflect.DeepEqual(d[k.(string)], vs.([]interface{})[m]) {
-
-								(func() {
-
-									if skip != 0 {
-										skip = skip - 1
-										goto exists
-									}
-									conditionsMetDocument += 1
-								exists:
-								})()
-
-							}
-						}
-
-					}
-				}
-			}
-
-			if slices.Contains(conditions, "&&") {
-				if conditionsMetDocument >= len(conditions) {
-					if update {
-						d["$indx"] = i
-					}
-					objects = append(objects, d)
-					if del {
-						tbd = append(tbd, int64(i))
-					}
-				} else if slices.Contains(conditions, "||") && conditionsMetDocument > 0 {
-					if update {
-						d["$indx"] = i
-					}
-					objects = append(objects, d)
-					if del {
-						tbd = append(tbd, int64(i))
-					}
-				}
-			} else if slices.Contains(conditions, "||") && conditionsMetDocument > 0 {
-				if update {
-					d["$indx"] = i
-				}
-				objects = append(objects, d)
-				if del {
-					tbd = append(tbd, int64(i))
-				}
-			} else if conditionsMetDocument > 0 && len(conditions) == 1 {
-				if update {
-					d["$indx"] = i
-				}
-				objects = append(objects, d)
-				if del {
-					tbd = append(tbd, int64(i))
-				}
-			}
-
-		}
-
+		searchWg.Wait()
 	}
 
-	goto cont
-
-cont:
+	// Linearly search collection documents by using a range loop if collection is less than 100
 
 	// Should only sort integers, floats and strings
 	if sortKey != "" && sortPos != "" {
