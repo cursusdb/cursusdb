@@ -485,10 +485,10 @@ Within your yaml configs you can set ``log-max-lines`` this option will tell eit
 [LEVEL][YOUR CONFIGURED TZ RFC822 DATE] DATA
 
 Logs can have either level:
-- <span style="color: red">ERROR</span>
-- <span style="color: purple">FATAL</span>
-- <span style="color: yellow">INFO</span>
-- <span style="color: orange">WARN</span>
+- <span style="color: red!">ERROR</span>
+- <span style="color: purple!">FATAL</span>
+- <span style="color: yellow!">INFO</span>
+- <span style="color: orange!">WARN</span>
 
 ``` 
 [INFO][26 Dec 23 08:34 EST] main(): Node data read into memory.
