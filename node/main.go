@@ -972,6 +972,7 @@ func (curode *Curode) DeleteKeyFromColl(collection string, key string) int {
 	return objects
 }
 
+// Search checks if provided index within data collection meets conditions
 func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd *[]int, collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, conditions []interface{}, del bool, update bool, objs *[]interface{}) {
 
 	conditionsMetDocument := 0 // conditions met as in th first condition would be key == v lets say the next would be && or || etc..
@@ -2163,7 +2164,7 @@ func (curode *Curode) AutomaticBackup() {
 				return
 			}
 
-			if time.Now().After(f) {
+			if time.Now().After(f) { // time to backup!
 				f = time.Now().Add(time.Minute * time.Duration(curode.Config.AutomaticBackupTime))
 				sc <- 0
 				time.Sleep(time.Nanosecond * 1000000)
@@ -2176,9 +2177,9 @@ func (curode *Curode) AutomaticBackup() {
 
 	for {
 		select {
-		case sc := <-stateCh:
+		case sc := <-stateCh: // State channel, either continue(run), sleep(wait), or cancel(drop)
 
-			if sc == 0 {
+			if sc == 0 { // run
 
 				// Backup data to backups/.cdat.unixtime
 				curode.WriteToFile(true)
