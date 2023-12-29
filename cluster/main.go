@@ -88,21 +88,22 @@ type Connection struct {
 
 // Config is the CursusDB cluster config struct
 type Config struct {
-	Nodes          []Node   `yaml:"nodes"`                         // Node host/ips
-	Host           string   `yaml:"host"`                          // Cluster host
-	TLSNode        bool     `default:"false" yaml:"tls-node"`      // Connects to nodes with tls.  Nodes MUST be using tls in-order to set this to true.
-	TLSCert        string   `yaml:"tls-cert"`                      // Location to TLS cert
-	TLSKey         string   `yaml:"tls-key"`                       // Location to TLS key
-	TLS            bool     `default:"false" yaml:"tls"`           // TLS on or off ?
-	Port           int      `yaml:"port"`                          // Cluster port
-	Key            string   `yaml:"key"`                           // Shared key - this key is used to encrypt data on all nodes and to authenticate with a node.
-	Users          []string `yaml:"users"`                         // Array of encoded users
-	NodeReaderSize int      `yaml:"node-reader-size"`              // How large of a response buffer can the cluster handle
-	LogMaxLines    int      `yaml:"log-max-lines"`                 // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
-	JoinResponses  bool     `default:"true" yaml:"join-responses"` // Joins all nodes results limiting at n
-	Logging        bool     `default:"false" yaml:"logging"`       // Log to file ?
-	LogQuery       bool     `default:"false" yaml:"log-query"`     // Log incoming queries
-	Timezone       string   `default:"Local" yaml:"timezone"`      // i.e America/Chicago default is local system time.  On the cluster we use the Timezone for logging purposes.
+	Nodes            []Node   `yaml:"nodes"`                         // Node host/ips
+	Host             string   `yaml:"host"`                          // Cluster host
+	TLSNode          bool     `default:"false" yaml:"tls-node"`      // Connects to nodes with tls.  Nodes MUST be using tls in-order to set this to true.
+	TLSCert          string   `yaml:"tls-cert"`                      // Location to TLS cert
+	TLSKey           string   `yaml:"tls-key"`                       // Location to TLS key
+	TLS              bool     `default:"false" yaml:"tls"`           // TLS on or off ?
+	Port             int      `yaml:"port"`                          // Cluster port
+	Key              string   `yaml:"key"`                           // Shared key - this key is used to encrypt data on all nodes and to authenticate with a node.
+	Users            []string `yaml:"users"`                         // Array of encoded users
+	NodeReaderSize   int      `yaml:"node-reader-size"`              // How large of a response buffer can the cluster handle
+	LogMaxLines      int      `yaml:"log-max-lines"`                 // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
+	JoinResponses    bool     `default:"true" yaml:"join-responses"` // Joins all nodes results limiting at n
+	Logging          bool     `default:"false" yaml:"logging"`       // Log to file ?
+	LogQuery         bool     `default:"false" yaml:"log-query"`     // Log incoming queries
+	Timezone         string   `default:"Local" yaml:"timezone"`      // i.e America/Chicago default is local system time.  On the cluster we use the Timezone for logging purposes.
+	NodeReadDeadline int      `yaml:"node-read-deadline"`            // Amount of seconds to wait for a node or node replica.  Default is 2 seconds
 }
 
 // Node is a cluster node
@@ -140,7 +141,7 @@ func main() {
 		cursus.Config.Host = "0.0.0.0"         // Default host of 0.0.0.0
 		cursus.Config.LogMaxLines = 1000       // Default of 1000 lines then truncate/clear
 		cursus.Config.Timezone = "Local"       // Default is system local time
-
+		cursus.Config.NodeReadDeadline = 2     // Default of 2 seconds
 		// Get initial database user credentials
 		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
 		fmt.Print("username> ")
@@ -843,10 +844,10 @@ query:
 ok:
 
 	if !cursus.Config.TLSNode {
-		node.Conn.SetReadDeadline(time.Now().Add(time.Second))
+		node.Conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(cursus.Config.NodeReadDeadline)))
 		node.Conn.SetNoDelay(true)
 	} else {
-		node.SecureConn.SetReadDeadline(time.Now().Add(time.Second))
+		node.SecureConn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(cursus.Config.NodeReadDeadline)))
 	}
 
 	goto insert
@@ -1070,7 +1071,7 @@ query:
 
 	n.Text.PrintfLine("%s", string(body))
 
-	n.Conn.SetReadDeadline(time.Now().Add(time.Second)) // Timeout if node doesn't respond within 1 second(we will try 3 more times before trying a replica)
+	n.Conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(cursus.Config.NodeReadDeadline))) // Timeout if node doesn't respond within NodeReadDeadline seconds(we will try 3 more times before trying a replica)
 	line, err := n.Text.ReadLine()
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {

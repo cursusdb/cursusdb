@@ -105,6 +105,7 @@ join-responses: false
 logging: false
 timezone: Local
 log-query: false
+node-read-deadline: 2
 ```
 - **nodes** - database cluster nodes.  i.e an ip/fqdn + port combination (cluster1.example.com:7682)
 - **tls-node** - whether the cluster will connect to nodes via tls
@@ -119,6 +120,7 @@ log-query: false
 - **logging** - start logging to file
 - **timezone** - Default is Local but format allowed is for example America/Toronto
 - **log-query** - Logs client ip and their query to logs and std out if enabled
+- **node-read-deadline** - Amount of time in seconds to wait for a node to respond
 
 Let's put in under nodes a local node we will start shortly.
 ``` 
