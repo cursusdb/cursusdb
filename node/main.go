@@ -390,7 +390,7 @@ func (curode *Curode) SyncOut() {
 				for _, r := range curode.Config.Replicas {
 
 					if curode.Config.TLSReplication {
-						config := tls.Config{InsecureSkipVerify: false}
+						config := tls.Config{ServerName: r.Host} // i.e node-replica2.example.io
 
 						conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%d", r.Host, r.Port), &config)
 						if err != nil {

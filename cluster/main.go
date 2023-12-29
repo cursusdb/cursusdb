@@ -422,7 +422,7 @@ func (cursus *Cursus) ConnectToNodes() {
 			conn.SetKeepAlive(true) // forever
 
 			// Configure TLS
-			config := tls.Config{InsecureSkipVerify: false}
+			config := tls.Config{ServerName: n.Host}
 
 			// Create TLS client connection
 			secureConn := tls.Client(conn, &config)
@@ -471,7 +471,7 @@ func (cursus *Cursus) ConnectToNodes() {
 					connReplica.SetKeepAlive(true) // forever
 
 					// Configure TLS
-					configReplica := tls.Config{InsecureSkipVerify: false}
+					configReplica := tls.Config{ServerName: rep.Host}
 
 					// Create TLS client connection
 					secureConnReplica := tls.Client(conn, &configReplica)
@@ -2938,7 +2938,7 @@ func (cursus *Cursus) LostReconnect() {
 					conn.SetKeepAlive(true) // forever
 
 					// Configure TLS
-					config := tls.Config{InsecureSkipVerify: false} // Either ServerName or InsecureSkipVerify will do it
+					config := tls.Config{ServerName: nc.Node.Host} // Either ServerName or InsecureSkipVerify will do it
 
 					// Create TLS client connection
 					secureConn := tls.Client(conn, &config)
