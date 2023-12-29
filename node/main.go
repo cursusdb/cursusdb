@@ -118,8 +118,8 @@ func main() {
 	curode.Context, curode.ContextCancel = context.WithCancel(context.Background()) // Create context for shutdown
 
 	curode.Data = &Data{
-		Map:     make(map[string][]map[string]interface{}),
-		Writers: make(map[string]*sync.RWMutex),
+		Map:     make(map[string][]map[string]interface{}), // map of documents
+		Writers: make(map[string]*sync.RWMutex),            // Lock per collection
 	} // Make data map and collection writer mutex map
 
 	gob.Register([]interface{}(nil)) // Fixes {"k": []}
@@ -233,7 +233,7 @@ func main() {
 
 		err = dec.Decode(&curode.Data.Map)
 		if err != nil {
-			goto corrupt
+			goto corrupt // Data is no good.  Try to recover on backup
 		}
 
 		in.(io.Closer).Close()
