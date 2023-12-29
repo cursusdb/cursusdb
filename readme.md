@@ -657,7 +657,6 @@ On insert there are a variety of RESERVED keys.
 - `chan`
 - `const`
 - `continue`
-- `default`
 - `defer`
 - `else`
 - `fallthrough`
@@ -670,7 +669,6 @@ On insert there are a variety of RESERVED keys.
 - `select`
 - `struct`
 - `switch`
-- `type`
 - `var`
 - `false`
 - `true`
@@ -692,7 +690,6 @@ On insert there are a variety of RESERVED keys.
 - `int`
 - `uintptr`
 - `string`
-- `new`
 - `==`
 - `&&`
 - `||`

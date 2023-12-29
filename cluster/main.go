@@ -142,6 +142,7 @@ func main() {
 		cursus.Config.LogMaxLines = 1000       // Default of 1000 lines then truncate/clear
 		cursus.Config.Timezone = "Local"       // Default is system local time
 		cursus.Config.NodeReadDeadline = 2     // Default of 2 seconds
+
 		// Get initial database user credentials
 		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
 		fmt.Print("username> ")
@@ -193,8 +194,6 @@ func main() {
 			os.Exit(1)
 		}
 
-		defer clusterConfigFile.Close()
-
 		// Marshal config to yaml
 		yamlData, err := yaml.Marshal(&cursus.Config)
 		if err != nil {
@@ -204,6 +203,8 @@ func main() {
 		}
 
 		clusterConfigFile.Write(yamlData) // Write to yaml config
+
+		clusterConfigFile.Close() // close up cluster config
 	} else { // .cursusconfig exists
 
 		// Read .cursus config
@@ -239,7 +240,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	signal.Notify(cursus.SignalChannel, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(cursus.SignalChannel, syscall.SIGINT, syscall.SIGTERM) // Setup cluster signal channel
 
 	// If port provided as flag use it instead of whats on config file
 	flag.IntVar(&cursus.Config.Port, "port", cursus.Config.Port, "port for cluster")
@@ -946,7 +947,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 				var x []interface{}
 				err := json.Unmarshal([]byte(res), &x)
 				if err != nil {
-					return errors.New(fmt.Sprintf("%d Unmarsharable JSON", 4018))
+					return errors.New(fmt.Sprintf("%d Unmarsharable JSON.", 4018))
 				}
 
 				if len(x) > 0 {
@@ -983,7 +984,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 					docsJson, err := json.Marshal(docs)
 					if err != nil {
-						return errors.New(fmt.Sprintf("%d Could not marshal JSON", 4012))
+						return errors.New(fmt.Sprintf("%d Could not marshal JSON.", 4012))
 					}
 
 					connection.Text.PrintfLine(string(docsJson))
@@ -991,7 +992,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 					docsJson, err := json.Marshal(docs)
 					if err != nil {
-						return errors.New(fmt.Sprintf("%d Could not marshal JSON", 4012))
+						return errors.New(fmt.Sprintf("%d Could not marshal JSON.", 4012))
 					}
 
 					connection.Text.PrintfLine(string(docsJson))
@@ -1002,7 +1003,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 				countJson, err := json.Marshal(countResponse)
 				if err != nil {
-					return errors.New(fmt.Sprintf("%d Could not marshal JSON", 4012))
+					return errors.New(fmt.Sprintf("%d Could not marshal JSON.", 4012))
 				}
 
 				connection.Text.PrintfLine(string(countJson))
@@ -1360,10 +1361,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"default":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"default":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"defer":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
@@ -1432,10 +1433,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
 					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"type":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"type":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"var":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 					query = ""
@@ -1524,10 +1525,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
 				//	query = ""
 				//	continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"new":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
-					query = ""
-					continue
+				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"new":`):
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	query = ""
+				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"==":`):
 					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
 					query = ""
