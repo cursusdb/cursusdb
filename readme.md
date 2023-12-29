@@ -593,11 +593,6 @@ Please report issues, enhancements, etc at:
 - https://github.com/cursusdb/cursusdb/discussions
 - https://github.com/cursusdb/cursusdb/issues
 
-
-## Todo
-- Allow SQL inserts ```insert into coll (key, key!, key!, ...)
-  VALUES (value1, value2, value3, ...); ``` (Possible enhancement)
-
 ## CursusDB v MySQL BENCHMARK
 Most basic setup.  CursusDB cluster and node hosted same instance no TLS.
 MySQL setup exact same specification of an instance no TLS.
