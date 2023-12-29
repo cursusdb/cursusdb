@@ -1,8 +1,8 @@
 ---- 
 
-<img src="images/cursusdb.svg" width="314">
 
-----
+<h1 align="center"><img src="images/cursusdb.svg" width="314"></h1>
+
 
 ## Cursus Database System
 CursusDB is a fast open source in-memory document oriented database offering security, persistence, distribution, availability and an SQL like query language.
