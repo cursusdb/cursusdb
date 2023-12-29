@@ -1787,7 +1787,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				qsreg := regexp.MustCompile("'.+'|\".+\"|\\S+")
 
-				querySplit := qsreg.FindAllString(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""), -1)
+				querySplit := qsreg.FindAllString(strings.Replace(strings.Replace(query, "from", "", 1), "where", "", 1), -1)
 
 				if !strings.Contains(query, "where ") {
 					body := make(map[string]interface{})
@@ -2062,8 +2062,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				}
 
 				qsreg := regexp.MustCompile("'.+'|\".+\"|\\S+")
-
-				querySplit := qsreg.FindAllString(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(query, "in", ""), "where", ""), "from", ""), -1)
+				querySplit := qsreg.FindAllString(strings.Replace(strings.Replace(strings.Replace(query, "in", "", 1), "from", "", 1), "where", "", 1), -1)
 
 				if !strings.Contains(query, "where ") {
 					body := make(map[string]interface{})
@@ -2528,7 +2527,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 				qsreg := regexp.MustCompile("'.+'|\".+\"|\\S+")
 
-				querySplit := qsreg.FindAllString(strings.ReplaceAll(strings.ReplaceAll(query, "where", ""), "from", ""), -1)
+				querySplit := qsreg.FindAllString(strings.Replace(strings.Replace(query, "from", "", 1), "where", "", 1), -1)
 
 				if !strings.Contains(query, "where ") {
 					body := make(map[string]interface{})
