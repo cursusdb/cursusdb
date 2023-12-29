@@ -1005,6 +1005,28 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	//The && operator displays a document if all the conditions are TRUE.
 	//The || operator displays a record if any of the conditions are TRUE.
 
+	// Split collection and conquer from top to bottom in parallel
+	middle := len(curode.Data.Map[collection])
+
+	searchWg := &sync.WaitGroup{}
+
+	// top to middle search
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+
+		for i := 0; i > middle-1; i++ {
+			log.Println(curode.Data.Map[collection][i])
+		}
+	}(searchWg)
+
+	// bottom to middle search
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+		for i := middle; i >= 0; i++ {
+			log.Println(curode.Data.Map[collection][i])
+		}
+	}(searchWg)
+
 	// Linearly search collection documents by using a range loop
 	for i, d := range curode.Data.Map[collection] {
 
