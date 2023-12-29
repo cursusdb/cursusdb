@@ -591,7 +591,7 @@ func (curode *Curode) Printl(data string, level string) {
 		} else {
 			tz, err := time.LoadLocation(curode.Config.Timezone)
 			if err != nil {
-				fmt.Println(fmt.Sprintf("[%s][%s] Printl(): %s %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error()))
+				curode.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] Printl(): %s %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error())))
 				return
 			}
 

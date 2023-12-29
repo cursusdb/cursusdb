@@ -42,6 +42,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -361,7 +362,7 @@ func (cursus *Cursus) Printl(data string, level string) {
 			cursus.LogFile.Close()
 			err := os.Truncate(cursus.LogFile.Name(), 0)
 			if err != nil {
-				cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
+				cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] Printl(): %s %s\r\n", "ERROR", time.Now().UTC(), "Count not count up log lines.", err.Error())))
 				return
 			}
 
@@ -380,7 +381,7 @@ func (cursus *Cursus) Printl(data string, level string) {
 		} else {
 			tz, err := time.LoadLocation(cursus.Config.Timezone)
 			if err != nil {
-				log.Println(fmt.Sprintf("[%s][%s] %s - %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error()))
+				cursus.LogFile.Write([]byte(fmt.Sprintf("[%s][%s] Printl(): %s %s\r\n", "ERROR", time.Now().UTC(), "Count not use configured timezone", err.Error())))
 				return
 			}
 
@@ -921,7 +922,7 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 	for _, n := range cursus.NodeConnections {
 		if !n.Replica {
 			wgPara.Add(1)
-			go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
+			go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses, body["action"].(string))
 		}
 	}
 
@@ -1038,7 +1039,7 @@ func (cursus *Cursus) QueryNodesRet(body map[string]interface{}) map[string]stri
 	for _, n := range cursus.NodeConnections {
 		if !n.Replica {
 			wgPara.Add(1)
-			go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses)
+			go cursus.QueryNode(n, jsonString, wgPara, muPara, &responses, body["action"].(string))
 		}
 	}
 
@@ -1048,72 +1049,64 @@ func (cursus *Cursus) QueryNodesRet(body map[string]interface{}) map[string]stri
 }
 
 // QueryNode queries a specific node
-func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGroup, mu *sync.RWMutex, responses *map[string]string) {
-	defer wg.Done()
-	n.Mu.Lock()
+func (cursus *Cursus) QueryNode(n *NodeConnection, body []byte, wg *sync.WaitGroup, mu *sync.RWMutex, responses *map[string]string, action string) {
+	defer wg.Done() // defer returning go routine to waitgroup
+	n.Mu.Lock()     // lock node for query ( may not be needed, I have to test more.. really not needed for reads )
+
 	defer n.Mu.Unlock()
 
-	retries := len(n.Node.Replicas) * 10 // retry a node replica
+	mn := n // main node
 
-	if retries == 1 {
-		retries = 10
-	}
+	retriesReplica := len(n.Node.Replicas) // Retry on configured node read replicas
 
-	retriesGeneral := 10
+	retriesMainNode := 3 // Retry main node 3 times
 
 	var attemptedReplicas []string
 
 	goto query
 
 query:
-
 	n.Text.Reader.R = bufio.NewReaderSize(n.Conn, cursus.Config.NodeReaderSize)
 
 	n.Text.PrintfLine("%s", string(body))
 
-	n.Conn.SetReadDeadline(time.Now().Add(time.Second))
+	n.Conn.SetReadDeadline(time.Now().Add(time.Second)) // Timeout if node doesn't respond within 1 second(we will try 3 more times before trying a replica)
 	line, err := n.Text.ReadLine()
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			n.Ok = false
 			if len(n.Node.Replicas) == 0 {
-				retriesGeneral -= retriesGeneral
+				retriesMainNode -= retriesMainNode
 
-				if retriesGeneral > 0 {
+				if retriesMainNode > -1 {
 					goto query
 				}
 
-				goto unavailable
-			} else {
-				goto unavailable
 			}
+
 		} else if errors.Is(err, io.EOF) {
 			n.Ok = false
 			if len(n.Node.Replicas) == 0 {
-				retriesGeneral -= retriesGeneral
+				retriesMainNode -= retriesMainNode
 
-				if retriesGeneral > 0 {
+				if retriesMainNode > 0 {
 					goto query
 				}
-				goto unavailable
-			} else {
-				n.Ok = false
 				goto unavailable
 			}
 		} else {
 			n.Ok = false
 			if len(n.Node.Replicas) == 0 {
-				retriesGeneral -= retriesGeneral
+				retriesMainNode -= retriesMainNode
 
-				if retriesGeneral > 0 {
+				if retriesMainNode > 0 {
 					goto query
 				}
-
-				goto unavailable
-			} else {
-				goto unavailable
 			}
 		}
+
+		mn.Ok = false
+		goto unavailable
 	}
 
 	mu.Lock()
@@ -1124,49 +1117,33 @@ query:
 unavailable:
 	n.Ok = false
 
-	// Retry on a node replica if configured
-	for _, r := range n.Node.Replicas {
-		for _, nc := range cursus.NodeConnections {
-			if nc.Node.Host == r.Host && nc.Replica == true {
-				if len(n.Node.Replicas) > 1 {
-					if len(attemptedReplicas) == 0 {
+	// Will retry on nodes replicas, if n-rep1 not available, go next n-rep2, so forth until no replicas are available.
+
+	if strings.Contains(action, "select") || strings.Contains(action, "count") {
+		for _, r := range mn.Node.Replicas {
+			for _, nc := range cursus.NodeConnections {
+				if fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port) == fmt.Sprintf("%s:%d", r.Host, r.Port) && nc.Replica == true {
+
+					if slices.Contains(attemptedReplicas, fmt.Sprintf("%s:%d", r.Host, r.Port)) {
+						continue
+					}
+
+					n = nc
+					retriesReplica -= 1
+
+					if retriesReplica > -1 {
 						attemptedReplicas = append(attemptedReplicas, fmt.Sprintf("%s:%d", r.Host, r.Port))
-						goto cont
-					}
-
-					if len(attemptedReplicas) > 1 {
-						if attemptedReplicas[len(attemptedReplicas)-1] == fmt.Sprintf("%s:%d", r.Host, r.Port) {
-							continue
-						}
+						goto query
 					} else {
-						if attemptedReplicas[0] == fmt.Sprintf("%s:%d", r.Host, r.Port) {
-							continue
-						}
+						break
 					}
-
-				}
-
-				goto cont
-			cont:
-
-				n = nc
-				retries -= 1
-
-				if retries > -1 {
-					goto query
-				} else {
-					goto br
 				}
 			}
 		}
 	}
 
-	goto br
-
-br:
-
-	if len(n.Node.Replicas) > 0 {
-		cursus.Printl(fmt.Sprintf("QueryNode(): %d Node %s and replicas %s unavailable.", 105, n.Conn.RemoteAddr().String(), strings.Join((func(s []string) []string {
+	if len(mn.Node.Replicas) > 0 {
+		cursus.Printl(fmt.Sprintf("QueryNode(): %d Node %s and replicas %s are unavailable.", 105, mn.Conn.RemoteAddr().String(), strings.Join((func(s []string) []string {
 			if len(s) < 1 {
 				return s
 			}
@@ -1183,7 +1160,7 @@ br:
 			return s[:prev]
 		})(attemptedReplicas), ",")), "WARNING")
 	} else {
-		cursus.Printl(fmt.Sprintf(`QueryNode(): %d Node %s unavailable.`, 105, n.Conn.RemoteAddr().String()), "WARNING")
+		cursus.Printl(fmt.Sprintf(`QueryNode(): %d Node %s is unavailable.`, 105, n.Conn.RemoteAddr().String()), "WARNING")
 	}
 
 	return
