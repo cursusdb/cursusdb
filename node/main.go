@@ -972,7 +972,7 @@ func (curode *Curode) DeleteKeyFromColl(collection string, key string) int {
 	return objects
 }
 
-func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd []int64, collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, conditions []interface{}, del bool, update bool, objs *[]interface{}) {
+func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd *[]int, collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, conditions []interface{}, del bool, update bool, objs *[]interface{}) {
 
 	conditionsMetDocument := 0 // conditions met as in th first condition would be key == v lets say the next would be && or || etc..
 
@@ -1002,7 +1002,7 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd []int64, collection st
 		*objs = append(*objs, curode.Data.Map[collection][i])
 
 		if del {
-			tbd = append(tbd, int64(i))
+			*tbd = append(*tbd, i)
 		}
 		mu.Unlock()
 		return
@@ -1906,7 +1906,7 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd []int64, collection st
 				mu.Lock()
 				*objs = append(*objs, curode.Data.Map[collection][i])
 				if del {
-					tbd = append(tbd, int64(i))
+					*tbd = append(*tbd, i)
 				}
 				mu.Unlock()
 			} else if slices.Contains(conditions, "||") && conditionsMetDocument > 0 {
@@ -1916,7 +1916,7 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd []int64, collection st
 				mu.Lock()
 				*objs = append(*objs, curode.Data.Map[collection][i])
 				if del {
-					tbd = append(tbd, int64(i))
+					*tbd = append(*tbd, i)
 				}
 				mu.Unlock()
 			}
@@ -1927,7 +1927,7 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd []int64, collection st
 			mu.Lock()
 			*objs = append(*objs, curode.Data.Map[collection][i])
 			if del {
-				tbd = append(tbd, int64(i))
+				*tbd = append(*tbd, i)
 			}
 			mu.Unlock()
 		} else if conditionsMetDocument > 0 && len(conditions) == 1 {
@@ -1937,7 +1937,7 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd []int64, collection st
 			mu.Lock()
 			*objs = append(*objs, curode.Data.Map[collection][i])
 			if del {
-				tbd = append(tbd, int64(i))
+				*tbd = append(*tbd, i)
 			}
 
 			mu.Unlock()
@@ -1975,18 +1975,18 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	var objects []interface{}
 
 	// To be deleted
-	var tbd []int64
+	var tbd []int
 
 	//The && operator displays a document if all the conditions are TRUE.
 	//The || operator displays a record if any of the conditions are TRUE.
 
-	if len(curode.Data.Map[collection]) > 6 {
+	searchWg := &sync.WaitGroup{}
+	searchResMu := &sync.RWMutex{}
+
+	if len(curode.Data.Map[collection]) >= 60 { // If collection has more than 60 records split search
 
 		// Split collection and conquer from top to bottom in parallel
 		middle := len(curode.Data.Map[collection]) / 2
-
-		searchWg := &sync.WaitGroup{}
-		searchResMu := &sync.RWMutex{}
 
 		// top to middle search
 		searchWg.Add(1)
@@ -1997,7 +1997,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 					return
 				}
 
-				curode.Search(searchResMu, i, tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
+				curode.Search(searchResMu, i, &tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
 			}
 		}(searchWg, middle, &objects, searchResMu)
 
@@ -2010,14 +2010,16 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 					return
 				}
 
-				curode.Search(searchResMu, i, tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
+				curode.Search(searchResMu, i, &tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
 			}
 		}(searchWg, middle, &objects, searchResMu)
 
 		searchWg.Wait()
+	} else {
+		for i, _ := range curode.Data.Map[collection] {
+			curode.Search(searchResMu, i, &tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, &objects)
+		}
 	}
-
-	// Linearly search collection documents by using a range loop if collection is less than 100
 
 	// Should only sort integers, floats and strings
 	if sortKey != "" && sortPos != "" {
@@ -2070,9 +2072,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	}
 
 	if len(tbd) > 0 {
+		sort.Ints(tbd) // sort in order
 		curode.Data.Writers[collection].Lock()
-		for i := len(tbd) - 1; i >= 0; i-- {
-			copy(curode.Data.Map[collection][tbd[i]:], curode.Data.Map[collection][tbd[i]+1:])
+		for j := len(tbd) - 1; j >= 0; j-- {
+			copy(curode.Data.Map[collection][tbd[j]:], curode.Data.Map[collection][tbd[j]+1:])
 			curode.Data.Map[collection][len(curode.Data.Map[collection])-1] = nil
 			curode.Data.Map[collection] = curode.Data.Map[collection][:len(curode.Data.Map[collection])-1]
 
