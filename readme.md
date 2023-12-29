@@ -8,7 +8,6 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 ### Features
 - Secured cluster and node(s) communication with shared key and OR TLS
 - If configured secured node sync replication with TLS using ``tls-replication`` config within ``.curodeconfig``
-- Encrypted data at rest by default with chacha20poly1305
 - In-memory data during runtime
 - Parallel search. Searching section of collections within multiple nodes simultaneously at the same time.
 - Auto generated $id key for all documents unique across all nodes
@@ -30,7 +29,7 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Automatic node backups if ``automatic-backup`` within ``.curodeconfig`` is set to true
 - Automatic node backup clean up if ``automatic-backup-cleanup`` within ``.curodeconfig`` is set to true.
 - Automatic node recovery if data is corrupt if ``automatic-backup`` configured
-- Node data(.cdat) and node backups(/backups/cdat.unixtime) are created by taking what's in memory serializing it, encrypting it and compressing it block by block on shutdown ChaCha DEFLATE
+- Node data(.cdat) and node backups(/backups/cdat.unixtime) are created by taking what's in memory serializing it, encrypting it and compressing it block by block on shutdown chacha20poly1305-DEFLATE
 
 **There are no databases like MySQL let's say where you can have multiples.  A cluster is your database that spreads data across many nodes.**
 
