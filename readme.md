@@ -53,12 +53,12 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 https://hub.docker.com/repositories/cursusdb (SOON)
 
 ## Native Clients
-- SHELL https://github.com/cursusdb/curush ``STABLE``
-- GO https://github.com/cursusdb/cursusdb-go ``STABLE``
-- JAVA https://github.com/cursusdb/cursusdb-java ``IN TESTING``
-- CSHARP https://github.com/cursusdb/cursusdb-cs ``IN TESTING``
-- NODE.JS https://github.com/cursusdb/cursusdb-node ``IN TESTING``
-- PYTHON https://github.com/cursusdb/cursusdb-py ``IN PROGRESS``
+- SHELL https://github.com/cursusdb/curush ``STABLE ✔️``
+- GO https://github.com/cursusdb/cursusdb-go ``STABLE ✔️``
+- NODE.JS https://github.com/cursusdb/cursusdb-node ``STABLE ✔️``
+- JAVA https://github.com/cursusdb/cursusdb-java ``IN TESTING ⚠️``
+- CSHARP https://github.com/cursusdb/cursusdb-cs ``IN TESTING ⚠️``
+- PYTHON https://github.com/cursusdb/cursusdb-py ``IN PROGRESS 👨‍💻``
 
 ## Prebuilt Binaries
 You can find the latest stable release prebuilt binaries at
