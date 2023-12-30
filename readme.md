@@ -55,7 +55,7 @@ https://hub.docker.com/repositories/cursusdb (SOON)
 ## Native Clients
 - SHELL https://github.com/cursusdb/curush ``STABLE ✔️``
 - GO https://github.com/cursusdb/cursusdb-go ``STABLE ✔️``
-- NODE.JS https://github.com/cursusdb/cursusdb-node ``STABLE ✔️``
+- NODE.JS https://github.com/cursusdb/cursusdb-node OR https://www.npmjs.com/package/cursusdb-node ``STABLE ✔️``
 - JAVA https://github.com/cursusdb/cursusdb-java ``IN TESTING ⚠️``
 - CSHARP https://github.com/cursusdb/cursusdb-cs ``IN TESTING ⚠️``
 - PYTHON https://github.com/cursusdb/cursusdb-py ``IN PROGRESS 👨‍💻``
