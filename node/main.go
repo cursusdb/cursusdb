@@ -692,8 +692,13 @@ func (curode *Curode) StartTCP_TLS() {
 			conn = net.Conn(tlsUpgrade)
 		}
 
+		conn.SetReadDeadline(time.Now().Add(time.Millisecond * 150))
 		auth, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				conn.Close()
+				continue // Take next connection not waiting
+			}
 			curode.Printl("StartTCP_TLS(): "+fmt.Sprintf("StartTCPListener(): %s", err.Error()), "ERROR")
 			continue
 		}
