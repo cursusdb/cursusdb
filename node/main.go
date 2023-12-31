@@ -979,18 +979,11 @@ func (curode *Curode) DeleteKeyFromColl(collection string, key string) int {
 
 // Search checks if provided index within data collection meets conditions
 func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd *[]int, collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, conditions []interface{}, del bool, update bool, objs *[]interface{}) {
-
 	conditionsMetDocument := 0 // conditions met as in th first condition would be key == v lets say the next would be && or || etc..
 
 	// if keys, values and operators are nil
 	// This could be a case of "select * from users;" for example if passing skip and volume checks
 	if ks == nil && vs == nil && oprs == nil {
-
-		// decrement skip and continue
-		if skip != 0 {
-			skip = skip - 1
-			return
-		}
 
 		// if a volume is set check if we are at wanted document volume for query
 		if vol != -1 {
@@ -1988,6 +1981,7 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 	searchWg := &sync.WaitGroup{}
 	searchResMu := &sync.RWMutex{}
+	skipMu := &sync.Mutex{}
 
 	if len(curode.Data.Map[collection]) >= 60 { // If collection has more than 60 records split search
 
@@ -2003,6 +1997,14 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 					return
 				}
 
+				skipMu.Lock()
+				if skip != 0 {
+					skip = skip - 1
+					skipMu.Unlock()
+					continue
+				}
+				skipMu.Unlock()
+
 				curode.Search(searchResMu, i, &tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
 			}
 		}(searchWg, middle, &objects, searchResMu)
@@ -2016,6 +2018,14 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 					return
 				}
 
+				skipMu.Lock()
+				if skip != 0 {
+					skip = skip - 1
+					skipMu.Unlock()
+					continue
+				}
+				skipMu.Unlock()
+
 				curode.Search(searchResMu, i, &tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
 			}
 		}(searchWg, middle, &objects, searchResMu)
@@ -2023,6 +2033,10 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 		searchWg.Wait()
 	} else {
 		for i, _ := range curode.Data.Map[collection] {
+			if skip != 0 {
+				skip = skip - 1
+				continue
+			}
 			curode.Search(searchResMu, i, &tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, &objects)
 		}
 	}
