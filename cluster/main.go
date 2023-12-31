@@ -141,7 +141,7 @@ func main() {
 		cursus.Config.Host = "0.0.0.0"         // Default host of 0.0.0.0
 		cursus.Config.LogMaxLines = 1000       // Default of 1000 lines then truncate/clear
 		cursus.Config.Timezone = "Local"       // Default is system local time
-		cursus.Config.NodeReadDeadline = 2     // Default of 2 seconds
+		cursus.Config.NodeReadDeadline = 2     // Default of 2 seconds waiting for a node to respond
 
 		// Get initial database user credentials
 		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
@@ -179,7 +179,7 @@ func main() {
 		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key)))) // Relay input with *
 		fmt.Println("")
 
-		// Hash shared key
+		// Hash provided shared key
 		hashedKey := sha256.Sum256(key)
 		cursus.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...)) // Encode hashed key
 
@@ -234,7 +234,7 @@ func main() {
 
 	}
 
-	// If cluster configured cluster nodes == 0, inform user to add a node
+	// If cluster configured cluster nodes == 0, inform user to add at least one node
 	if len(cursus.Config.Nodes) == 0 {
 		fmt.Println("You must setup nodes for the Cursus to read from in your .cursusconfig file.")
 		os.Exit(0)
@@ -246,10 +246,10 @@ func main() {
 	flag.IntVar(&cursus.Config.Port, "port", cursus.Config.Port, "port for cluster")
 	flag.Parse()
 
-	cursus.ConnectToNodes() // Connect to configured nodes for fast communication
+	cursus.ConnectToNodes() // Connect to configured nodes and node replicas for fast communication
 
 	cursus.Wg.Add(1)
-	go cursus.SignalListener() // Listen to system systems
+	go cursus.SignalListener() // Listen to system signals
 
 	cursus.Wg.Add(1)
 	go cursus.StartTCP_TLS() // Start listening tcp/tls with setup configuration
@@ -623,8 +623,8 @@ func (cursus *Cursus) SignalListener() {
 		select {
 		case sig := <-cursus.SignalChannel: // Start graceful shutdown of cluster
 			cursus.Printl(fmt.Sprintf("SignalListener(): Received signal %s starting database cluster shutdown.", sig), "INFO")
-			cursus.TCPListener.Close()
-			cursus.ContextCancel() // Send context shutdown to stop all long running go routines
+			cursus.TCPListener.Close() // Close main tcp listener
+			cursus.ContextCancel()     // Send context shutdown to stop all long running go routines
 
 			// Close all node connections
 			for _, nc := range cursus.NodeConnections {
@@ -640,7 +640,7 @@ func (cursus *Cursus) SignalListener() {
 
 			cursus.SaveConfig() // Save config
 			return
-		default:
+		default: // continue on waiting for signals time.Nanosecond * 1000000 is VERY efficient
 			time.Sleep(time.Nanosecond * 1000000)
 		}
 	}
@@ -648,9 +648,10 @@ func (cursus *Cursus) SignalListener() {
 
 // StartTCP_TLS starts listening on tcp/tls on configured host and port
 func (cursus *Cursus) StartTCP_TLS() {
-	var err error
-	defer cursus.Wg.Done()
+	var err error          // Local error variable for StartTCP_TLS
+	defer cursus.Wg.Done() // Return go routine back to wait group
 
+	// Resolved TCPAddr struct based on configured host and port combination
 	cursus.TCPAddr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", cursus.Config.Host, cursus.Config.Port))
 	if err != nil {
 		cursus.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
@@ -667,14 +668,13 @@ func (cursus *Cursus) StartTCP_TLS() {
 	}
 
 	for {
-
-		conn, err := cursus.TCPListener.Accept()
+		conn, err := cursus.TCPListener.Accept() // Accept a new TCP connection
 		if err != nil {
 			cursus.SignalChannel <- os.Interrupt // Send interrupt signal to channel to stop cluster
 			return
 		}
 
-		// If TLS is set to true within config let's make the connection secure
+		// If TLS is set to true within cluster config let's make the accepted connection secure
 		if cursus.Config.TLS {
 			cert, err := tls.LoadX509KeyPair(cursus.Config.TLSCert, cursus.Config.TLSKey)
 			if err != nil {
@@ -693,7 +693,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 			conn = net.Conn(tlsUpgrade)
 		}
 
-		conn.SetReadDeadline(time.Now().Add(time.Millisecond * 150))
+		conn.SetReadDeadline(time.Now().Add(time.Millisecond * 150)) // We will only wait 150ms for authentication then close up their connection and go onto next
 		//Expect Authentication: username\0password\n b64 encoded
 		auth, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
@@ -740,7 +740,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 		conn.Write([]byte(fmt.Sprintf("%d %s\r\n", 0, "Authentication successful.")))
 
 		cursus.Wg.Add(1)
-		go cursus.HandleClientConnection(conn, u)
+		go cursus.HandleClientConnection(conn, u) // Handle client connection
 		// .. continue on and take next client connection
 	}
 }
@@ -789,9 +789,8 @@ func (cursus *Cursus) AuthenticateUser(username string, password string) (string
 
 // InsertIntoNode selects one node within cluster nodes and inserts json document.
 func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, collection string, id string) {
-
 	var node *NodeConnection // Node connection which will be chosen randomly
-	var nodeRetries int
+	var nodeRetries int      // Amount of retries based on main node count
 
 	nonReplicaCount := (func() int {
 		i := 0
@@ -806,7 +805,7 @@ func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, coll
 	if nonReplicaCount >= 10 {
 		nodeRetries = nonReplicaCount * 2 // Amount of times to retry another node if the chosen node is at peak allocation or unavailable
 	} else {
-		nodeRetries = 10
+		nodeRetries = 10 // Retry main node 10 times to insert
 	}
 
 	// Setting up document
