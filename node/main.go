@@ -84,13 +84,13 @@ type Config struct {
 	LogMaxLines                 int       `yaml:"log-max-lines"`                            // At what point to clear logs.  Each log line start's with a [UTC TIME] LOG DATA
 	Logging                     bool      `default:"false" yaml:"logging"`                  // Log to file ?
 	ReplicationSyncTime         int       `yaml:"replication-sync-time"`                    // in minutes default is every 10 minutes
+	ReplicationSyncTimeout      int       `yaml:"replication-sync-timeout"`                 // As your node grows in size you may want to increase.  Default is 10 minutes.
 	TLSReplication              bool      `default:"false" yaml:"tls-replication"`          // If your cluster node replicas are running TLS then configure this to true
 	AutomaticBackups            bool      `default:"false" yaml:"automatic-backups"`        // If for some reason a .cdat gets corrupt you can choose to have the system save a state of your .cdat file every set n amount of time.  (default is every 8 hours(480 minutes) to make a backup of your nodes data under /backups directory(which the system will create inside your binary executable location) files are named like so .cdat_YYMMDDHHMMSS in your set timezone
 	AutomaticBackupTime         int       `yaml:"automatic-backup-time"`                    // Automatic node backup time.  Default is 8 (hours)
 	AutomaticBackupCleanup      bool      `default:"false" yaml:"automatic-backup-cleanup"` // If set true node will clean up backups that are older than AutomaticBackupCleanupTime days old
 	AutomaticBackupCleanupHours int       `yaml:"automatic-backup-cleanup-hours"`           // Clean up old .cdat backups that are n amount hours old only used if AutomaticBackups is set true default is 12 hours
 	Timezone                    string    `default:"Local" yaml:"timezone"`                 // i.e America/Chicago default is local system time
-
 }
 
 // Replica is a cluster node that current node data will be replicated/synced to
@@ -145,6 +145,7 @@ func main() {
 		curode.Config.LogMaxLines = 1000               // truncate at 1000 lines as default
 		curode.Config.Timezone = "Local"               // Local is systems local time
 		curode.Config.ReplicationSyncTime = 10         // default of every 10 minutes
+		curode.Config.ReplicationSyncTimeout = 10      // If sync doesn't complete in 10 minutes by default timeout(could lead to corrupt data so increase accordingly)
 		curode.Config.AutomaticBackupCleanupHours = 12 // Set default of 12 hours in which to delete old backed up .cdat files
 		curode.Config.AutomaticBackupTime = 60         // Automatically backup node data to backups folder every 1 hour by default if AutomaticBackups is enabled
 
@@ -750,7 +751,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 			curode.Printl("HandleClientConnection(): "+fmt.Sprintf("%d Starting to sync to with master node %s", 216, conn.RemoteAddr().String()), "INFO")
 			// Handle sync
 			conn.Write([]byte(fmt.Sprintf("%d Node ready for sync.\r\n", 106)))
-
+			conn.SetReadDeadline(time.Now().Add(time.Minute * time.Duration(curode.Config.ReplicationSyncTimeout))) // replication-sync-timeout - as your nodes grow the time you'll have to give a node to node replica connection will have to grow, so increase accordingly.  Default is 10 minutes
 			dec := gob.NewDecoder(conn)
 
 			err = dec.Decode(&curode.Data.Map)
