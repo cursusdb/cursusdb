@@ -979,6 +979,7 @@ func (curode *Curode) DeleteKeyFromColl(collection string, key string) int {
 
 // Search checks if provided index within data collection meets conditions
 func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd *[]int, collection string, ks interface{}, vs interface{}, vol int, skip int, oprs interface{}, conditions []interface{}, del bool, update bool, objs *[]interface{}) {
+
 	conditionsMetDocument := 0 // conditions met as in th first condition would be key == v lets say the next would be && or || etc..
 
 	// if keys, values and operators are nil
@@ -1983,52 +1984,52 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 	searchResMu := &sync.RWMutex{}
 	skipMu := &sync.Mutex{}
 
-	if len(curode.Data.Map[collection]) >= 60 { // If collection has more than 60 records split search
+	if len(curode.Data.Map[collection]) >= 60 && skip == 0 { // If collection has more than 60 records split search
 
 		// Split collection and conquer from top to bottom in parallel
 		middle := len(curode.Data.Map[collection]) / 2
 
 		// top to middle search
 		searchWg.Add(1)
-		go func(wg *sync.WaitGroup, mid int, objs *[]interface{}, mu *sync.RWMutex) {
+		go func(wg *sync.WaitGroup, mid int, objs *[]interface{}, mu *sync.RWMutex, smu *sync.Mutex, s *int) {
 			defer wg.Done()
 			for i := 0; i <= mid; i++ {
 				if curode.Context.Err() != nil {
 					return
 				}
 
-				skipMu.Lock()
-				if skip != 0 {
-					skip = skip - 1
-					skipMu.Unlock()
+				smu.Lock()
+				if *s != 0 {
+					*s -= 1
+					smu.Unlock()
 					continue
 				}
-				skipMu.Unlock()
+				smu.Unlock()
 
 				curode.Search(searchResMu, i, &tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
 			}
-		}(searchWg, middle, &objects, searchResMu)
+		}(searchWg, middle, &objects, searchResMu, skipMu, &skip)
 
 		// bottom to middle search
 		searchWg.Add(1)
-		go func(wg *sync.WaitGroup, mid int, objs *[]interface{}, mu *sync.RWMutex) {
+		go func(wg *sync.WaitGroup, mid int, objs *[]interface{}, mu *sync.RWMutex, smu *sync.Mutex, s *int) {
 			defer wg.Done()
 			for i := len(curode.Data.Map[collection]) - 1; i > mid; i-- {
 				if curode.Context.Err() != nil {
 					return
 				}
 
-				skipMu.Lock()
-				if skip != 0 {
-					skip = skip - 1
-					skipMu.Unlock()
+				smu.Lock()
+				if *s != 0 {
+					*s -= 1
+					smu.Unlock()
 					continue
 				}
-				skipMu.Unlock()
+				smu.Unlock()
 
 				curode.Search(searchResMu, i, &tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
 			}
-		}(searchWg, middle, &objects, searchResMu)
+		}(searchWg, middle, &objects, searchResMu, skipMu, &skip)
 
 		searchWg.Wait()
 	} else {
