@@ -144,7 +144,7 @@ func main() {
 		cursus.Config.NodeReadDeadline = 2     // Default of 2 seconds waiting for a node to respond
 
 		// Get initial database user credentials
-		fmt.Println("Before starting your CursusDB cluster you must first create a database user and cluster key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell).  The cluster key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
+		fmt.Println("Before starting your CursusDB cluster you must first create an initial database user and shared cluster and node key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell) or native client.  The shared key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your clusters.")
 		fmt.Print("username> ")
 		username, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
