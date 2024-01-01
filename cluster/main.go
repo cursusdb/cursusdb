@@ -236,7 +236,7 @@ func main() {
 
 	// If cluster configured cluster nodes == 0, inform user to add at least one node
 	if len(cursus.Config.Nodes) == 0 {
-		fmt.Println("You must setup nodes for the Cursus to read from in your .cursusconfig file.")
+		fmt.Println("You must setup nodes your CursusDB cluster to read from in your .cursusconfig file.")
 		os.Exit(0)
 	}
 
