@@ -472,6 +472,7 @@ delete user USERNAME;
 - ``4021`` Document key removed from collection successfully
 - ``4022`` No documents found to alter
 - ``4023`` No unique $id could be found for insert
+- ``4024`` Batch insertion is not supported
 
 ## Ports
 Default cluster port: ``7681``

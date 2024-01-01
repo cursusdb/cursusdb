@@ -1300,6 +1300,13 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 				}
 
+				// Check if insert is json array
+				if strings.HasPrefix(strings.TrimSpace(insertJson[1]), "[{") && strings.HasSuffix(strings.TrimSpace(insertJson[1]), "}]") {
+					text.PrintfLine(fmt.Sprintf("%d Batch insertion not supported.", 4024))
+					query = ""
+					continue
+				}
+
 				// Check reserved words based on https://go.dev/ref/spec and CursusDB system reserved words
 				// What has been commented out has been tested inserting and reading like so
 				// insert into test({"case": "test"});
