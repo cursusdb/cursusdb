@@ -1300,8 +1300,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 				}
 
-				// Check if insert is json array
+				// Check if insert is json array i.e insert i.e `insert into example([{"x": 4, "y": 44}, {"x": 2, "y": 22}]);`
+				// This is not allowed.  If you want to batch insert create many connections to the cluster and insert in parallel.
 				if strings.HasPrefix(strings.TrimSpace(insertJson[1]), "[{") && strings.HasSuffix(strings.TrimSpace(insertJson[1]), "}]") {
+
 					text.PrintfLine(fmt.Sprintf("%d Batch insertion not supported.", 4024))
 					query = ""
 					continue
