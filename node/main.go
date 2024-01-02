@@ -849,6 +849,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				if reflect.DeepEqual(results, nil) || len(results) == 0 {
 					response["message"] = "No documents deleted."
 				} else {
+					response["collection"] = request["collection"].(string)
 					response["message"] = fmt.Sprintf("%d Document(s) deleted successfully.", len(results))
 				}
 
@@ -887,6 +888,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				if reflect.DeepEqual(results, nil) || len(results) == 0 {
 					response["message"] = "No documents updated."
 				} else {
+					response["collection"] = request["collection"].(string)
 					response["message"] = fmt.Sprintf("%d Document(s) updated successfully.", len(results))
 				}
 
@@ -908,6 +910,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				if err != nil {
 					// Only error returned is a 4003 which means cannot insert nested object
 					response["statusCode"] = strings.Split(err.Error(), " ")[0]
+					response["collection"] = collection.(string)
 					response["message"] = strings.Join(strings.Split(err.Error(), " ")[1:], " ")
 					r, _ := json.Marshal(response)
 					text.PrintfLine(string(r))
