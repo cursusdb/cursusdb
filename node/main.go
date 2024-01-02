@@ -859,6 +859,11 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				response["deleted"] = results
 
 				r, _ = json.Marshal(response)
+
+				if strings.Contains(response["message"].(string), "Document(s) deleted successfully.") { // Only transmit to observer if there is actual deleted docs
+					go curode.SendToObservers(string(r))
+				}
+
 				text.PrintfLine(string(r))
 				continue
 			case strings.EqualFold(action.(string), "select"):
@@ -891,6 +896,10 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 
 				response["updated"] = results
 				r, _ = json.Marshal(response)
+
+				if strings.Contains(response["message"].(string), "Document(s) updated successfully.") { // Only transmit to observer if there is actual updated docs
+					go curode.SendToObservers(string(r))
+				}
 
 				text.PrintfLine(string(r))
 				continue
@@ -984,6 +993,8 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 	if err != nil {
 		return errors.New(fmt.Sprintf("%d Could not marshal JSON.", 4012))
 	}
+
+	go curode.SendToObservers(string(responseMap))
 
 	text.PrintfLine(string(responseMap))
 
@@ -2370,8 +2381,10 @@ func (curode *Curode) ConnectToObservers() {
 }
 
 // SendToObservers transmits a new insert, update, or delete event to all configured observers
-func (curode *Curode) SendToObservers() {
-
+func (curode *Curode) SendToObservers(jsonStr string) {
+	for _, oc := range curode.ObserverConnections {
+		oc.Text.PrintfLine(jsonStr)
+	}
 }
 
 // LostReconnectObservers connects to lost observers or will try to.
