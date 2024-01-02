@@ -87,13 +87,14 @@ type Config struct {
 	ReplicationSyncTime         int        `yaml:"replication-sync-time"`                    // in minutes default is every 10 minutes
 	ReplicationSyncTimeout      int        `yaml:"replication-sync-timeout"`                 // As your node grows in size you may want to increase.  Default is 10 minutes.
 	TLSReplication              bool       `default:"false" yaml:"tls-replication"`          // If your cluster node replicas are running TLS then configure this to true
-	AutomaticBackups            bool       `default:"false" yaml:"automatic-backups"`        // If for some reason a .cdat gets corrupt you can choose to have the system save a state of your .cdat file every set n amount of time.  (default is every 8 hours(480 minutes) to make a backup of your nodes data under /backups directory(which the system will create inside your binary executable location) files are named like so .cdat_YYMMDDHHMMSS in your set timezone
+	AutomaticBackups            bool       `default:"false" yaml:"automatic-backups"`        // If for some reason a .cdat gets corrupt you can choose to have the system save a state of your .cdat file every set n amount of time.  (default is every 8 hours(480 minutes) to make a backup of your nodes data under BackupsDirectory(which the system will create inside your binary executable location) files are named like so .cdat_YYMMDDHHMMSS in your set timezone
 	AutomaticBackupTime         int        `yaml:"automatic-backup-time"`                    // Automatic node backup time.  Default is 8 (hours)
 	AutomaticBackupCleanup      bool       `default:"false" yaml:"automatic-backup-cleanup"` // If set true node will clean up backups that are older than AutomaticBackupCleanupTime days old
 	AutomaticBackupCleanupHours int        `yaml:"automatic-backup-cleanup-hours"`           // Clean up old .cdat backups that are n amount hours old only used if AutomaticBackups is set true default is 12 hours
 	Timezone                    string     `default:"Local" yaml:"timezone"`                 // i.e America/Chicago default is local system time
 	Observers                   []Observer `yaml:"observers"`                                // Observer servers listening for realtime node events (insert,update,delete).  Curode if configured will relay successful inserts, updates, and deletes to all Observer(s)
 	TLSObservers                bool       `yaml:"tls-observers"`                            // Set whether your Observers are listening on tls or not
+	BackupsDirectory            string     `yaml:"backups-directory"`                        // Backups directory by default is in the execution directory /backups/ Whatever is provided the system will create the director(ies) if they doesn't exist.
 }
 
 // Replica is a cluster node that current node data will be replicated/synced to
@@ -166,6 +167,7 @@ func main() {
 		curode.Config.ReplicationSyncTimeout = 10      // If sync doesn't complete in 10 minutes by default timeout(could lead to corrupt data so increase accordingly)
 		curode.Config.AutomaticBackupCleanupHours = 12 // Set default of 12 hours in which to delete old backed up .cdat files
 		curode.Config.AutomaticBackupTime = 60         // Automatically backup node data to backups folder every 1 hour by default if AutomaticBackups is enabled
+		curode.Config.BackupsDirectory = "/backups/"   // Backups by default is in the execution directory
 
 		fmt.Println("Shared cluster and node key is required.  A shared cluster and node key will encrypt all your data at rest and only allow connections that contain a correct Key: header value matching the hashed key you provide.")
 		fmt.Print("key> ")
@@ -223,7 +225,7 @@ func main() {
 	} else {
 
 		datafile := "./.cdat"        // If .cdat is corrupted we will try again with a backup
-		var latestBackup fs.FileInfo // When we search /backups directory we look for latest backup also we use this variable to check if we already attempted to use this backup
+		var latestBackup fs.FileInfo // When we search BackupsDirectory we look for latest backup also we use this variable to check if we already attempted to use this backup
 		backupCount := 0             // Will populate then decrement when we read backups directory if the directory exists
 		backedUp := false            // If a backup occurred
 
@@ -267,14 +269,8 @@ func main() {
 		if curode.Config.AutomaticBackups {
 			fmt.Println("main():", fmt.Sprintf("main(): %d Attempting automatic recovery with latest backup.", 215))
 
-			workingDir, err := os.Getwd()
-			if err != nil {
-				curode.Printl(fmt.Sprintf("main(): %d Could not get node working directory for automatic recovery. %s", 210, err.Error()), "ERROR")
-				os.Exit(1)
-			}
-
 			// Read backups and remove any backups older than AutomaticBackupCleanupTime days old
-			backups, err := ioutil.ReadDir(fmt.Sprintf("%s/backups", workingDir))
+			backups, err := ioutil.ReadDir(fmt.Sprintf("%s", curode.Config.BackupsDirectory))
 			if err != nil {
 				curode.Printl(fmt.Sprintf("main(): %d Could not read node backups directory %s", 208, err.Error()), "ERROR")
 				os.Exit(1)
@@ -298,7 +294,7 @@ func main() {
 			}
 
 			if backupCount != 0 {
-				datafile = fmt.Sprintf(fmt.Sprintf("%s/backups/%s", workingDir, latestBackup.Name()))
+				datafile = fmt.Sprintf(fmt.Sprintf("%s%s", curode.Config.BackupsDirectory, latestBackup.Name()))
 				goto readData
 			} else {
 				fmt.Println(fmt.Sprintf("main(): %d Node was unrecoverable after all attempts.", 214))
@@ -649,7 +645,7 @@ func (curode *Curode) WriteToFile(backup bool) {
 	} else {
 		var out io.Writer
 
-		f, err := os.OpenFile(fmt.Sprintf("backups/.cdat.%d", t.Unix()), os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
+		f, err := os.OpenFile(fmt.Sprintf("%s.cdat.%d", curode.Config.BackupsDirectory, t.Unix()), os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
 		if err != nil {
 			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
 			curode.SignalChannel <- os.Interrupt
@@ -2184,15 +2180,9 @@ func (curode *Curode) Update(collection string, ks interface{}, vs interface{}, 
 func (curode *Curode) AutomaticBackup() {
 	defer curode.Wg.Done()
 
-	workingDir, err := os.Getwd()
-	if err != nil {
-		curode.Printl(fmt.Sprintf("AutomaticBackup(): %d Could not get node working directory for automatic backup %s", 206, err.Error()), "ERROR")
-		return
-	}
-
-	// Check if /backups exists or not and create it
-	if _, err = os.Stat(fmt.Sprintf("%s/backups", workingDir)); errors.Is(err, os.ErrNotExist) {
-		if err = os.Mkdir(fmt.Sprintf("%s/backups", workingDir), os.ModePerm); err != nil {
+	// Check if BackupsDirectory exists or not and create it
+	if _, err := os.Stat(fmt.Sprintf("%s", curode.Config.BackupsDirectory)); errors.Is(err, os.ErrNotExist) {
+		if err = os.MkdirAll(fmt.Sprintf("%s", curode.Config.BackupsDirectory), os.ModePerm); err != nil {
 			curode.Printl(fmt.Sprintf("AutomaticBackup(): %d Could not create automatic backups directory %s", 207, err.Error()), "ERROR")
 			return
 		}
@@ -2228,11 +2218,11 @@ func (curode *Curode) AutomaticBackup() {
 
 			if sc == 0 { // run
 
-				// Backup data to backups/.cdat.unixtime
+				// Backup data to BackupsDirectory.cdat.unixtime
 				curode.WriteToFile(true)
 
 				// Read backups and remove any backups older than AutomaticBackupCleanupTime days old
-				backups, err := ioutil.ReadDir(fmt.Sprintf("%s/backups", workingDir)) // read backups directory
+				backups, err := ioutil.ReadDir(fmt.Sprintf("%s", curode.Config.BackupsDirectory)) // read backups directory
 				if err != nil {
 					curode.Printl(fmt.Sprintf("AutomaticBackup(): %d Could not read node backups directory %s", 208, err.Error()), "ERROR")
 					time.Sleep(time.Second)
@@ -2241,7 +2231,7 @@ func (curode *Curode) AutomaticBackup() {
 
 				for _, backup := range backups {
 					if backup.ModTime().After(time.Now().Add(time.Hour * time.Duration(curode.Config.AutomaticBackupCleanupHours))) {
-						e := os.Remove(fmt.Sprintf("%s/backups/%s", workingDir, backup.Name()))
+						e := os.Remove(fmt.Sprintf("%s%s", curode.Config.BackupsDirectory, backup.Name()))
 						if e != nil {
 							curode.Printl(fmt.Sprintf("AutomaticBackup(): %d Could not remove .cdat backup %s %s", 209, backup.Name(), err.Error()), "ERROR")
 							continue
