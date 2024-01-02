@@ -66,6 +66,11 @@ https://hub.docker.com/repositories/cursusdb (SOON)
 - JAVA https://github.com/cursusdb/cursusdb-java ``STABLE ✔️``
 - CSHARP https://github.com/cursusdb/cursusdb-cs ``IN TESTING ⚠️``
 
+## Native Observers
+- NODE.JS https://github.com/cursusdb/cursusdb-observer-node OR https://www.npmjs.com/package/cursusdb-observer-node ``STABLE ✔️``
+- GO https://github.com/cursusdb/cursusdb-observer-go ``IN PROGRESS 👨‍💻``
+.. more coming
+
 ## Prebuilt Binaries
 You can find the latest stable release prebuilt binaries at
 https://cursusdb.com/downloads
