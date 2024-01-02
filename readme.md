@@ -22,7 +22,9 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 - Cluster node data replication and synchronization specifically for reads
 - JSON object insert
 - Unstructured collections
-- Cluster and client authentication.
+- Cluster and client authentication
+- Node(s) (insert, update, delete) relay to observers in real time
+- Node observer automatic reconnect if connection lost
 - SQL like query language (CDQL - Cursus Document Query Language)
 - Low-latency
 - Highly available
@@ -560,6 +562,11 @@ If you set ``tls-node`` on the cluster to true the cluster will expect all nodes
 
 If you set ``tls-replication`` on a cluster node to true the cluster node will expect all node replicas to be listening on tls.
 
+
+## What is a Node Observer?
+A node observer is a backend service using the CursusDB Observer package to listen to incoming node events such as insert, update, and delete in real time.
+
+The observer must be configured with the same shared key as your nodes and clusters.
 
 ## Document Expectation & Document Relation
 CursusDB expects simple JSON objects. For example take this user object:
