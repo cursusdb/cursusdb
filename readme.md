@@ -53,6 +53,8 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 
 ![drawing82.png](images/drawing82.png)
 
+![drawing102.png](images/drawing102.png)
+
 ## Docker
 https://hub.docker.com/repositories/cursusdb (SOON)
 
