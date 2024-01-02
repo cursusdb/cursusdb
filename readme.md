@@ -647,9 +647,8 @@ age int,
 active BOOLEAN
 );``
 
-## Reserved Keys
-On insert there are a variety of RESERVED keys.  
-
+## Reserved Document Keys
+On insert there are a variety of RESERVED keys.
 - `count`
 - `$id`
 - `$indx`
