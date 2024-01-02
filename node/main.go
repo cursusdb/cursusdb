@@ -280,8 +280,6 @@ func main() {
 				backupCount = len(backups)
 			}
 
-			backupCount -= 1
-
 			for _, backup := range backups {
 				backedUp = true
 				if latestBackup == nil {
@@ -294,6 +292,7 @@ func main() {
 			}
 
 			if backupCount != 0 {
+				backupCount -= 1
 				datafile = fmt.Sprintf(fmt.Sprintf("%s%s", curode.Config.BackupsDirectory, latestBackup.Name()))
 				goto readData
 			} else {
