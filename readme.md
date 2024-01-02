@@ -440,6 +440,7 @@ delete user USERNAME;
 - ``215`` - Attempting automatic recovery with latest backup
 - ``216`` - Starting to sync to with master node
 - ``217`` - Synced up with master node (with addr)
+- ``218`` - Observer HOST:PORT was unavailable during relay
 - ``500`` - Unknown error (with description)
 - ``501`` - Limit skip must be an integer (with description)
 - ``502`` - Could not convert limit value to integer (with description)

@@ -2382,8 +2382,14 @@ func (curode *Curode) ConnectToObservers() {
 
 // SendToObservers transmits a new insert, update, or delete event to all configured observers
 func (curode *Curode) SendToObservers(jsonStr string) {
-	for _, oc := range curode.ObserverConnections {
-		oc.Text.PrintfLine(jsonStr)
+	for i, oc := range curode.ObserverConnections {
+		oc.Conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		err := oc.Text.PrintfLine(jsonStr)
+		if err != nil {
+			curode.Printl(fmt.Sprintf("SendToObservers(): %d Observer %s was unavailable during relay.", 218, fmt.Sprintf("%s:%d", oc.Observer.Host, oc.Observer.Port)), "WARNING")
+			curode.ObserverConnections[i].Ok = false
+			continue
+		}
 	}
 }
 
