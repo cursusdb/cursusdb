@@ -2371,7 +2371,7 @@ func (curode *Curode) ConnectToObservers() {
 			} else {
 				// Report back invalid key
 				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", "Invalid key."), "ERROR")
-				fmt.Println("ConnectToNodes(): ", "Invalid key.")
+				fmt.Println("ConnectToObservers(): ", "Invalid key.")
 				os.Exit(1)
 			}
 
