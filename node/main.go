@@ -57,19 +57,19 @@ import (
 
 // Curode is the main CursusDB cluster node struct
 type Curode struct {
-	TCPAddr             *net.TCPAddr         // TCPAddr represents the address of the nodes TCP end point
-	TCPListener         *net.TCPListener     // TCPListener is the node TCP network listener.
-	Wg                  *sync.WaitGroup      // Node WaitGroup waits for all goroutines to finish up
-	SignalChannel       chan os.Signal       // Catch operating system signal
-	Config              Config               // Node  config
-	TLSConfig           *tls.Config          // Node TLS config if TLS is true
-	ContextCancel       context.CancelFunc   // For gracefully shutting down
-	ConfigMu            *sync.RWMutex        // Node config mutex
-	Data                *Data                // Node data
-	Context             context.Context      // Main looped go routine context.  This is for listeners, event loops and so forth
-	LogMu               *sync.Mutex          // Log file mutex
-	LogFile             *os.File             // Opened log file
-	ObserverConnections []ObserverConnection // ObserverConnections
+	TCPAddr             *net.TCPAddr          // TCPAddr represents the address of the nodes TCP end point
+	TCPListener         *net.TCPListener      // TCPListener is the node TCP network listener.
+	Wg                  *sync.WaitGroup       // Node WaitGroup waits for all goroutines to finish up
+	SignalChannel       chan os.Signal        // Catch operating system signal
+	Config              Config                // Node  config
+	TLSConfig           *tls.Config           // Node TLS config if TLS is true
+	ContextCancel       context.CancelFunc    // For gracefully shutting down
+	ConfigMu            *sync.RWMutex         // Node config mutex
+	Data                *Data                 // Node data
+	Context             context.Context       // Main looped go routine context.  This is for listeners, event loops and so forth
+	LogMu               *sync.Mutex           // Log file mutex
+	LogFile             *os.File              // Opened log file
+	ObserverConnections []*ObserverConnection // ObserverConnections
 }
 
 // Config is the CursusDB cluster config struct
@@ -92,7 +92,7 @@ type Config struct {
 	AutomaticBackupCleanup      bool       `default:"false" yaml:"automatic-backup-cleanup"` // If set true node will clean up backups that are older than AutomaticBackupCleanupTime days old
 	AutomaticBackupCleanupHours int        `yaml:"automatic-backup-cleanup-hours"`           // Clean up old .cdat backups that are n amount hours old only used if AutomaticBackups is set true default is 12 hours
 	Timezone                    string     `default:"Local" yaml:"timezone"`                 // i.e America/Chicago default is local system time
-	Observers                   []Observer `yaml:"observers"`                                // Observer servers listening for realtime node events (insert,update,delete).  Curode if configured will relay successful inserts, updates, and deletes to an Observer
+	Observers                   []Observer `yaml:"observers"`                                // Observer servers listening for realtime node events (insert,update,delete).  Curode if configured will relay successful inserts, updates, and deletes to all Observer(s)
 	TLSObservers                bool       `yaml:"tls-observers"`                            // Set whether your Observers are listening on tls or not
 }
 
@@ -332,6 +332,13 @@ func main() {
 	flag.IntVar(&curode.Config.Port, "port", curode.Config.Port, "port for node")
 	flag.Parse()
 
+	if len(curode.Config.Observers) > 0 {
+		curode.ConnectToObservers()
+
+		curode.Wg.Add(1)
+		go curode.LostReconnectObservers() // Always attempt to reconnect to lost observers if unavailable
+	}
+
 	// If replicas are configured only then sync
 	if len(curode.Config.Replicas) > 0 {
 		curode.Wg.Add(1)
@@ -364,6 +371,13 @@ func (curode *Curode) SignalListener() {
 		select {
 		case sig := <-curode.SignalChannel:
 			curode.Printl(fmt.Sprintf("SignalListener(): Received signal %s starting database shutdown.", sig), "INFO")
+
+			// Close observer connections if any
+			for _, oc := range curode.ObserverConnections {
+				oc.Text.Close()
+				oc.Conn.Close()
+			}
+
 			curode.TCPListener.Close() // Close up TCP/TLS listener
 			curode.ContextCancel()     // Cancel context, used for loops and so forth
 			return
@@ -2241,10 +2255,234 @@ func (curode *Curode) AutomaticBackup() {
 // Curode will send an initial Key: SHAREDKEY\r\n
 // This is read by the Observer and accepted at which point the Node and Observer can communicate.
 func (curode *Curode) ConnectToObservers() {
+	// Is the curode connecting to observers via TLS?
+	if curode.Config.TLSObservers {
 
+		// Iterate over configured observers and connect
+		for _, o := range curode.Config.Observers {
+
+			// Resolve TCP addr
+			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", o.Host, o.Port))
+			if err != nil {
+				fmt.Println("ConnectToObservers():", err.Error())
+				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", err.Error()), "ERROR")
+				os.Exit(1)
+			}
+
+			// Dial tcp address up
+			conn, err := net.DialTCP("tcp", nil, tcpAddr)
+			if err != nil {
+				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", err.Error()), "ERROR")
+				os.Exit(1)
+			}
+
+			// We will keep the observer connection alive until shutdown
+			conn.SetKeepAlive(true) // forever
+
+			// Configure TLS
+			config := tls.Config{ServerName: o.Host}
+
+			// Create TLS client connection
+			secureConn := tls.Client(conn, &config)
+
+			// Authenticate with node passing shared key wrapped in base64
+			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
+
+			// Authentication response buffer
+			authBuf := make([]byte, 1024)
+
+			// Read response back from node
+			r, _ := conn.Read(authBuf[:])
+
+			// Did response start with a 0?  This indicates successful authentication
+			if strings.HasPrefix(string(authBuf[:r]), "0") {
+
+				// Add new node connection to slice
+				curode.ObserverConnections = append(curode.ObserverConnections, &ObserverConnection{
+					Conn:       conn,
+					SecureConn: secureConn,
+					Text:       textproto.NewConn(secureConn),
+					Ok:         true,
+					Observer:   o,
+				})
+
+				// Report back successful connection
+				curode.Printl(fmt.Sprintf("ConnectToObservers(): Observer connection established with %s", conn.RemoteAddr().String()), "INFO")
+			} else {
+				// Report back invalid key.
+				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", "Invalid key."), "ERROR")
+				fmt.Println("ConnectToObservers(): ", "Invalid key.")
+				os.Exit(1)
+			}
+		}
+	} else {
+		for _, o := range curode.Config.Observers {
+
+			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
+			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", o.Host, o.Port))
+			if err != nil {
+				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", err.Error()), "ERROR")
+				os.Exit(1)
+			}
+
+			// Dial tcp address up
+			conn, err := net.DialTCP("tcp", nil, tcpAddr)
+			if err != nil {
+				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", err.Error()), "ERROR")
+				os.Exit(1)
+			}
+
+			// We will keep the observer connection alive until shutdown
+			conn.SetKeepAlive(true) // forever
+
+			// Authenticate with node passing shared key wrapped in base64
+			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
+
+			// Authentication response buffer
+			authBuf := make([]byte, 1024)
+
+			// Read response back from node
+			r, _ := conn.Read(authBuf[:])
+
+			// Did response start with a 0?  This indicates successful authentication
+			if strings.HasPrefix(string(authBuf[:r]), "0") {
+
+				// Add new node connection to slice
+				curode.ObserverConnections = append(curode.ObserverConnections, &ObserverConnection{
+					Conn:     conn,
+					Text:     textproto.NewConn(conn),
+					Ok:       true,
+					Observer: o,
+				})
+
+				// Report back successful connection
+				curode.Printl(fmt.Sprintf("ConnectToObservers(): Observer connection established with %s", conn.RemoteAddr().String()), "INFO")
+			} else {
+				// Report back invalid key
+				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", "Invalid key."), "ERROR")
+				fmt.Println("ConnectToNodes(): ", "Invalid key.")
+				os.Exit(1)
+			}
+
+		}
+
+	}
 }
 
 // SendToObservers transmits a new insert, update, or delete event to all configured observers
 func (curode *Curode) SendToObservers() {
+
+}
+
+// LostReconnectObservers connects to lost observers or will try to.
+func (curode *Curode) LostReconnectObservers() {
+	defer curode.Wg.Done() // Defer to return to waitgroup
+
+	for {
+		if curode.Context.Err() != nil { // On signal break out of for loop
+			break
+		}
+
+		for i, oc := range curode.ObserverConnections { // Iterate over observer connections
+			if !oc.Ok { // Check if observer connection is not ok
+				if curode.Config.TLSObservers { // Is TLS observer configured?
+
+					// Resolve TCP addr
+					tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", oc.Observer.Host, oc.Observer.Port))
+					if err != nil {
+						curode.Printl(fmt.Sprintf("LostReconnectObservers(): %s", err.Error()), "ERROR")
+						time.Sleep(time.Nanosecond * 1000000)
+						continue
+					}
+
+					// Dial tcp address up
+					conn, err := net.DialTCP("tcp", nil, tcpAddr)
+					if err != nil {
+						time.Sleep(time.Nanosecond * 1000000)
+						continue
+					}
+
+					// We will keep the node connection alive until shutdown
+					conn.SetKeepAlive(true) // forever
+
+					// Configure TLS
+					config := tls.Config{ServerName: oc.Observer.Host} // Either ServerName or InsecureSkipVerify will do it
+
+					// Create TLS client connection
+					secureConn := tls.Client(conn, &config)
+
+					// Authenticate with node passing shared key wrapped in base64
+					conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
+
+					// Authentication response buffer
+					authBuf := make([]byte, 1024)
+
+					// Read response back from node
+					r, _ := conn.Read(authBuf[:])
+
+					// Did response start with a 0?  This indicates successful authentication
+					if strings.HasPrefix(string(authBuf[:r]), "0") {
+
+						curode.ObserverConnections[i] = &ObserverConnection{
+							Conn:       conn,
+							SecureConn: secureConn,
+							Text:       textproto.NewConn(secureConn),
+							Observer:   oc.Observer,
+							Ok:         true,
+						}
+
+						curode.Printl("LostReconnectObservers(): Reconnected to lost observer connection "+fmt.Sprintf("%s:%d", oc.Observer.Host, oc.Observer.Port), "INFO")
+						time.Sleep(time.Nanosecond * 1000000)
+
+					}
+				} else {
+
+					// Resolve TCP addr
+					tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", oc.Observer.Host, oc.Observer.Port))
+					if err != nil {
+						time.Sleep(time.Nanosecond * 1000000)
+						continue
+					}
+
+					// Dial tcp address up
+					conn, err := net.DialTCP("tcp", nil, tcpAddr)
+					if err != nil {
+						time.Sleep(time.Nanosecond * 1000000)
+						continue
+					}
+
+					// We will keep the observer connection alive until shutdown
+					conn.SetKeepAlive(true) // forever
+
+					// Authenticate with node passing shared key wrapped in base64
+					conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
+
+					// Authentication response buffer
+					authBuf := make([]byte, 1024)
+
+					// Read response back from node
+					r, _ := conn.Read(authBuf[:])
+
+					// Did response start with a 0?  This indicates successful authentication
+					if strings.HasPrefix(string(authBuf[:r]), "0") {
+
+						curode.ObserverConnections[i] = &ObserverConnection{
+							Conn:     conn,
+							Text:     textproto.NewConn(conn),
+							Observer: oc.Observer,
+							Ok:       true,
+						}
+
+						curode.Printl("LostReconnectObservers(): Reconnected to lost observer connection "+fmt.Sprintf("%s:%d", oc.Observer.Host, oc.Observer.Port), "INFO")
+						time.Sleep(time.Nanosecond * 1000000)
+					}
+
+					time.Sleep(time.Nanosecond * 1000000)
+
+				}
+			}
+		}
+		time.Sleep(time.Nanosecond * 1000000)
+	}
 
 }
