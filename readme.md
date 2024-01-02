@@ -69,6 +69,7 @@ https://hub.docker.com/repositories/cursusdb (SOON)
 ## Native Observers
 - NODE.JS https://github.com/cursusdb/cursusdb-observer-node OR https://www.npmjs.com/package/cursusdb-observer-node ``STABLE ✔️``
 - GO https://github.com/cursusdb/cursusdb-observer-go ``IN PROGRESS 👨‍💻``
+
 .. more coming
 
 ## Prebuilt Binaries
