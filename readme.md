@@ -414,7 +414,7 @@ delete user USERNAME;
 ```
 
 ## Status codes
-- ``-1`` Received signal interrupt
+- ``-1`` Received signal (with signal) -1 is just for the system it doesn't mean error in CursusDB's case.
 #### Authentication / Authorization
 - ``0`` Authentication successful.
 - ``1`` Unable to read authentication header.
