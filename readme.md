@@ -415,9 +415,9 @@ delete user USERNAME;
 
 ## Status codes
 A CursusDB status code is a numerical value assigned to a specific message.  The numerical values are used as a shorthand to the actual message.  They are grouped by 
-- ``Other`` signals, shutdowns,etc
+- ``Other`` signals, shutdowns
 - ``Authentication / Authorization`` cluster and node auth
-- ``Document & CDQL`` document and query language related
+- ``Document & CDQL`` document and query language
 
 
 #### Other
