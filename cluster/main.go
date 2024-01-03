@@ -622,7 +622,7 @@ func (cursus *Cursus) SignalListener() {
 	for {
 		select {
 		case sig := <-cursus.SignalChannel: // Start graceful shutdown of cluster
-			cursus.Printl(fmt.Sprintf("SignalListener(): Received signal %s starting database cluster shutdown.", sig), "INFO")
+			cursus.Printl(fmt.Sprintf("SignalListener(): %d Received signal %s starting database cluster shutdown.", -1, sig), "INFO")
 			cursus.TCPListener.Close() // Close main tcp listener
 			cursus.ContextCancel()     // Send context shutdown to stop all long running go routines
 
@@ -2995,7 +2995,7 @@ func (cursus *Cursus) LostReconnect() {
 							}
 						}
 
-						cursus.Printl("LostReconnect(): Reconnected to lost connection "+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
+						cursus.Printl(fmt.Sprintf("LostReconnect(): %d Reconnected to lost connection ", 116)+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
 						time.Sleep(time.Nanosecond * 1000000)
 
 					}
@@ -3050,7 +3050,7 @@ func (cursus *Cursus) LostReconnect() {
 							}
 						}
 
-						cursus.Printl("LostReconnect(): Reconnected to lost connection "+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
+						cursus.Printl(fmt.Sprintf("LostReconnect(): %d Reconnected to lost connection ", 116)+fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port), "INFO")
 						time.Sleep(time.Nanosecond * 1000000)
 					}
 

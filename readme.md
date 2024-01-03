@@ -414,6 +414,7 @@ delete user USERNAME;
 ```
 
 ## Status codes
+- ``-1`` Received signal interrupt
 #### Authentication / Authorization
 - ``0`` Authentication successful.
 - ``1`` Unable to read authentication header.
@@ -431,6 +432,15 @@ delete user USERNAME;
 - ``106`` - Node ready for sync
 - ``107`` - Node replica synced successfully
 - ``108`` - Could not decode serialized sync data into hashmap
+- ``109`` - No previous data to read.  Creating new .cdat file
+- ``110`` - Could not open log file to write to (with description)
+- ``111`` - Data file corrupt (with description)
+- ``112`` - Collection mutexes created
+- ``113`` - Could not unmarshal system yaml configuration (with description)
+- ``114`` - Could not marshal system yaml configuration (with description)
+- ``115`` - Could not decode configured shared key (with description)
+- ``116`` - Reconnected to lost connection (includes host:port)
+- ``117`` - Reconnected to lost observer connection (includes host:port)
 - ``200`` - New database user created successfully
 - ``201`` - Database user removed successfully
 - ``202`` - Could not decode user username
@@ -449,6 +459,11 @@ delete user USERNAME;
 - ``216`` - Starting to sync to with master node
 - ``217`` - Synced up with master node (with addr)
 - ``218`` - Observer HOST:PORT was unavailable during relay
+- ``219`` - Could not encode data for sync (with description)
+- ``220`` - Starting to write node data to file
+- ``221`` - Starting to write node data to backup file
+- ``222`` - Node data written to file successfully
+- ``223`` - Node data written to backup file successfully
 - ``500`` - Unknown error (with description)
 - ``501`` - Limit skip must be an integer (with description)
 - ``502`` - Could not convert limit value to integer (with description)
@@ -512,7 +527,7 @@ Logs can have either level:
 
 ``` 
 [INFO][26 Dec 23 08:34 EST] main(): Node data read into memory.
-[INFO][26 Dec 23 08:34 EST] main(): Collection mutexes created.
+[INFO][26 Dec 23 08:34 EST] main(): 112 Collection mutexes created.
 [INFO][26 Dec 23 08:34 EST] SignalListener(): Received signal interrupt starting database shutdown.
 [INFO][26 Dec 23 08:34 EST] WriteToFile(): Starting to write node data to file.
 [INFO][26 Dec 23 08:34 EST] WriteToFile(): Node data written to file successfully.

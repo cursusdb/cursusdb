@@ -167,7 +167,7 @@ func main() {
 		curode.Config.ReplicationSyncTimeout = 10      // If sync doesn't complete in 10 minutes by default timeout(could lead to corrupt data so increase accordingly)
 		curode.Config.AutomaticBackupCleanupHours = 12 // Set default of 12 hours in which to delete old backed up .cdat files
 		curode.Config.AutomaticBackupTime = 60         // Automatically backup node data to backups folder every 1 hour by default if AutomaticBackups is enabled
-		curode.Config.BackupsDirectory = "/backups/"   // Backups by default is in the execution directory
+		curode.Config.BackupsDirectory = "backups"     // Backups by default is in the execution directory
 
 		fmt.Println("Shared cluster and node key is required.  A shared cluster and node key will encrypt all your data at rest and only allow connections that contain a correct Key: header value matching the hashed key you provide.")
 		fmt.Print("key> ")
@@ -188,7 +188,7 @@ func main() {
 		// Marshal node config into yaml
 		yamlData, err := yaml.Marshal(&curode.Config)
 		if err != nil {
-			fmt.Println("main():", err.Error())
+			fmt.Println(fmt.Sprintf("main(): %d Could not marshal system yaml configuration", 114), err.Error())
 			os.Exit(1)
 		}
 
@@ -205,15 +205,16 @@ func main() {
 		// Unmarshal node config yaml
 		err = yaml.Unmarshal(nodeConfigFile, &curode.Config)
 		if err != nil {
-			fmt.Println("main():", err.Error())
+			fmt.Println(fmt.Sprintf("main(): %d Could not unmarshal system yaml configuration", 113), err.Error())
 			os.Exit(1)
 		}
 
+		// If logging is configured we create a log mutex and open up the log file
 		if curode.Config.Logging {
 			curode.LogMu = &sync.Mutex{} // Cluster node log mutex
 			curode.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
 			if err != nil {
-				fmt.Println("main(): ", "Could not open log file - ", err.Error())
+				fmt.Println("main(): ", 110, "Could not open log file ", err.Error())
 				os.Exit(1)
 			}
 		}
@@ -221,7 +222,7 @@ func main() {
 	}
 
 	if _, err := os.Stat(fmt.Sprintf("%s", ".cdat")); errors.Is(err, os.ErrNotExist) { // Not exists we create it
-		curode.Printl(fmt.Sprintf("main(): No previous data to read.  Creating new .cdat file."), "INFO")
+		curode.Printl(fmt.Sprintf("main(): %d No previous data to read.  Creating new .cdat file.", 109), "INFO")
 	} else {
 
 		datafile := "./.cdat"        // If .cdat is corrupted we will try again with a backup
@@ -243,7 +244,7 @@ func main() {
 
 		decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
 		if err != nil {
-			fmt.Println("main():", err.Error())
+			fmt.Println("main():", fmt.Sprintf("%d Could not decode configured shared key.", 115), err.Error())
 			os.Exit(1)
 			return
 		}
@@ -262,7 +263,7 @@ func main() {
 		goto ok
 
 	corrupt:
-		fmt.Println("main(): Data file corrupt!", err.Error())
+		fmt.Println(fmt.Sprintf("main(): %d Data file corrupt!", 111), err.Error())
 		os.Remove(fmt.Sprintf("%s.tmp", datafile))
 		// Data file is corrupt.. If node has backups configured grab last working state.
 
@@ -319,7 +320,7 @@ func main() {
 			curode.Data.Writers[c] = &sync.RWMutex{}
 		}
 
-		curode.Printl(fmt.Sprintf("main(): Collection mutexes created."), "INFO")
+		curode.Printl(fmt.Sprintf("main(): %d Collection mutexes created.", 112), "INFO")
 
 	}
 
@@ -365,7 +366,7 @@ func (curode *Curode) SignalListener() {
 	for {
 		select {
 		case sig := <-curode.SignalChannel:
-			curode.Printl(fmt.Sprintf("SignalListener(): Received signal %s starting database shutdown.", sig), "INFO")
+			curode.Printl(fmt.Sprintf("SignalListener(): %d Received signal %s starting database shutdown.", -1, sig), "INFO")
 
 			// Close observer connections if any
 			for _, oc := range curode.ObserverConnections {
@@ -449,7 +450,7 @@ func (curode *Curode) SyncOut() {
 								err = e.Encode(&curode.Data.Map)
 								if err != nil {
 									conn.Close()
-									curode.Printl(fmt.Sprintf("SyncOut(): %s", err.Error()), "ERROR")
+									curode.Printl(fmt.Sprintf("SyncOut(): %d Could not encode data for sync. %s", 219, err.Error()), "ERROR")
 									break
 								}
 
@@ -613,9 +614,9 @@ func (curode *Curode) WriteToFile(backup bool) {
 	}
 
 	if !backup {
-		curode.Printl(fmt.Sprintf("WriteToFile(): Starting to write node data to file."), "INFO")
+		curode.Printl(fmt.Sprintf("WriteToFile(): %d Starting to write node data to file.", 220), "INFO")
 	} else {
-		curode.Printl(fmt.Sprintf("WriteToFile(): Starting to write node data to backup file."), "INFO")
+		curode.Printl(fmt.Sprintf("WriteToFile(): %d Starting to write node data to backup file.", 221), "INFO")
 	}
 
 	if !backup {
@@ -668,9 +669,9 @@ func (curode *Curode) WriteToFile(backup bool) {
 	}
 
 	if !backup {
-		curode.Printl(fmt.Sprintf("WriteToFile(): Node data written to file successfully."), "INFO")
+		curode.Printl(fmt.Sprintf("WriteToFile(): %d Node data written to file successfully.", 222), "INFO")
 	} else {
-		curode.Printl(fmt.Sprintf("WriteToFile(): Node backup data written to file successfully."), "INFO")
+		curode.Printl(fmt.Sprintf("WriteToFile(): %d Node data written to backup file successfully.", 223), "INFO")
 	}
 
 }
@@ -2442,7 +2443,7 @@ func (curode *Curode) LostReconnectObservers() {
 							Ok:         true,
 						}
 
-						curode.Printl("LostReconnectObservers(): Reconnected to lost observer connection "+fmt.Sprintf("%s:%d", oc.Observer.Host, oc.Observer.Port), "INFO")
+						curode.Printl(fmt.Sprintf("LostReconnectObservers(): %d Reconnected to lost observer connection ", 117)+fmt.Sprintf("%s:%d", oc.Observer.Host, oc.Observer.Port), "INFO")
 						time.Sleep(time.Nanosecond * 1000000)
 
 					}
@@ -2484,7 +2485,7 @@ func (curode *Curode) LostReconnectObservers() {
 							Ok:       true,
 						}
 
-						curode.Printl("LostReconnectObservers(): Reconnected to lost observer connection "+fmt.Sprintf("%s:%d", oc.Observer.Host, oc.Observer.Port), "INFO")
+						curode.Printl(fmt.Sprintf("LostReconnectObservers(): %d Reconnected to lost observer connection ", 117)+fmt.Sprintf("%s:%d", oc.Observer.Host, oc.Observer.Port), "INFO")
 						time.Sleep(time.Nanosecond * 1000000)
 					}
 
