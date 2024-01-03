@@ -985,7 +985,7 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 	response := make(map[string]interface{})
 	response["statusCode"] = 2000
 	response["message"] = "Document inserted successfully."
-
+	response["collection"] = collection
 	response["insert"] = doc
 
 	responseMap, err := json.Marshal(response)
