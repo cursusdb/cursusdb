@@ -645,7 +645,7 @@ Inserting 1002 records sequentially
 
 ```insert into users({"first": "James", "last": "Jones", "age": 22, "active": true});```
 
-```Insertion time: 33928 ms```
+```Insertion time: 481.190374ms```
 
 Read skipping 1000 selecting 1 where first is James
 
@@ -653,7 +653,7 @@ Read skipping 1000 selecting 1 where first is James
 
 NOTE THIS WAS BEFORE v2.0.0LTR the search has very much improved.
 
-``Read time: 32ms``
+``Read time: 743.538µs``
 
 
 ### MySQL
