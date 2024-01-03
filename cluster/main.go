@@ -501,11 +501,11 @@ func (cursus *Cursus) ConnectToNodes() {
 						})
 					}
 
-					cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", connReplica.RemoteAddr().String()), "INFO")
+					cursus.Printl(fmt.Sprintf("ConnectToNodes(): %d Node connection established to %s", 225, connReplica.RemoteAddr().String()), "INFO")
 				}
 
 				// Report back successful connection
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", conn.RemoteAddr().String()), "INFO")
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %d Node connection established to %s", 225, conn.RemoteAddr().String()), "INFO")
 			} else {
 				// Report back invalid key.
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")
@@ -599,11 +599,11 @@ func (cursus *Cursus) ConnectToNodes() {
 						})
 					}
 
-					cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", connReplica.RemoteAddr().String()), "INFO")
+					cursus.Printl(fmt.Sprintf("ConnectToNodes(): %d Node connection established to %s", 225, connReplica.RemoteAddr().String()), "INFO")
 				}
 
 				// Report back successful connection
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): Node connection established to %s", conn.RemoteAddr().String()), "INFO")
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %d Node connection established to %s", 225, conn.RemoteAddr().String()), "INFO")
 			} else {
 				// Report back invalid key
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")

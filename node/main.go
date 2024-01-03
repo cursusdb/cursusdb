@@ -2311,7 +2311,7 @@ func (curode *Curode) ConnectToObservers() {
 				})
 
 				// Report back successful connection
-				curode.Printl(fmt.Sprintf("ConnectToObservers(): Observer connection established with %s", conn.RemoteAddr().String()), "INFO")
+				curode.Printl(fmt.Sprintf("ConnectToObservers(): %d Observer connection established with %s", 224, conn.RemoteAddr().String()), "INFO")
 			} else {
 				// Report back invalid key.
 				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", "Invalid key."), "ERROR")
@@ -2360,7 +2360,7 @@ func (curode *Curode) ConnectToObservers() {
 				})
 
 				// Report back successful connection
-				curode.Printl(fmt.Sprintf("ConnectToObservers(): Observer connection established with %s", conn.RemoteAddr().String()), "INFO")
+				curode.Printl(fmt.Sprintf("ConnectToObservers(): %d Observer connection established with %s", 224, conn.RemoteAddr().String()), "INFO")
 			} else {
 				// Report back invalid key
 				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", "Invalid key."), "ERROR")
