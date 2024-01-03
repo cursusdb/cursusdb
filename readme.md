@@ -732,3 +732,9 @@ On insert there are a variety of RESERVED keys.
 - `<`
 - `=`
 - `*`
+
+## Live Chat drawing using an Observer
+How would a chat work with an Observer configured?
+Let's say you have 2 collections, a chatrooms collections and a messages collection. On insert the node will relay to an observer if configured. On the backend where the observer lives you can have a socket server sending actions from an observer to many web socket or web transport clients. Take the example, we have 2 users in a chatroom with an $id of `12718b2b-0efe-4fe6-94ec-1adea5f212c8` which is unique. Adam sends a message to Chris which is an insert. At that point the cluster will insert into a node and the node will relay to an observer at which point we can relay that through to our connected clients to a specific room let's say. Very cool stuff!
+
+![drawing182.png](images/drawing182.png)
