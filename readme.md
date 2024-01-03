@@ -502,6 +502,60 @@ delete user USERNAME;
 - ``4023`` No unique $id could be found for insert
 - ``4024`` Batch insertion is not supported
 
+## Reserved Document Keys
+On insert there are a variety of RESERVED keys.
+- `count`
+- `$id`
+- `$indx`
+- `in`
+- `not like`
+- `!like`
+- `where`
+- `chan`
+- `const`
+- `continue`
+- `defer`
+- `else`
+- `fallthrough`
+- `func`
+- `go`
+- `goto`
+- `if`
+- `interface`
+- `map`
+- `select`
+- `struct`
+- `switch`
+- `var`
+- `false`
+- `true`
+- `uint8`
+- `uint16`
+- `uint32`
+- `uint64`
+- `int8`
+- `int16`
+- `int32`
+- `int64`
+- `float32`
+- `float64`
+- `complex64`
+- `complex128`
+- `byte`
+- `rune`
+- `uint`
+- `int`
+- `uintptr`
+- `string`
+- `==`
+- `&&`
+- `||`
+- `>`
+- `<`
+- `=`
+- `*`
+
+
 ## Ports
 Default cluster port: ``7681``
 Default node port: ``7682``
@@ -662,14 +716,14 @@ Inserting 1002 records sequentially
 
 ```INSERT INTO users (first, last, age, active) VALUES ("James", "Jones", 22, true);```
 
-```Insertion time: 38234ms```
+```Insertion time: 1.928675495s```
 
 Read skipping 1000 selecting 1 where first is James
 
 ```SELECT * FROM users where first = "James" LIMIT 1 OFFSET 1000;```
 
 
-``Read time: 44ms``
+``Read time: 1.021852ms``
 
 Table used
 
@@ -679,59 +733,6 @@ last varchar(255),
 age int,
 active BOOLEAN
 );``
-
-## Reserved Document Keys
-On insert there are a variety of RESERVED keys.
-- `count`
-- `$id`
-- `$indx`
-- `in`
-- `not like`
-- `!like`
-- `where`
-- `chan`
-- `const`
-- `continue`
-- `defer`
-- `else`
-- `fallthrough`
-- `func`
-- `go`
-- `goto`
-- `if`
-- `interface`
-- `map`
-- `select`
-- `struct`
-- `switch`
-- `var`
-- `false`
-- `true`
-- `uint8`
-- `uint16`
-- `uint32`
-- `uint64`
-- `int8`
-- `int16`
-- `int32`
-- `int64`
-- `float32`
-- `float64`
-- `complex64`
-- `complex128`
-- `byte`
-- `rune`
-- `uint`
-- `int`
-- `uintptr`
-- `string`
-- `==`
-- `&&`
-- `||`
-- `>`
-- `<`
-- `=`
-- `*`
 
 ## Live Chat drawing using an Observer
 How would a chat work with an Observer configured?
