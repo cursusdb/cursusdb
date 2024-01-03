@@ -401,7 +401,6 @@ func (cursus *Cursus) ConnectToNodes() {
 			// Resolve TCP addr
 			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Host, n.Port))
 			if err != nil {
-				fmt.Println("ConnectToNodes():", err.Error())
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "FATAL")
 				os.Exit(1)
 			}
@@ -449,7 +448,6 @@ func (cursus *Cursus) ConnectToNodes() {
 					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
 					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", rep.Host, rep.Port))
 					if err != nil {
-						fmt.Println("ConnectToNodes(): ", err.Error())
 						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "FATAL")
 						os.Exit(1)
 					}
@@ -552,7 +550,6 @@ func (cursus *Cursus) ConnectToNodes() {
 					// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
 					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", rep.Host, rep.Port))
 					if err != nil {
-						fmt.Println("ConnectToNodes(): ", err.Error())
 						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "FATAL")
 						os.Exit(1)
 					}
