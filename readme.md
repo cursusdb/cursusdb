@@ -651,7 +651,6 @@ Read skipping 1000 selecting 1 where first is James
 
 ```select 1000,1 from users where first == "James";```
 
-NOTE THIS WAS BEFORE v2.0.0LTR the search has very much improved.
 
 ``Read time: 743.538µs``
 
