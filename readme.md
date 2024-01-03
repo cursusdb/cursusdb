@@ -504,7 +504,7 @@ delete user USERNAME;
 - ``4023`` No unique $id could be found for insert
 - ``4024`` Batch insertion is not supported
 - ``4025`` Where is missing values
-- 
+
 ## Reserved Document Keys
 On insert there are a variety of RESERVED keys.
 - `count`
