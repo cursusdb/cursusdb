@@ -670,7 +670,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 		if cursus.Config.TLS {
 			cert, err := tls.LoadX509KeyPair(cursus.Config.TLSCert, cursus.Config.TLSKey)
 			if err != nil {
-				cursus.Printl(fmt.Sprintf("StartTCP_TLS(): %d Error loading X509 key pair ", 516)+err.Error(), "FATAL")
+				cursus.Printl(fmt.Sprintf("StartTCP_TLS(): %d Error loading X509 key pair ", 507)+err.Error(), "FATAL")
 				cursus.SignalChannel <- os.Interrupt // Send interrupt signal to channel to stop cluster
 				return
 			}
@@ -1867,7 +1867,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 					if strings.Contains(query, "where") {
 						if len(body["values"].([]interface{})) == 0 || body["values"] == nil {
-							text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 506))
+							text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 4025))
 							query = ""
 							continue
 						}
@@ -1986,7 +1986,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 
 					if len(body["values"].([]interface{})) == 0 {
-						text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 506))
+						text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 4025))
 						query = ""
 						continue
 					}
@@ -2418,7 +2418,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 
 					if len(body["values"].([]interface{})) == 0 {
-						text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 506))
+						text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 4025))
 						query = ""
 						continue
 					}
@@ -2739,7 +2739,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 
 					if len(body["values"].([]interface{})) == 0 {
-						text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 506))
+						text.PrintfLine(fmt.Sprintf("%d Where is missing values.", 4025))
 						query = ""
 						continue
 					}

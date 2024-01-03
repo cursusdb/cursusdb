@@ -474,9 +474,8 @@ delete user USERNAME;
 - ``503`` - Invalid limiting slice value (with description)
 - ``504`` - Invalid limiting value (with description)
 - ``505`` - Key cannot use reserved word
-- ``506`` - Where is missing values
 - ``505`` - Key cannot use reserved symbol
-- ``506`` - Error loading X509 key pair (with description)
+- ``507`` - Error loading X509 key pair (with description)
 #### Document
 - ``2000`` Document inserted/updated/deleted
 - ``4000`` Unmarsharable JSON insert
@@ -504,7 +503,8 @@ delete user USERNAME;
 - ``4022`` No documents found to alter
 - ``4023`` No unique $id could be found for insert
 - ``4024`` Batch insertion is not supported
-
+- ``4025`` Where is missing values
+- 
 ## Reserved Document Keys
 On insert there are a variety of RESERVED keys.
 - `count`

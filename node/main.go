@@ -708,7 +708,7 @@ func (curode *Curode) StartTCP_TLS() {
 		if curode.Config.TLS {
 			cert, err := tls.LoadX509KeyPair(curode.Config.TLSCert, curode.Config.TLSKey)
 			if err != nil {
-				curode.Printl(fmt.Sprintf("StartTCP_TLS(): %d Error loading X509 key pair ", 516)+err.Error(), "FATAL")
+				curode.Printl(fmt.Sprintf("StartTCP_TLS(): %d Error loading X509 key pair ", 507)+err.Error(), "FATAL")
 				curode.SignalChannel <- os.Interrupt
 				return
 			}
