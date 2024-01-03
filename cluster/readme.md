@@ -1,4 +1,4 @@
-## cursus
+## Cursus - CursusDB Cluster
 The CursusDB cluster.
 
 #### Default port is 7681

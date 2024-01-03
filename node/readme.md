@@ -1,4 +1,4 @@
-## curode - cursus cluster node
+## Curode - CursusDB Cluster Node
 #### Default port is 7682
 
 ## Building

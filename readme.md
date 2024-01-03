@@ -528,11 +528,10 @@ Logs can have either level:
 - <span style="color: orange">WARN</span>
 
 ``` 
-[INFO][26 Dec 23 08:34 EST] main(): Node data read into memory.
 [INFO][26 Dec 23 08:34 EST] main(): 112 Collection mutexes created.
-[INFO][26 Dec 23 08:34 EST] SignalListener(): Received signal interrupt starting database shutdown.
-[INFO][26 Dec 23 08:34 EST] WriteToFile(): Starting to write node data to file.
-[INFO][26 Dec 23 08:34 EST] WriteToFile(): Node data written to file successfully.
+[INFO][26 Dec 23 08:34 EST] SignalListener(): -1 Received signal interrupt starting database shutdown.
+[INFO][26 Dec 23 08:34 EST] WriteToFile(): 220 Starting to write node data to file.
+[INFO][26 Dec 23 08:34 EST] WriteToFile(): 222 Node data written to file successfully.
 ```
 
 ### Example using curush querying cluster
@@ -548,7 +547,7 @@ curush>select * from users;
 127.0.0.1:7682: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90","age":28,"last":"Padula","name":"Alex"}]
 curush>insert into users({"name": "Alex", "last": "Lee", "age": 28});
 
-{"insert":{"$id":"ecaaba0f-d130-42c9-81ad-ea6fc3461379","age":28,"last":"Lee","name":"Alex"},"message":"Document inserted","statusCode":2000}
+{"collection": "users", "insert":{"$id":"ecaaba0f-d130-42c9-81ad-ea6fc3461379","age":28,"last":"Lee","name":"Alex"},"message":"Document inserted","statusCode":2000}
 curush>select * from users;
 
 127.0.0.1:7682: [{"$id":"17cc0a83-f78e-4cb2-924f-3a194dedec90","age":28,"last":"Padula","name":"Alex"},{"$id":"ecaaba0f-d130-42c9-81ad-ea6fc3461379","age":28,"last":"Lee","name":"Alex"}]
@@ -651,6 +650,8 @@ Inserting 1002 records sequentially
 Read skipping 1000 selecting 1 where first is James
 
 ```select 1000,1 from users where first == "James";```
+
+NOTE THIS WAS BEFORE v2.0.0LTR the search has very much improved.
 
 ``Read time: 32ms``
 
