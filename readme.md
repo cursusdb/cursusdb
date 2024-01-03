@@ -414,6 +414,13 @@ delete user USERNAME;
 ```
 
 ## Status codes
+A CursusDB status code is a numerical value assigned to a specific message.  The numerical values are used as a shorthand to the actual message.  They are grouped by 
+- ``Other`` signals, shutdowns,etc
+- ``Authentication / Authorization`` cluster and node auth
+- ``Document & CDQL`` document and query language related
+
+
+#### Other
 - ``-1`` Received signal (with signal) -1 is just for the system it doesn't mean error in CursusDB's case.
 #### Authentication / Authorization
 - ``0`` Authentication successful.
@@ -422,6 +429,7 @@ delete user USERNAME;
 - ``3`` No user exists
 - ``4`` User not authorized
 - ``5`` Failed node sync auth
+
 #### Node / Cluster
 - ``100`` - Node is at peak allocation
 - ``101`` - Invalid permission
@@ -455,7 +463,6 @@ delete user USERNAME;
 - ``209`` - Could not remove .cdat backup {FILE NAME} (with description)
 - ``210`` - Could not get node working directory for automatic recovery (with description)
 - ``211`` - Node recovery from backup was successful
-- ``213`` - Delete key missing in
 - ``214`` - Node was unrecoverable after all attempts
 - ``215`` - Attempting automatic recovery with latest backup
 - ``216`` - Starting to sync to with master node
@@ -469,14 +476,9 @@ delete user USERNAME;
 - ``224`` - Observer connection established (with info)
 - ``225`` - Node connection established (with info)
 - ``500`` - Unknown error (with description)
-- ``501`` - Limit skip must be an integer (with description)
-- ``502`` - Could not convert limit value to integer (with description)
-- ``503`` - Invalid limiting slice value (with description)
-- ``504`` - Invalid limiting value (with description)
-- ``505`` - Key cannot use reserved word
-- ``505`` - Key cannot use reserved symbol
 - ``507`` - Error loading X509 key pair (with description)
-#### Document
+
+#### Document & CDQL
 - ``2000`` Document inserted/updated/deleted
 - ``4000`` Unmarsharable JSON insert
 - ``4001`` Missing action
@@ -504,6 +506,13 @@ delete user USERNAME;
 - ``4023`` No unique $id could be found for insert
 - ``4024`` Batch insertion is not supported
 - ``4025`` Where is missing values
+- ``4026`` Delete key missing in
+- ``4027`` Limit skip must be an integer (with description)
+- ``4028`` Could not convert limit value to integer (with description)
+- ``4029`` Invalid limiting value (with description)
+- ``4030`` Key cannot use reserved word
+- ``4031`` Key cannot use reserved symbol
+
 
 ## Reserved Document Keys
 On insert there are a variety of RESERVED keys.

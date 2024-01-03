@@ -1308,255 +1308,255 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				// select * from test where case = 'test';
 				switch {
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"count":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"$id":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"$indx":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"in":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"like":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"not like":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"!like":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"where":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"from":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"*":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"break":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"case":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"chan":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"const":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"continue":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"default":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"defer":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"else":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"fallthrough":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"for":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"func":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"go":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"goto":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"if":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"import":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"interface":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"map":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"package":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"range":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"return":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"select":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"struct":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"switch":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"type":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"var":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"false":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"true":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint8":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint16":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint32":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint64":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int8":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int16":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int32":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int64":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"float32":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"float64":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"complex64":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"complex128":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"byte":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"rune":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uintptr":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"string":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 					query = ""
 					continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"make":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"new":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 505))
+				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
 				//	query = ""
 				//	continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"==":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"&&":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"||":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `">":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"<":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
 					query = ""
 					continue
 				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"=":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 506))
+					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
 					query = ""
 					continue
 				default:
@@ -1829,7 +1829,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							if len(strings.Split(body["limit"].(string), ",")) == 2 {
 								body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 									query = ""
 									continue
 								}
@@ -1837,7 +1837,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
 									body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 									if err != nil {
-										text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
+										text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 4028, err.Error()))
 										query = ""
 										continue
 									}
@@ -1845,14 +1845,14 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 									body["limit"] = -1
 								}
 							} else {
-								text.PrintfLine("%d Invalid limiting value.", 504)
+								text.PrintfLine("%d Invalid limiting value.", 4029)
 								query = ""
 								continue
 							}
 						} else {
 							body["limit"], err = strconv.Atoi(body["limit"].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 								query = ""
 								continue
 							}
@@ -1996,7 +1996,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								var err error
 								body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 									query = ""
 									continue
 								}
@@ -2004,7 +2004,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
 									body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 									if err != nil {
-										text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+										text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 										query = ""
 										continue
 									}
@@ -2012,7 +2012,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 									body["limit"] = -1
 								}
 							} else {
-								text.PrintfLine("%d Invalid limiting value.", 504)
+								text.PrintfLine("%d Invalid limiting value.", 4029)
 								query = ""
 								continue
 							}
@@ -2020,7 +2020,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							var err error
 							body["limit"], err = strconv.Atoi(body["limit"].(string))
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 								query = ""
 								continue
 							}
@@ -2176,7 +2176,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							var err error
 							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 								query = ""
 								continue
 							}
@@ -2184,7 +2184,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
 								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 4028, err.Error()))
 									query = ""
 									continue
 								}
@@ -2192,7 +2192,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["limit"] = -1
 							}
 						} else {
-							text.PrintfLine(fmt.Sprintf("%d Invalid limiting value.", 504))
+							text.PrintfLine(fmt.Sprintf("%d Invalid limiting value.", 4029))
 							query = ""
 							continue
 						}
@@ -2200,7 +2200,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						var err error
 						body["limit"], err = strconv.Atoi(body["limit"].(string))
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 4028, err.Error()))
 							query = ""
 							continue
 						}
@@ -2427,7 +2427,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							var err error
 							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 								query = ""
 								continue
 							}
@@ -2435,7 +2435,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
 								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 									query = ""
 									continue
 								}
@@ -2443,7 +2443,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["limit"] = -1
 							}
 						} else {
-							text.PrintfLine("%d Invalid limiting value.", 504)
+							text.PrintfLine("%d Invalid limiting value.", 4029)
 							query = ""
 							continue
 						}
@@ -2451,7 +2451,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						var err error
 						body["limit"], err = strconv.Atoi(body["limit"].(string))
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 							query = ""
 							continue
 						}
@@ -2502,7 +2502,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				body["action"] = "delete key"
 
 				if !strings.Contains(query, "in") {
-					text.PrintfLine(fmt.Sprintf("%d delete key missing in.", 213))
+					text.PrintfLine(fmt.Sprintf("%d delete key missing in.", 4026))
 					query = ""
 					continue
 				}
@@ -2593,7 +2593,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							var err error
 							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 								query = ""
 								continue
 							}
@@ -2601,7 +2601,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
 								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 4028, err.Error()))
 									query = ""
 									continue
 								}
@@ -2609,7 +2609,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["limit"] = -1
 							}
 						} else {
-							text.PrintfLine(fmt.Sprintf("%d Invalid limiting value.", 504))
+							text.PrintfLine(fmt.Sprintf("%d Invalid limiting value.", 4029))
 							query = ""
 							continue
 						}
@@ -2617,7 +2617,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						var err error
 						body["limit"], err = strconv.Atoi(body["limit"].(string))
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 502, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Could not convert limit value to integer. %s", 4028, err.Error()))
 							query = ""
 							continue
 						}
@@ -2748,7 +2748,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							var err error
 							body["skip"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[0])
 							if err != nil {
-								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+								text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 								query = ""
 								continue
 							}
@@ -2756,7 +2756,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							if !strings.EqualFold(strings.Split(body["limit"].(string), ",")[1], "*") {
 								body["limit"], err = strconv.Atoi(strings.Split(body["limit"].(string), ",")[1])
 								if err != nil {
-									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+									text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 									query = ""
 									continue
 								}
@@ -2764,7 +2764,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								body["limit"] = -1
 							}
 						} else {
-							text.PrintfLine("%d Invalid limiting value.", 504)
+							text.PrintfLine("%d Invalid limiting value.", 4029)
 							query = ""
 							continue
 						}
@@ -2772,7 +2772,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 						var err error
 						body["limit"], err = strconv.Atoi(body["limit"].(string))
 						if err != nil {
-							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 501, err.Error()))
+							text.PrintfLine(fmt.Sprintf("%d Limit skip must be an integer. %s", 4027, err.Error()))
 							query = ""
 							continue
 						}
