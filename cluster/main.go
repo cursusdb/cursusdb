@@ -136,6 +136,8 @@ func main() {
 	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
 		// .cursusconfig does not exist..
 
+		// SETTING DEFAULTS
+		///////////////////////////////////
 		cursus.Config.Port = 7681              // Default CursusDB cluster port
 		cursus.Config.NodeReaderSize = 2097152 // Default node reader size of 2097152 bytes (2MB).. Pretty large json response
 		cursus.Config.Host = "0.0.0.0"         // Default host of 0.0.0.0
@@ -148,8 +150,7 @@ func main() {
 		fmt.Print("username> ")
 		username, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
 			os.Exit(1)
 		}
 
@@ -159,8 +160,7 @@ func main() {
 		fmt.Print("password> ")
 		password, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
 			os.Exit(1)
 		}
 
@@ -170,8 +170,7 @@ func main() {
 		fmt.Print("key> ")
 		key, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "FATAL")
 			os.Exit(1)
 		}
 
@@ -189,16 +188,14 @@ func main() {
 
 		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777) // Create .cursusconfig yaml file
 		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			cursus.Printl(fmt.Sprintf("main(): %d Could not open/create configuration file %s", 118, err.Error()), "FATAL")
 			os.Exit(1)
 		}
 
 		// Marshal config to yaml
 		yamlData, err := yaml.Marshal(&cursus.Config)
 		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			cursus.Printl(fmt.Sprintf("main(): %d Could not marshal system yaml configuration %s", 114, err.Error()), "FATAL")
 			os.Exit(1)
 		}
 
@@ -210,16 +207,14 @@ func main() {
 		// Read .cursus config
 		clusterConfigFile, err := os.ReadFile("./.cursusconfig")
 		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			cursus.Printl(fmt.Sprintf("main(): %d Could not open/create configuration file %s", 118, err.Error()), "FATAL")
 			os.Exit(1)
 		}
 
 		// Unmarshal config into cluster.config
 		err = yaml.Unmarshal(clusterConfigFile, &cursus.Config)
 		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "ERROR")
-			fmt.Println("main():", err.Error())
+			cursus.Printl(fmt.Sprintf("main(): %d Could not unmarshal system yaml configuration ", 113)+err.Error(), "FATAL")
 			os.Exit(1)
 		}
 
@@ -227,7 +222,7 @@ func main() {
 			cursus.LogMu = &sync.Mutex{} // Cluster log mutex
 			cursus.LogFile, err = os.OpenFile("cursus.log", os.O_CREATE|os.O_RDWR, 0777)
 			if err != nil {
-				fmt.Println("main():", "Could not open log file - ", err.Error())
+				cursus.Printl(fmt.Sprintf("main(): %d Could not open log file ", 110)+err.Error(), "FATAL")
 				os.Exit(1)
 			}
 		}
@@ -236,7 +231,7 @@ func main() {
 
 	// If cluster configured cluster nodes == 0, inform user to add at least one node
 	if len(cursus.Config.Nodes) == 0 {
-		fmt.Println("You must setup nodes your CursusDB cluster to read from in your .cursusconfig file.")
+		cursus.Printl("main(): You must setup nodes your CursusDB cluster to read from in your .cursusconfig file.", "INFO")
 		os.Exit(0)
 	}
 
@@ -407,14 +402,14 @@ func (cursus *Cursus) ConnectToNodes() {
 			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Host, n.Port))
 			if err != nil {
 				fmt.Println("ConnectToNodes():", err.Error())
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "FATAL")
 				os.Exit(1)
 			}
 
 			// Dial tcp address up
 			conn, err := net.DialTCP("tcp", nil, tcpAddr)
 			if err != nil {
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "FATAL")
 				os.Exit(1)
 			}
 
@@ -455,15 +450,14 @@ func (cursus *Cursus) ConnectToNodes() {
 					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", rep.Host, rep.Port))
 					if err != nil {
 						fmt.Println("ConnectToNodes(): ", err.Error())
-						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "FATAL")
 						os.Exit(1)
 					}
 
 					// Dial tcp address up
 					connReplica, err := net.DialTCP("tcp", nil, tcpAddrReplica)
 					if err != nil {
-						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
-
+						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "FATAL")
 						os.Exit(1)
 					}
 
@@ -508,8 +502,7 @@ func (cursus *Cursus) ConnectToNodes() {
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %d Node connection established to %s", 225, conn.RemoteAddr().String()), "INFO")
 			} else {
 				// Report back invalid key.
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")
-				fmt.Println("ConnectToNodes(): ", "Invalid key.")
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "FATAL")
 				os.Exit(1)
 			}
 		}
@@ -519,14 +512,14 @@ func (cursus *Cursus) ConnectToNodes() {
 			// Resolve TCP addr based on what's provided within n ie (0.0.0.0:p)
 			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", n.Host, n.Port))
 			if err != nil {
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "FATAL")
 				os.Exit(1)
 			}
 
 			// Dial tcp address up
 			conn, err := net.DialTCP("tcp", nil, tcpAddr)
 			if err != nil {
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "FATAL")
 				os.Exit(1)
 			}
 
@@ -560,14 +553,14 @@ func (cursus *Cursus) ConnectToNodes() {
 					tcpAddrReplica, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", rep.Host, rep.Port))
 					if err != nil {
 						fmt.Println("ConnectToNodes(): ", err.Error())
-						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "FATAL")
 						os.Exit(1)
 					}
 
 					// Dial tcp address up
 					connReplica, err := net.DialTCP("tcp", nil, tcpAddrReplica)
 					if err != nil {
-						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "ERROR")
+						cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", err.Error()), "FATAL")
 
 						os.Exit(1)
 					}
@@ -606,8 +599,7 @@ func (cursus *Cursus) ConnectToNodes() {
 				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %d Node connection established to %s", 225, conn.RemoteAddr().String()), "INFO")
 			} else {
 				// Report back invalid key
-				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "ERROR")
-				fmt.Println("ConnectToNodes(): ", "Invalid key.")
+				cursus.Printl(fmt.Sprintf("ConnectToNodes(): %s", "Invalid key."), "FATAL")
 				os.Exit(1)
 			}
 
@@ -678,7 +670,7 @@ func (cursus *Cursus) StartTCP_TLS() {
 		if cursus.Config.TLS {
 			cert, err := tls.LoadX509KeyPair(cursus.Config.TLSCert, cursus.Config.TLSKey)
 			if err != nil {
-				cursus.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
+				cursus.Printl(fmt.Sprintf("StartTCP_TLS(): %d Error loading X509 key pair ", 516)+err.Error(), "FATAL")
 				cursus.SignalChannel <- os.Interrupt // Send interrupt signal to channel to stop cluster
 				return
 			}
@@ -833,7 +825,7 @@ func (cursus *Cursus) InsertIntoNode(connection *Connection, insert string, coll
 
 	jsonString, err := json.Marshal(requestMap)
 	if err != nil {
-		connection.Text.PrintfLine("Cannot insert. %s", err.Error())
+		connection.Text.PrintfLine("%d Unmarsharable JSON %s", 4018, err.Error())
 		return
 	}
 
@@ -1282,7 +1274,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				// start insert
 				// insert into users({"firstName": "John", "lastName": "Doe"});
 
-				retries := 5 // how many times to retry if node is not available for uniqueness isn`t met for $id
+				retries := 5 // how many times to retry if a node is not available for $id uniqueness. Mind you we already retry nodes and replicas at this stage.
 				// query is not valid
 				// must have a full prefix of 'insert into '
 				if !strings.HasPrefix(query, "insert into ") {
@@ -1696,7 +1688,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								if !strings.EqualFold(r, "null") {
 									result := make(map[string]interface{})
 									result["statusCode"] = 4004
-									result["message"] = fmt.Sprintf("Document already exists")
+									result["message"] = fmt.Sprintf("Document already exists.")
 
 									r, _ := json.Marshal(result)
 									text.PrintfLine(string(r))
@@ -2542,17 +2534,21 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 			case strings.HasPrefix(query, "delete "):
 				// start delete
 				// delete 1 from users where name == 'alex' && last == 'padula';
+
+				// Check if query contains from
 				if !strings.Contains(query, "from ") {
 					text.PrintfLine(fmt.Sprintf("%d From is required.", 4006))
 					query = ""
 					continue
 				}
 
+				// not like will break parsing so we switch to !like and parse that from here alongside all the way to node
 				query = strings.ReplaceAll(query, "not like", "!like")
 
-				sortPos := ""
-				sortKey := ""
+				sortPos := "" // can either be empty or desc,asc
+				sortKey := "" // sorting key like createdOn
 
+				// We check if query contains an order by and set the sortPos with either asc or desc
 				if strings.Contains(query, "order by ") {
 					sortKey = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(query[strings.Index(query, "order by "):], "order by "), "asc;"), "desc;"))
 					if strings.HasSuffix(query, "asc;") {
@@ -2810,6 +2806,8 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					continue
 				}
 
+				// A database password CANNOT contain commas.  We do a check here to check if there's more or less than a split of 3
+				//new user username, password, RW
 				splQComma := strings.Split(splitQuery[1], ",")
 
 				if len(splQComma) != 3 {
@@ -2906,6 +2904,7 @@ func (cursus *Cursus) IsBool(str string) bool {
 // RemoveUser removes a user by username
 func (cursus *Cursus) RemoveUser(username string) error {
 
+	// Check if there's only 1 user.  If there is don't allow removal of the sole user.
 	if len(cursus.Config.Users) == 1 {
 		return errors.New(fmt.Sprintf("%d There must always be one database user available.", 204))
 	}
@@ -2930,6 +2929,7 @@ func (cursus *Cursus) RemoveUser(username string) error {
 }
 
 // LostReconnect connects to lost node or node replica connections, or will try to.
+// LostReconnect only knows when a NodeConnection is not ok if it's marked not ok.  This only happens on attempt.
 func (cursus *Cursus) LostReconnect() {
 	defer cursus.Wg.Done() // Defer to return to waitgroup
 
@@ -2945,7 +2945,6 @@ func (cursus *Cursus) LostReconnect() {
 					// Resolve TCP addr
 					tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", nc.Node.Host, nc.Node.Port))
 					if err != nil {
-						cursus.Printl(fmt.Sprintf("LostReconnect(): %s", err.Error()), "ERROR")
 						time.Sleep(time.Nanosecond * 1000000)
 						continue
 					}
@@ -2978,6 +2977,7 @@ func (cursus *Cursus) LostReconnect() {
 					// Did response start with a 0?  This indicates successful authentication
 					if strings.HasPrefix(string(authBuf[:r]), "0") {
 
+						// Check if node connection is a replica or not
 						if !nc.Replica {
 							cursus.NodeConnections[i] = &NodeConnection{
 								Conn:       conn,
@@ -2995,7 +2995,7 @@ func (cursus *Cursus) LostReconnect() {
 								Node:       nc.Node,
 								Mu:         &sync.Mutex{},
 								Ok:         true,
-								Replica:    true,
+								Replica:    true, // Mark as node read replica
 							}
 						}
 
@@ -3034,6 +3034,7 @@ func (cursus *Cursus) LostReconnect() {
 					// Did response start with a 0?  This indicates successful authentication
 					if strings.HasPrefix(string(authBuf[:r]), "0") {
 
+						// Check if node connection is a replica or not
 						if !nc.Replica {
 							cursus.NodeConnections[i] = &NodeConnection{
 								Conn:    conn,
@@ -3050,7 +3051,7 @@ func (cursus *Cursus) LostReconnect() {
 								Node:    nc.Node,
 								Mu:      &sync.Mutex{},
 								Ok:      true,
-								Replica: true,
+								Replica: true, // Mark as replica
 							}
 						}
 

@@ -433,7 +433,7 @@ delete user USERNAME;
 - ``107`` - Node replica synced successfully
 - ``108`` - Could not decode serialized sync data into hashmap
 - ``109`` - No previous data to read.  Creating new .cdat file
-- ``110`` - Could not open log file to write to (with description)
+- ``110`` - Could not open log file (with description)
 - ``111`` - Data file corrupt (with description)
 - ``112`` - Collection mutexes created
 - ``113`` - Could not unmarshal system yaml configuration (with description)
@@ -441,6 +441,8 @@ delete user USERNAME;
 - ``115`` - Could not decode configured shared key (with description)
 - ``116`` - Reconnected to lost connection (includes host:port)
 - ``117`` - Reconnected to lost observer connection (includes host:port)
+- ``118`` - Could not open/create configuration file (with description)
+- ``119`` - Could not open/create data file (with description)
 - ``200`` - New database user created successfully
 - ``201`` - Database user removed successfully
 - ``202`` - Could not decode user username
@@ -452,7 +454,7 @@ delete user USERNAME;
 - ``208`` - Could not read node backups directory  (with description)
 - ``209`` - Could not remove .cdat backup {FILE NAME} (with description)
 - ``210`` - Could not get node working directory for automatic recovery (with description)
-- ``211`` - Node data backup was successful
+- ``211`` - Node recovery from backup was successful
 - ``213`` - Delete key missing in
 - ``214`` - Node was unrecoverable after all attempts
 - ``215`` - Attempting automatic recovery with latest backup
@@ -474,6 +476,7 @@ delete user USERNAME;
 - ``505`` - Key cannot use reserved word
 - ``506`` - Where is missing values
 - ``505`` - Key cannot use reserved symbol
+- ``506`` - Error loading X509 key pair (with description)
 #### Document
 - ``2000`` Document inserted/updated/deleted
 - ``4000`` Unmarsharable JSON insert

@@ -151,13 +151,14 @@ func main() {
 		// Create .curodeconfig
 		nodeConfigFile, err := os.OpenFile("./.curodeconfig", os.O_CREATE|os.O_RDWR, 0777)
 		if err != nil {
-			fmt.Println("main():", err.Error())
+			curode.Printl(fmt.Sprintf("main(): %d Could not open/create configuration file ", 118)+err.Error(), "FATAL")
 			os.Exit(1)
 		}
 
 		// Defer close node config
 		defer nodeConfigFile.Close()
-
+		// SETTING DEFAULTS
+		///////////////////////////////////
 		curode.Config.Port = 7682                      // Set default CursusDB node port
 		curode.Config.MaxMemory = 10240                // Max memory 10GB default
 		curode.Config.Host = "0.0.0.0"                 // Set default host of 0.0.0.0
@@ -173,7 +174,7 @@ func main() {
 		fmt.Print("key> ")
 		key, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			fmt.Println("main():", err.Error())
+			curode.Printl(fmt.Sprintf("main(): %s", err.Error()), "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
 			os.Exit(1)
 		}
 
@@ -188,7 +189,7 @@ func main() {
 		// Marshal node config into yaml
 		yamlData, err := yaml.Marshal(&curode.Config)
 		if err != nil {
-			fmt.Println(fmt.Sprintf("main(): %d Could not marshal system yaml configuration", 114), err.Error())
+			curode.Printl(fmt.Sprintf("main(): %d Could not marshal system yaml configuration ", 114)+err.Error(), "FATAL")
 			os.Exit(1)
 		}
 
@@ -198,14 +199,14 @@ func main() {
 		// Read node config
 		nodeConfigFile, err := os.ReadFile("./.curodeconfig")
 		if err != nil {
-			fmt.Println("main():", err.Error())
+			curode.Printl(fmt.Sprintf("main(): %d Could not open/create configuration file ", 118)+err.Error(), "FATAL")
 			os.Exit(1)
 		}
 
 		// Unmarshal node config yaml
 		err = yaml.Unmarshal(nodeConfigFile, &curode.Config)
 		if err != nil {
-			fmt.Println(fmt.Sprintf("main(): %d Could not unmarshal system yaml configuration", 113), err.Error())
+			curode.Printl(fmt.Sprintf("main(): %d Could not unmarshal system yaml configuration ", 113)+err.Error(), "FATAL")
 			os.Exit(1)
 		}
 
@@ -214,7 +215,7 @@ func main() {
 			curode.LogMu = &sync.Mutex{} // Cluster node log mutex
 			curode.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
 			if err != nil {
-				fmt.Println("main(): ", 110, "Could not open log file ", err.Error())
+				curode.Printl(fmt.Sprintf("main(): %d Could not open log file ", 110)+err.Error(), "FATAL")
 				os.Exit(1)
 			}
 		}
@@ -236,7 +237,7 @@ func main() {
 
 		cdat, err := os.OpenFile(fmt.Sprintf(datafile), os.O_RDONLY, 0777)
 		if err != nil {
-			curode.Printl("main(): "+fmt.Sprintf(err.Error()), "ERROR")
+			curode.Printl("main(): "+fmt.Sprintf("%d Could not open/create data file ", 119)+err.Error(), "FATAL")
 			os.Exit(1)
 		}
 
@@ -244,7 +245,7 @@ func main() {
 
 		decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
 		if err != nil {
-			fmt.Println("main():", fmt.Sprintf("%d Could not decode configured shared key.", 115), err.Error())
+			curode.Printl("main(): "+fmt.Sprintf("%d Could not decode configured shared key. ", 115)+err.Error(), "FATAL")
 			os.Exit(1)
 			return
 		}
@@ -263,17 +264,17 @@ func main() {
 		goto ok
 
 	corrupt:
-		fmt.Println(fmt.Sprintf("main(): %d Data file corrupt!", 111), err.Error())
+		curode.Printl(fmt.Sprintf("main(): %d Data file corrupt! %s", 111, err.Error()), "WARNING")
 		os.Remove(fmt.Sprintf("%s.tmp", datafile))
 		// Data file is corrupt.. If node has backups configured grab last working state.
 
 		if curode.Config.AutomaticBackups {
-			fmt.Println("main():", fmt.Sprintf("main(): %d Attempting automatic recovery with latest backup.", 215))
+			curode.Printl(fmt.Sprintf("main(): %d Attempting automatic recovery with latest backup.", 215), "INFO")
 
 			// Read backups and remove any backups older than AutomaticBackupCleanupTime days old
 			backups, err := ioutil.ReadDir(fmt.Sprintf("%s", curode.Config.BackupsDirectory))
 			if err != nil {
-				curode.Printl(fmt.Sprintf("main(): %d Could not read node backups directory %s", 208, err.Error()), "ERROR")
+				curode.Printl(fmt.Sprintf("main(): %d Could not read node backups directory %s", 208, err.Error()), "FATAL")
 				os.Exit(1)
 			}
 
@@ -294,23 +295,23 @@ func main() {
 
 			if backupCount != 0 {
 				backupCount -= 1
-				datafile = fmt.Sprintf(fmt.Sprintf("%s%s", curode.Config.BackupsDirectory, latestBackup.Name()))
+				datafile = fmt.Sprintf("%s%s", curode.Config.BackupsDirectory, latestBackup.Name())
 				goto readData
 			} else {
-				fmt.Println(fmt.Sprintf("main(): %d Node was unrecoverable after all attempts.", 214))
+				curode.Printl(fmt.Sprintf("main(): %d Node was unrecoverable after all attempts.", 214), "FATAL")
 				os.Exit(1)
 			}
 
 		} else {
-			fmt.Println(fmt.Sprintf("main(): %d Node was unrecoverable after all attempts.  Consider setting up automatic backups.", 214))
+			curode.Printl(fmt.Sprintf("main(): %d Node was unrecoverable after all attempts.", 214), "FATAL")
 			os.Exit(1)
 			return
 		}
 
 	ok:
 
-		if backedUp {
-			curode.Printl(fmt.Sprintf("main(): %d Node data backup was successful.", 211), "INFO")
+		if backedUp { // RECOVERED
+			curode.Printl(fmt.Sprintf("main(): %d Node recovery from backup was successful.", 211), "INFO")
 		}
 
 		cdat.Close()
@@ -707,7 +708,7 @@ func (curode *Curode) StartTCP_TLS() {
 		if curode.Config.TLS {
 			cert, err := tls.LoadX509KeyPair(curode.Config.TLSCert, curode.Config.TLSKey)
 			if err != nil {
-				curode.Printl("StartTCP_TLS(): "+err.Error(), "FATAL")
+				curode.Printl(fmt.Sprintf("StartTCP_TLS(): %d Error loading X509 key pair ", 516)+err.Error(), "FATAL")
 				curode.SignalChannel <- os.Interrupt
 				return
 			}
@@ -2272,7 +2273,6 @@ func (curode *Curode) ConnectToObservers() {
 			// Resolve TCP addr
 			tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", o.Host, o.Port))
 			if err != nil {
-				fmt.Println("ConnectToObservers():", err.Error())
 				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", err.Error()), "ERROR")
 				os.Exit(1)
 			}
@@ -2319,7 +2319,6 @@ func (curode *Curode) ConnectToObservers() {
 			} else {
 				// Report back invalid key.
 				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", "Invalid key."), "ERROR")
-				fmt.Println("ConnectToObservers(): ", "Invalid key.")
 				os.Exit(1)
 			}
 		}
@@ -2368,7 +2367,6 @@ func (curode *Curode) ConnectToObservers() {
 			} else {
 				// Report back invalid key
 				curode.Printl(fmt.Sprintf("ConnectToObservers(): %s", "Invalid key."), "ERROR")
-				fmt.Println("ConnectToObservers(): ", "Invalid key.")
 				os.Exit(1)
 			}
 
