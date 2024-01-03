@@ -64,7 +64,7 @@ https://hub.docker.com/repositories/cursusdb (SOON)
 - NODE.JS https://github.com/cursusdb/cursusdb-node OR https://www.npmjs.com/package/cursusdb-node ``STABLE ✔️``
 - PYTHON https://github.com/cursusdb/cursusdb-py ``STABLE ✔️``
 - JAVA https://github.com/cursusdb/cursusdb-java ``STABLE ✔️``
-- CSHARP https://github.com/cursusdb/cursusdb-cs ``IN TESTING ⚠️``
+- CSHARP https://github.com/cursusdb/cursusdb-cs & Available on nuget! ``STABLE ✔️``
 
 ## Native Observers
 - NODE.JS https://github.com/cursusdb/cursusdb-observer-node OR https://www.npmjs.com/package/cursusdb-observer-node ``STABLE ✔️``
