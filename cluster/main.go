@@ -688,7 +688,10 @@ func (cursus *Cursus) StartTCP_TLS() {
 			}
 
 			tlsUpgrade := tls.Server(conn, cursus.TLSConfig)
-			tlsUpgrade.Handshake() // Upgrade client connection
+			err = tlsUpgrade.Handshake()
+			if err != nil {
+				continue
+			} // Upgrade client connection
 
 			conn = net.Conn(tlsUpgrade)
 		}

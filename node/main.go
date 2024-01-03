@@ -717,7 +717,10 @@ func (curode *Curode) StartTCP_TLS() {
 			}
 
 			tlsUpgrade := tls.Server(conn, curode.TLSConfig)
-			tlsUpgrade.Handshake()
+			err = tlsUpgrade.Handshake()
+			if err != nil {
+				continue
+			} // Upgrade client connection
 			conn = net.Conn(tlsUpgrade)
 		}
 
