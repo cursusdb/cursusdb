@@ -289,7 +289,7 @@ If original node shuts down or is not available a replica will be used for reads
 <h6 id="query-language" />
 
 ## Query Language
-Case-sensitive.. Keep it lowercase as the example.
+Case-sensitive.. Keep it lowercase as the examples.
 
 <h6 id="ping-cluster" />
 
