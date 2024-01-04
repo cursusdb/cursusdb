@@ -7,9 +7,72 @@
 ## Cursus Database System
 CursusDB is a fast open source in-memory document oriented database offering security, persistence, distribution, availability and an SQL like query language.
 
+## Table of contents
+<ul>
+
+<li><a href="#features">Features</a></li>
+<li><a href="#design-drawings">Design Drawings</a></li>
+<li><a href="#docker">Docker</a></li>
+<li><a href="#native-clients">Native Clients</a></li>
+<li><a href="#native-observers">Native Observers</a></li>
+<li><a href="#prebuild-binaries">Prebuilt Binaries</a></li>
+<li><a href="#cluster-node-setup">Cluster & Node Building & Initial Setup</a></li>
+<li><a href="#node-replicating">Node Replicating</a></li>
+<li><a href="#query-language">Query Language</a>
+<ul>
+<li><a href="#ping-cluster">Ping the cluster</a></li>
+<li><a href="#inserts">Inserts</a></li>
+<li><a href="#selects">Selects</a></li>
+<li><a href="#updates">Updates</a></li>
+<li><a href="#deletes">Deletes</a></li>
+<li><a href="#pattern-matching">Pattern Matching</a>
+<ul>
+<li><a href="#like">LIKE</a></li>
+<li><a href="#not-like">NOT LIKE</a></li>
+</ul>
+</li>
+<li><a href="#sorting">Sorting</a></li>
+<li><a href="#counting">Counting</a></li>
+<li><a href="#uniqueness">Uniqueness</a></li>
+<li><a href="#delete-key">Deleting a key within documents in a collection</a></li>
+<li><a href="#operators">Operators</a></li>
+<li><a href="#conditional-symbols">Conditional Symbols</a></li>
+<li><a href="#actions">Actions</a></li>
+<li><a href="#list-collections">List collections</a></li>
+<li><a href="#deleting-collections">Deleting collections</a></li>
+<li><a href="#database-users">Database users</a>
+<ul>
+<li><a href="#listing-database-users">Listing database users</a></li>
+<li><a href="#remove-database-users">Removing database users</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#logging">Logging</a>
+<li><a href="#status-codes">Status Codes</a>
+<ul>
+<li><a href="#other">Other</a></li>
+<li><a href="#authentication-authorization">Authentication / Authorization</a></li>
+<li><a href="#node-cluster">Node / Cluster</a></li>
+<li><a href="#document-cdql">Document & CDQL</a></li>
+</ul>
+</li>
+<li><a href="#default-ports">Default Ports</a>
+<li><a href="#reserved-doc-keys">Reserved Document Keys</a>
+<li><a href="#mysql-v-cursusdb">MySQL v CursusDB Benchmark</a>
+<li><a href="#cluster-to-node-tls-and-node-to-node-tls">Cluster to Node TLS connectivity & Node to Node replica TLS connectivity</a>
+<li><a href="#what-is-a-node-observer">What is a Node Observer?</a>
+<li><a href="#doc-expectation-relation">Document Expectation & Document Relation</a>
+<li><a href="#live-chat-observer">Live Chat using an Observer</a>
+<li><a href="#report-issues">Reporting Issues</a>
+</ul>
+
+
 https://cursusdb.com/documentation
 
 The idea behind CursusDB was to create something unlimitedly scalable whilst never really slowing down. Say you have 1 billion documents stored within 1 collection spread across 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million as the cluster initiates a non insert action on each node simultaneously. This is the power of parallel search. The Cursus system is searching say in the users collection in multiple sections of the collection simultaneously.
+
+<h6 id="features" />
 
 ### Features
 - Secured cluster and node(s) communication with shared key and OR TLS
@@ -41,6 +104,8 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 
 **There are no databases like MySQL let's say where you can have multiples.  A cluster is your database that spreads data across many nodes.**
 
+<h6 id="design-drawings" />
+
 ---
 
 ![drawing3.png](images/drawing3.png)
@@ -55,8 +120,12 @@ The idea behind CursusDB was to create something unlimitedly scalable whilst nev
 
 ![drawing102.png](images/drawing102.png)
 
+<h6 id="docker" />
+
 ## Docker
 https://hub.docker.com/repositories/cursusdb (SOON)
+
+<h6 id="native-clients" />
 
 ## Native Clients
 - SHELL https://github.com/cursusdb/curush ``STABLE ✔️``
@@ -66,15 +135,21 @@ https://hub.docker.com/repositories/cursusdb (SOON)
 - JAVA https://github.com/cursusdb/cursusdb-java ``STABLE ✔️``
 - CSHARP https://github.com/cursusdb/cursusdb-cs & Available on nuget! ``STABLE ✔️``
 
+<h6 id="native-observers" />
+
 ## Native Observers
 - NODE.JS https://github.com/cursusdb/cursusdb-observer-node OR https://www.npmjs.com/package/cursusdb-observer-node ``STABLE ✔️``
 - GO https://github.com/cursusdb/cursusdb-observer-go ``IN PROGRESS 👨‍💻``
 
 .. more coming
 
+<h6 id="prebuild-binaries" />
+
 ## Prebuilt Binaries
 You can find the latest stable release prebuilt binaries at
 https://cursusdb.com/downloads
+
+<h6 id="cluster-node-setup" />
 
 ## Cluster & Node Building & Initial Setup
 Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
@@ -174,6 +249,8 @@ If we try and insert the same document we will get an error stating an existing 
 
 ![img_9.png](images/img_9.png)
 
+<h6 id="node-replicating" />
+
 ## Node Replicating
 .cursusconfig
 ```
@@ -205,7 +282,14 @@ If original node shuts down or is not available a replica will be used for reads
 
 ![replicating-cluster-nodes.png](images/replicating-cluster-nodes.png)
 
-## Ping the cluster
+<h6 id="query-language" />
+
+## Query Language
+Case-sensitive.. Keep it lowercase as the example.
+
+<h6 id="ping-cluster" />
+
+### Ping the cluster
 Using curush or native client
 
 ```
@@ -213,14 +297,15 @@ Using curush or native client
 > pong;
 ```
 
-## Query Language
-Case-sensitive.. Keep it lowercase as the example.
+<h6 id="inserts" />
 
 ### Inserts
 ```
 insert into users({"name": "Alex", "last": "Lee", "age": 28});
 insert into users({"name": "John", "last": "Josh", "age": 28, "tags": ["tag1", "tag2"]});
 ```
+
+<h6 id="selects" />
 
 ### Selects
 ```
@@ -246,8 +331,9 @@ OR
 select 1 from users where name = 'Alex' || name = 'John';
 ```
 
+<h6 id="updates" />
 
-### Updating
+### Updates
 ```
 update {LIMIT} in {COLLECTION} where {CONDITIONS} {SETS} {ORDERING}
 update 1 in users where age >= 28 set name = 'Josie' order by createdAt desc;
@@ -256,7 +342,9 @@ update n, n..
 ect..
 ```
 
-### Deleting
+<h6 id="deletes" />
+
+### Deletes
 ```
 delete {LIMIT} from {COLLECTION} where {CONDITIONS} {ORDERING}
 delete * from users where age >= 28 || age < 32;
@@ -264,7 +352,12 @@ delete 0,5 from users where age > 28 && name == 'Alex';
 ect
 ```
 
+<h6 id="pattern-matching" />
+
 ### Pattern Matching
+
+<h6 id="like" />
+
 #### LIKE
 Starts with 'A'
 ``` 
@@ -280,6 +373,8 @@ Contains Pad
 ``` 
 select * from users where firstName like 'Alex %Pad%ula'
 ```
+
+<h6 id="not-like" />
 
 #### NOT LIKE
 Starts with 'A'
@@ -297,6 +392,8 @@ Contains Pad
 select * from users where firstName not like 'Alex %Pad%ula'
 ```
 
+<h6 id="sorting" />
+
 ### Sorting
 ``` 
 select * from users order by createdOn desc;
@@ -305,6 +402,8 @@ select * from users order by createdOn desc;
 ``` 
 select * from users order by firstName asc;
 ```
+
+<h6 id="counting" />
 
 ### Counting
 Example
@@ -322,6 +421,8 @@ Response joined if each node has 1 match and there is 5 nodes
 {"count":5} 
 ```
 
+<h6 id="delete-key" />
+
 ### Deleting a key within documents in a collection 
 It's very simple to alter a collections documents.  Say you want to remove the ``y`` key from a documents like below:
 ``` 
@@ -334,12 +435,15 @@ curush>delete key y in example;
 [{"127.0.0.1:7682": {"message":"Document key removed from collection successfully.","statusCode":4021,"altered":3}}]
 ```
 
+<h6 id="uniqueness" />
 
 ### Uniqueness
 using ``key!`` will make sure the value is unique across all nodes!
 ``` 
 insert into users({"email!": "test@example.com" ...});
 ```
+
+<h6 id="operators" />
 
 ### Operators
 - ``>``
@@ -350,20 +454,28 @@ insert into users({"email!": "test@example.com" ...});
 - ``=``
 - ``!=``
 
-### Conditionals
+<h6 id="conditional-symbols" />
+
+### Conditional Symbols
 - ``&&``
 - ``||``
+
+<h6 id="actions" />
 
 ### Actions
 - ``select``
 - ``update``
 - ``delete``
 
-## Get collections
+<h6 id="list-collections" />
+
+### List collections
 ```
 curush>collections;
 [{"127.0.0.1:7682": {"collections":["losers","winners","users"]}}]
 ```
+
+<h6 id="deleting-collections" />
 
 ### Deleting collections?
 When you remove every document from a collection the collection is removed i.e
@@ -381,8 +493,9 @@ curush>collections;
 [{"127.0.0.1:7682": {"collections":["winners","users"]}}]
 ```
 
+<h6 id="database-users" />
 
-## Database Users
+### Database Users
 CursusDB has 2 permissions R(read) and (RW).  RW can select, insert, delete, update and add new users whereas users with just R can only read.
 
 ``` 
@@ -394,6 +507,8 @@ Using a client like ``curush`` the CursusDB Shell Program.
 ``` 
 curush> new user someusername, somepassword, RW;
 ```
+
+<h6 id="listing-database-users" />
 
 #### Listing Database Users
 
@@ -408,10 +523,14 @@ command returns JSON array of database users.
 ["alex","daniel"]
 ```
 
+<h6 id="remove-database-users" />
+
 #### Removing Database Users
 ``` 
 delete user USERNAME;
 ```
+
+<h6 id="status-codes" />
 
 ## Status codes
 A CursusDB status code is a numerical value assigned to a specific message.  The numerical values are used as a shorthand to the actual message.  They are grouped by 
@@ -419,9 +538,13 @@ A CursusDB status code is a numerical value assigned to a specific message.  The
 - ``Authentication / Authorization`` cluster and node auth
 - ``Document & CDQL`` document and query language
 
+<h6 id="other" />
 
 #### Other
 - ``-1`` Received signal (with signal) -1 is just for the system it doesn't mean error in CursusDB's case.
+
+<h6 id="authentication-authorization" />
+
 #### Authentication / Authorization
 - ``0`` Authentication successful.
 - ``1`` Unable to read authentication header.
@@ -429,6 +552,8 @@ A CursusDB status code is a numerical value assigned to a specific message.  The
 - ``3`` No user exists
 - ``4`` User not authorized
 - ``5`` Failed node sync auth
+
+<h6 id="node-cluster" />
 
 #### Node / Cluster
 - ``100`` - Node is at peak allocation
@@ -478,6 +603,8 @@ A CursusDB status code is a numerical value assigned to a specific message.  The
 - ``500`` - Unknown error (with description)
 - ``507`` - Error loading X509 key pair (with description)
 
+<h6 id="document-cdql" />
+
 #### Document & CDQL
 - ``2000`` Document inserted/updated/deleted
 - ``4000`` Unmarsharable JSON insert
@@ -513,6 +640,7 @@ A CursusDB status code is a numerical value assigned to a specific message.  The
 - ``4030`` Key cannot use reserved word
 - ``4031`` Key cannot use reserved symbol
 
+<h6 id="reserved-doc-keys" />
 
 ## Reserved Document Keys
 On insert there are a variety of RESERVED keys.
@@ -567,10 +695,13 @@ On insert there are a variety of RESERVED keys.
 - `=`
 - `*`
 
+<h6 id="default-ports" />
 
 ## Ports
 Default cluster port: ``7681``
 Default node port: ``7682``
+
+<h6 id="logging" />
 
 ## Logging 
 Logs for the CursusDB cluster and node are found where you launch your binaries.
@@ -648,16 +779,21 @@ select 3 from posts order by createdOn desc;
 The ``select 3`` portion the cluster will get depending on set amount of nodes say you have 5 nodes setup, you will get back 3 * 5 but the cluster will limit to 3 as that what was requested!
 
 
+<h6 id="cluster-to-node-tls-and-node-to-node-tls" />
+
 ## Cluster to Node TLS connectivity & Node to Node replica TLS connectivity 
 If you set ``tls-node`` on the cluster to true the cluster will expect all nodes to be listening on tls.
 
 If you set ``tls-replication`` on a cluster node to true the cluster node will expect all node replicas to be listening on tls.
 
+<h6 id="what-is-a-node-observer" />
 
 ## What is a Node Observer?
 A node observer is a backend service using the CursusDB Observer package to listen to incoming node events such as insert, update, and delete in real time.
 
 The observer must be configured with the same shared key as your nodes and clusters.
+
+<h6 id="doc-expectation-relation" />
 
 ## Document Expectation & Document Relation
 CursusDB expects simple JSON objects. For example take this user object:
@@ -694,11 +830,14 @@ Let`s say we want to sort the posts by title alphabetically:
 
 This is how data should be related on CursusDB either a user has many posts or lets say a user has one account profile well same thing just repeat the process.
 
+<h6 id="report-issues" />
 
-## Issues 
+## Report Issues 
 Please report issues, enhancements, etc at:
 - https://github.com/cursusdb/cursusdb/discussions
 - https://github.com/cursusdb/cursusdb/issues
+
+<h6 id="mysql-v-cursusdb" />
 
 ## CursusDB v MySQL BENCHMARK
 Most basic setup.  CursusDB cluster and node hosted same instance no TLS.
@@ -745,6 +884,8 @@ last varchar(255),
 age int,
 active BOOLEAN
 );``
+
+<h6 id="live-chat-observer" />
 
 ## Live Chat drawing using an Observer
 How would a chat work with an Observer configured?
