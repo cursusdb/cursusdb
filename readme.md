@@ -1,8 +1,8 @@
 ---- 
 
 
-<div style="background: white!important; padding-top: 10px; padding-bottom:10px">
-<h1 align="center"><img src="images/cursusdb.svg" width="314"></h1>
+<div>
+<h1 align="center"><img src="images/cursusdb-header.png"></h1>
 </div>
 
 ## Cursus Database System
