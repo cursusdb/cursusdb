@@ -847,6 +847,8 @@ Please report issues, enhancements, etc at:
 Most basic setup.  CursusDB cluster and node hosted same instance no TLS.
 MySQL setup exact same specification of an instance no TLS.
 
+💨 <strong>Mind you Cursus(Cluster) was configured with one node.  If configured with multiple inserts GREATLY speed up more for concurrency but sequentially as well.</strong>
+
 ### CursusDB
 ```Connection time: 64ms```
 
