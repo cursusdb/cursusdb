@@ -422,13 +422,13 @@ func (cursus *Cursus) ConnectToNodes() {
 			secureConn := tls.Client(conn, &config)
 
 			// Authenticate with node passing shared key wrapped in base64
-			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
+			secureConn.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
 
 			// Authentication response buffer
 			authBuf := make([]byte, 1024)
 
 			// Read response back from node
-			r, _ := conn.Read(authBuf[:])
+			r, _ := secureConn.Read(authBuf[:])
 
 			// Did response start with a 0?  This indicates successful authentication
 			if strings.HasPrefix(string(authBuf[:r]), "0") {
@@ -466,16 +466,16 @@ func (cursus *Cursus) ConnectToNodes() {
 					configReplica := tls.Config{ServerName: rep.Host}
 
 					// Create TLS client connection
-					secureConnReplica := tls.Client(conn, &configReplica)
+					secureConnReplica := tls.Client(connReplica, &configReplica)
 
 					// Authenticate with node passing shared key wrapped in base64
-					connReplica.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
+					secureConnReplica.Write([]byte(fmt.Sprintf("Key: %s\r\n", cursus.Config.Key)))
 
 					// Authentication response buffer
 					authBufReplica := make([]byte, 1024)
 
 					// Read response back from node
-					rReplica, _ := connReplica.Read(authBufReplica[:])
+					rReplica, _ := secureConnReplica.Read(authBufReplica[:])
 
 					// Did response start with a 0?  This indicates successful authentication
 					if strings.HasPrefix(string(authBuf[:rReplica]), "0") {
