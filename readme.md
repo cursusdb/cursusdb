@@ -1,9 +1,9 @@
 ---- 
 
 
-<header style="background: white;padding-top: 10px;padding-bottom:10px">
+<div style="background: white!important; padding-top: 10px; padding-bottom:10px">
 <h1 align="center"><img src="images/cursusdb.svg" width="314"></h1>
-</header>
+</div>
 
 ## Cursus Database System
 CursusDB is a fast open source in-memory document oriented database offering security, persistence, distribution, availability and an SQL like query language.
