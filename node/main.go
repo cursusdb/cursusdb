@@ -828,7 +828,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 
 				response["collections"] = collections
 				r, _ := json.Marshal(response)
-				text.PrintfLine(string(r))
+				text.PrintfLine(strings.ReplaceAll(string(r), "%", "%%"))
 				continue
 			case strings.EqualFold(action.(string), "delete key"):
 				updatedDocs := curode.DeleteKeyFromColl(request["collection"].(string), request["key"].(string))
@@ -843,7 +843,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				}
 
 				r, _ := json.Marshal(response)
-				text.PrintfLine(string(r))
+				text.PrintfLine(strings.ReplaceAll(string(r), "%", "%%"))
 				continue
 			case strings.EqualFold(action.(string), "delete"):
 
@@ -866,7 +866,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 					go curode.SendToObservers(string(r))
 				}
 
-				text.PrintfLine(string(r))
+				text.PrintfLine(strings.ReplaceAll(string(r), "%", "%%"))
 				continue
 			case strings.EqualFold(action.(string), "select"):
 
@@ -876,7 +876,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 
 				results := curode.Select(request["collection"].(string), request["keys"], request["values"], int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"], request["lock"].(bool), request["conditions"].([]interface{}), false, request["sort-pos"].(string), request["sort-key"].(string), request["count"].(bool), false)
 				r, _ := json.Marshal(results)
-				text.PrintfLine(string(r))
+				text.PrintfLine(strings.ReplaceAll(string(r), "%", "%%")) // fix for (MISSING)
 				continue
 			case strings.EqualFold(action.(string), "update"):
 				results := curode.Update(request["collection"].(string),
@@ -904,14 +904,14 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 					go curode.SendToObservers(string(r))
 				}
 
-				text.PrintfLine(string(r))
+				text.PrintfLine(strings.ReplaceAll(string(r), "%", "%%"))
 				continue
 			case strings.EqualFold(action.(string), "insert"):
 
 				collection := request["collection"]
 				doc := request["document"]
 
-				err := curode.Insert(collection.(string), doc.(map[string]interface{}), text)
+				err := curode.Insert(collection.(string), doc.(map[string]interface{}), conn)
 				if err != nil {
 					// Only error returned is a 4003 which means cannot insert nested object
 					response["statusCode"] = strings.Split(err.Error(), " ")[0]
@@ -953,7 +953,7 @@ func (curode *Curode) CurrentMemoryUsage() uint64 {
 }
 
 // Insert into node collection
-func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, text *textproto.Conn) error {
+func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, conn net.Conn) error {
 	if curode.CurrentMemoryUsage() >= curode.Config.MaxMemory {
 		return errors.New(fmt.Sprintf("%d node is at peak allocation.", 100))
 	}
@@ -971,8 +971,11 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 		return errors.New(fmt.Sprintf("%d Nested JSON objects not permitted.", 4003))
 	}
 
+	jsonStr = []byte(strings.ReplaceAll(string(jsonStr), "%", "%%")) // Because we have pattern matching logic this is a conflict so we replace % with ۞ and make ۞ a reserved value in with the entire object.
+
 	doc := make(map[string]interface{})
-	err = json.Unmarshal([]byte(jsonStr), &doc)
+	err = json.Unmarshal(jsonStr, &doc)
+
 	if err != nil {
 		return errors.New(fmt.Sprintf("%d Unmarsharable JSON insert.", 4000))
 	}
@@ -981,6 +984,7 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 		writeMu.Lock()
 
 		curode.Data.Map[collection] = append(curode.Data.Map[collection], doc)
+
 		writeMu.Unlock()
 	} else {
 		curode.Data.Writers[collection] = &sync.RWMutex{}
@@ -993,14 +997,13 @@ func (curode *Curode) Insert(collection string, jsonMap map[string]interface{}, 
 	response["collection"] = collection
 	response["insert"] = doc
 
-	responseMap, err := json.Marshal(response)
+	responseJson, err := json.Marshal(response)
 	if err != nil {
 		return errors.New(fmt.Sprintf("%d Could not marshal JSON.", 4012))
 	}
 
-	go curode.SendToObservers(string(responseMap))
-
-	text.PrintfLine(string(responseMap))
+	go curode.SendToObservers(string(responseJson))
+	conn.Write([]byte(string(responseJson) + "\r\n")) // Using write instead of Printf fixes issues with values that contain percentage symbols %
 
 	return nil
 }
@@ -2426,13 +2429,13 @@ func (curode *Curode) LostReconnectObservers() {
 					secureConn := tls.Client(conn, &config)
 
 					// Authenticate with node passing shared key wrapped in base64
-					conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
+					secureConn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
 
 					// Authentication response buffer
 					authBuf := make([]byte, 1024)
 
 					// Read response back from node
-					r, _ := conn.Read(authBuf[:])
+					r, _ := secureConn.Read(authBuf[:])
 
 					// Did response start with a 0?  This indicates successful authentication
 					if strings.HasPrefix(string(authBuf[:r]), "0") {
