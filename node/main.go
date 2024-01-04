@@ -2297,13 +2297,13 @@ func (curode *Curode) ConnectToObservers() {
 			secureConn := tls.Client(conn, &config)
 
 			// Authenticate with node passing shared key wrapped in base64
-			conn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
+			secureConn.Write([]byte(fmt.Sprintf("Key: %s\r\n", curode.Config.Key)))
 
 			// Authentication response buffer
 			authBuf := make([]byte, 1024)
 
 			// Read response back from node
-			r, _ := conn.Read(authBuf[:])
+			r, _ := secureConn.Read(authBuf[:])
 
 			// Did response start with a 0?  This indicates successful authentication
 			if strings.HasPrefix(string(authBuf[:r]), "0") {
