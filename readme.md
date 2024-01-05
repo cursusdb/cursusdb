@@ -125,6 +125,12 @@ CursusDB is a fast open source in-memory document oriented database offering sec
 
 ![drawing102.png](images/drawing102.png)
 
+![drawing232.png](images/drawing232.png)
+
+A node keeps track of queries/txns and if something bad happens can re-trigger what hasn't been processed.  A node syncs to a .qqueue file every 2 milliseconds this is fixed and cannot be changed.
+`.qqueue` files are encrypted.
+
+
 <h6 id="docker" />
 
 ## Docker
