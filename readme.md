@@ -266,15 +266,17 @@ If we try and insert the same document we will get an error stating an existing 
 .cursusconfig
 ```
 nodes:
-- host: 0.0.0.0
-  port: 7682
+- host: 0.0.0.0 # node host i.e an IP or FQDN
+  port: 7682 # node port 
   replicas:
-  - host: 0.0.0.0
-    port: 7683
+  - host: 0.0.0.0 # replica host i.e an IP or FQDN
+    port: 7683 @ replica port.  The reason we have 7683 here is because a replica is a completely seperate node from the main.
 ..
 ```
 
-Node at ``0.0.0.0:7682`` has a configured replica at ``0.0.0.0:7682``
+The cluster makes connections on start up to your node and node replicas hence configuring the .cursusconfig the way it is.  The cluster keeps those connections alive for fast reactivity.  The cluster will automatically reconnect to any lost node.
+
+Node at ``0.0.0.0:7682`` has a configured replica at ``0.0.0.0:7683``
 
 On the nodes end you need to configure a replica so the node you're configuring knows to replicate the data over.
 
