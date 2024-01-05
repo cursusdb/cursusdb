@@ -57,19 +57,21 @@ import (
 
 // Curode is the main CursusDB cluster node struct
 type Curode struct {
-	TCPAddr             *net.TCPAddr          // TCPAddr represents the address of the nodes TCP end point
-	TCPListener         *net.TCPListener      // TCPListener is the node TCP network listener.
-	Wg                  *sync.WaitGroup       // Node WaitGroup waits for all goroutines to finish up
-	SignalChannel       chan os.Signal        // Catch operating system signal
-	Config              Config                // Node  config
-	TLSConfig           *tls.Config           // Node TLS config if TLS is true
-	ContextCancel       context.CancelFunc    // For gracefully shutting down
-	ConfigMu            *sync.RWMutex         // Node config mutex
-	Data                *Data                 // Node data
-	Context             context.Context       // Main looped go routine context.  This is for listeners, event loops and so forth
-	LogMu               *sync.Mutex           // Log file mutex
-	LogFile             *os.File              // Opened log file
-	ObserverConnections []*ObserverConnection // ObserverConnections
+	TCPAddr             *net.TCPAddr             // TCPAddr represents the address of the nodes TCP end point
+	TCPListener         *net.TCPListener         // TCPListener is the node TCP network listener.
+	Wg                  *sync.WaitGroup          // Node WaitGroup waits for all goroutines to finish up
+	SignalChannel       chan os.Signal           // Catch operating system signal
+	Config              Config                   // Node  config
+	TLSConfig           *tls.Config              // Node TLS config if TLS is true
+	ContextCancel       context.CancelFunc       // For gracefully shutting down
+	ConfigMu            *sync.RWMutex            // Node config mutex
+	Data                *Data                    // Node data
+	Context             context.Context          // Main looped go routine context.  This is for listeners, event loops and so forth
+	LogMu               *sync.Mutex              // Log file mutex
+	LogFile             *os.File                 // Opened log file
+	ObserverConnections []*ObserverConnection    // ObserverConnections
+	QueryQueue          []map[string]interface{} // QueryQueue is a queue of queries coming in from cluster(s) and is synced to a file which is encrypted every 100ms
+	QueryQueueMu        *sync.Mutex              // QueryQueue mutex
 }
 
 // Config is the CursusDB cluster config struct
@@ -135,13 +137,15 @@ func main() {
 	curode.Wg = &sync.WaitGroup{}                                                   // create cluster node waitgroup
 	curode.SignalChannel = make(chan os.Signal, 1)                                  // make signal channel
 	curode.Context, curode.ContextCancel = context.WithCancel(context.Background()) // Create context for shutdown
+	curode.QueryQueueMu = &sync.Mutex{}
 
 	curode.Data = &Data{
 		Map:     make(map[string][]map[string]interface{}), // map of documents
 		Writers: make(map[string]*sync.RWMutex),            // Lock per collection
 	} // Make data map and collection writer mutex map
 
-	gob.Register([]interface{}(nil)) // Fixes {"k": []}
+	gob.Register([]interface{}(nil))       // Fixes {"k": []}
+	gob.Register(map[string]interface{}{}) // Mainly for query queue
 
 	signal.Notify(curode.SignalChannel, syscall.SIGINT, syscall.SIGTERM) // setup signal channel
 
@@ -353,6 +357,12 @@ func main() {
 	curode.Wg.Add(1)
 	go curode.StartTCP_TLS() // Start listening tcp/tls with config
 
+	time.Sleep(time.Millisecond * 200)
+	curode.StartRunQueryQueue() // Run any queries that were left behind due to failure or crisis
+
+	curode.Wg.Add(1)
+	go curode.SyncOutQueryQueue() // Listen for system signals
+
 	curode.Wg.Wait() // Wait for go routines to finish
 
 	curode.WriteToFile(false) // Write database data to file
@@ -534,6 +544,138 @@ func (curode *Curode) SyncOut() {
 			time.Sleep(time.Nanosecond * 1000000)
 		}
 	}
+}
+
+// AddToQueryQueue adds to query queue and returns unique query id
+func (curode *Curode) AddToQueryQueue(req map[string]interface{}) int {
+	curode.QueryQueueMu.Lock()
+	defer curode.QueryQueueMu.Unlock()
+
+	queryQueueEntry := make(map[string]interface{})
+	queryQueueEntry["id"] = len(curode.QueryQueue) + 1
+	queryQueueEntry["req"] = req
+
+	curode.QueryQueue = append(curode.QueryQueue, queryQueueEntry)
+
+	return queryQueueEntry["id"].(int)
+}
+
+func (curode *Curode) RemoveFromQueryQueue(id int) {
+	curode.QueryQueueMu.Lock()
+	defer curode.QueryQueueMu.Unlock()
+	for i, qe := range curode.QueryQueue {
+		if qe["id"].(int) == id {
+			curode.QueryQueue[i] = curode.QueryQueue[len(curode.QueryQueue)-1]
+			curode.QueryQueue[len(curode.QueryQueue)-1] = nil
+			curode.QueryQueue = curode.QueryQueue[:len(curode.QueryQueue)-1]
+		}
+	}
+
+}
+
+// SyncOutQueryQueue syncs out query queue to .qqueue file which contains a list of queries that did not finish if any.  On node start up the node will finish them off.
+func (curode *Curode) SyncOutQueryQueue() {
+	defer curode.Wg.Done()
+
+	decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
+	if err != nil {
+		curode.Printl(fmt.Sprintf("SyncOutQueryQueue(): %s", err.Error()), "ERROR")
+		curode.SignalChannel <- os.Interrupt
+		return
+	}
+
+	f, err := os.OpenFile(".qqueue", os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
+	if err != nil {
+		curode.Printl(fmt.Sprintf("SyncOutQueryQueue(): %s", err.Error()), "ERROR")
+		curode.SignalChannel <- os.Interrupt
+		return
+	}
+
+	for {
+		if curode.Context.Err() != nil {
+			break
+		}
+
+		f.Truncate(0)
+		f.Seek(0, 0)
+
+		var out io.Writer
+
+		out, _ = flate.NewWriter(f, flate.BestCompression, decodedKey)
+
+		enc := gob.NewEncoder(out)
+
+		enc.Encode(curode.QueryQueue)
+
+		out.(io.Closer).Close()
+
+		time.Sleep(time.Millisecond * 2)
+	}
+}
+
+// StartRunQueryQueue runs all queries that were on queue before shutdown
+func (curode *Curode) StartRunQueryQueue() {
+	qq, err := os.OpenFile(fmt.Sprintf(".qqueue"), os.O_RDONLY, 0777)
+	if err != nil {
+		curode.Printl("main(): "+fmt.Sprintf("%d Could not open/create query queue file ", 120)+err.Error(), "ERROR")
+		return
+	}
+
+	var in io.Reader
+
+	decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
+	if err != nil {
+		curode.Printl("main(): "+fmt.Sprintf("%d Could not decode configured shared key. ", 115)+err.Error(), "ERROR")
+		os.Exit(1)
+		return
+	}
+
+	in = flate.NewReader(qq, decodedKey)
+
+	dec := gob.NewDecoder(in)
+
+	defer in.(io.Closer).Close()
+
+	err = dec.Decode(&curode.QueryQueue)
+	if err != nil {
+		curode.Printl(fmt.Sprintf("StartRunQueryQueue(): %d Node could not recover query queue.", 502), "ERROR")
+		return
+	}
+
+	addr, _ := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", curode.Config.Host, curode.Config.Port)) // not catching error here, no chances an error would occur at this point
+
+	conn, err := net.DialTCP("tcp", nil, addr)
+	if err != nil {
+		curode.Printl(fmt.Sprintf("StartRunQueryQueue(): %d Could not dial self to requeue queries. %s", 503, err), "ERROR")
+		return
+	}
+
+	text := textproto.NewConn(conn)
+	text.PrintfLine("Key: %s", curode.Config.Key)
+
+	read, err := text.ReadLine()
+
+	completed := 0 // amount of txns completed off restored queue
+
+	if strings.HasPrefix(read, "0") {
+		for _, qe := range curode.QueryQueue {
+
+			r, _ := json.Marshal(qe["req"])
+			_, err = conn.Write([]byte(fmt.Sprintf("%s\r\n", string(r))))
+			if err != nil {
+				curode.Printl(fmt.Sprintf("StartRunQueryQueue(): %d Could not commit to queued query/transaction. %s", 504, err), "ERROR")
+				continue
+			}
+
+			completed += 1
+
+			//read, _ = text.ReadLine() If you want to see what's been processed from queue
+
+		}
+
+		curode.Printl(fmt.Sprintf("StartRunQueryQueue(): %d %d recovered and processed from .qqueue.", 505, completed), "INFO")
+	}
+
 }
 
 // CountLog counts amount of lines within log file
@@ -846,6 +988,7 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				text.PrintfLine(strings.ReplaceAll(string(r), "%", "%%"))
 				continue
 			case strings.EqualFold(action.(string), "delete"):
+				qqId := curode.AddToQueryQueue(request)
 
 				results := curode.Delete(request["collection"].(string), request["keys"], request["values"], int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"], request["lock"].(bool), request["conditions"].([]interface{}), request["sort-pos"].(string), request["sort-key"].(string))
 				r, _ := json.Marshal(results)
@@ -866,6 +1009,8 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 					go curode.SendToObservers(string(r))
 				}
 
+				curode.RemoveFromQueryQueue(qqId) // Query has completed remove from queue
+
 				text.PrintfLine(strings.ReplaceAll(string(r), "%", "%%"))
 				continue
 			case strings.EqualFold(action.(string), "select"):
@@ -879,6 +1024,9 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				text.PrintfLine(strings.ReplaceAll(string(r), "%", "%%")) // fix for (MISSING)
 				continue
 			case strings.EqualFold(action.(string), "update"):
+
+				qqId := curode.AddToQueryQueue(request)
+
 				results := curode.Update(request["collection"].(string),
 					request["keys"], request["values"],
 					int(request["limit"].(float64)), int(request["skip"].(float64)), request["oprs"],
@@ -904,6 +1052,8 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 					go curode.SendToObservers(string(r))
 				}
 
+				curode.RemoveFromQueryQueue(qqId) // Query has completed remove from queue
+
 				text.PrintfLine(strings.ReplaceAll(string(r), "%", "%%"))
 				continue
 			case strings.EqualFold(action.(string), "insert"):
@@ -911,7 +1061,9 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 				collection := request["collection"]
 				doc := request["document"]
 
-				err := curode.Insert(collection.(string), doc.(map[string]interface{}), conn)
+				qqId := curode.AddToQueryQueue(request)
+
+				err = curode.Insert(collection.(string), doc.(map[string]interface{}), conn)
 				if err != nil {
 					// Only error returned is a 4003 which means cannot insert nested object
 					response["statusCode"] = strings.Split(err.Error(), " ")[0]
@@ -921,6 +1073,8 @@ func (curode *Curode) HandleClientConnection(conn net.Conn) {
 					text.PrintfLine(string(r))
 					continue
 				}
+
+				curode.RemoveFromQueryQueue(qqId) // Query has completed remove from queue
 
 				continue
 			default:
