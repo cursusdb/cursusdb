@@ -581,6 +581,7 @@ A CursusDB status code is a numerical value assigned to a specific message.  The
 - ``117`` - Reconnected to lost observer connection (includes host:port)
 - ``118`` - Could not open/create configuration file (with description)
 - ``119`` - Could not open/create data file (with description)
+- ``120`` - Could not open/create query queue file (with description)
 - ``200`` - New database user created successfully
 - ``201`` - Database user removed successfully
 - ``202`` - Could not decode user username
@@ -606,6 +607,10 @@ A CursusDB status code is a numerical value assigned to a specific message.  The
 - ``224`` - Observer connection established (with info)
 - ``225`` - Node connection established (with info)
 - ``500`` - Unknown error (with description)
+- ``502`` - Node could not recover query queue
+- ``503`` - Could not dial self to requeue queries (with description)
+- ``504`` - Could not commit to queued query/transaction
+- ``505`` -n recovered and processed from .qqueue
 - ``507`` - Error loading X509 key pair (with description)
 
 <h6 id="document-cdql" />

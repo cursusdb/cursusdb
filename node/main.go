@@ -617,7 +617,7 @@ func (curode *Curode) SyncOutQueryQueue() {
 func (curode *Curode) StartRunQueryQueue() {
 	qq, err := os.OpenFile(fmt.Sprintf(".qqueue"), os.O_RDONLY, 0777)
 	if err != nil {
-		curode.Printl("main(): "+fmt.Sprintf("%d Could not open/create query queue file ", 120)+err.Error(), "ERROR")
+		curode.Printl("StartRunQueryQueue(): "+fmt.Sprintf("%d Could not open/create query queue file ", 120)+err.Error(), "ERROR")
 		return
 	}
 
@@ -625,7 +625,7 @@ func (curode *Curode) StartRunQueryQueue() {
 
 	decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
 	if err != nil {
-		curode.Printl("main(): "+fmt.Sprintf("%d Could not decode configured shared key. ", 115)+err.Error(), "ERROR")
+		curode.Printl("StartRunQueryQueue(): "+fmt.Sprintf("%d Could not decode configured shared key. ", 115)+err.Error(), "ERROR")
 		os.Exit(1)
 		return
 	}
