@@ -610,7 +610,7 @@ A CursusDB status code is a numerical value assigned to a specific message.  The
 - ``502`` - Node could not recover query queue
 - ``503`` - Could not dial self to requeue queries (with description)
 - ``504`` - Could not commit to queued query/transaction
-- ``505`` -n recovered and processed from .qqueue
+- ``505`` - n recovered and processed from .qqueue
 - ``507`` - Error loading X509 key pair (with description)
 
 <h6 id="document-cdql" />
