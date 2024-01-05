@@ -274,7 +274,7 @@ nodes:
 ..
 ```
 
-Node at ``0.0.0.0:7682`` has a configured replica at ``0.0.0.0:7682``
+Node at ``0.0.0.0:7682`` has a configured replica at ``0.0.0.0:7683``
 
 On the nodes end you need to configure a replica so the node you're configuring knows to replicate the data over.
 
