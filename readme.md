@@ -587,7 +587,7 @@ A CursusDB status code is a numerical value assigned to a specific message.  The
 - ``117`` - Reconnected to lost observer connection (includes host:port)
 - ``118`` - Could not open/create configuration file (with description)
 - ``119`` - Could not open/create data file (with description)
-- ``120`` - Could not open/create query queue file (with description)
+- ``120`` - No .qqueue file found.  Possibly first run, if so the node will create the .qqueue file after run of this method (after first run you will normally see ``505 0 recovered and processed from .qqueue.`` 0 being what was left on the query queue)
 - ``200`` - New database user created successfully
 - ``201`` - Database user removed successfully
 - ``202`` - Could not decode user username

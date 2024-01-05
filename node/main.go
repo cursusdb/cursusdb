@@ -617,7 +617,7 @@ func (curode *Curode) SyncOutQueryQueue() {
 func (curode *Curode) StartRunQueryQueue() {
 	qq, err := os.OpenFile(fmt.Sprintf(".qqueue"), os.O_RDONLY, 0777)
 	if err != nil {
-		curode.Printl("StartRunQueryQueue(): "+fmt.Sprintf("%d Could not open/create query queue file ", 120)+err.Error(), "ERROR")
+		curode.Printl("StartRunQueryQueue(): "+fmt.Sprintf("%d No .qqueue file found.  Possibly first run, if so the node will create the .qqueue file after run of this method.", 120), "ERROR")
 		return
 	}
 
