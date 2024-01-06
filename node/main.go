@@ -152,181 +152,20 @@ func main() {
 	// Check if .curodeconfig exists
 	if _, err := os.Stat("./.curodeconfig"); errors.Is(err, os.ErrNotExist) {
 
-		// Create .curodeconfig
-		nodeConfigFile, err := os.OpenFile("./.curodeconfig", os.O_CREATE|os.O_RDWR, 0777)
+		err = curode.SetupNodeConfig() // Setup cluster node config
 		if err != nil {
-			curode.Printl(fmt.Sprintf("main(): %d Could not open/create configuration file ", 118)+err.Error(), "FATAL")
-			os.Exit(1)
+			os.Exit(1) // We already logged so just exit
 		}
-
-		// Defer close node config
-		defer nodeConfigFile.Close()
-		// SETTING DEFAULTS
-		///////////////////////////////////
-		curode.Config.Port = 7682                      // Set default CursusDB node port
-		curode.Config.MaxMemory = 10240                // Max memory 10GB default
-		curode.Config.Host = "0.0.0.0"                 // Set default host of 0.0.0.0
-		curode.Config.LogMaxLines = 1000               // truncate at 1000 lines as default
-		curode.Config.Timezone = "Local"               // Local is systems local time
-		curode.Config.ReplicationSyncTime = 10         // default of every 10 minutes
-		curode.Config.ReplicationSyncTimeout = 10      // If sync doesn't complete in 10 minutes by default timeout(could lead to corrupt data so increase accordingly)
-		curode.Config.AutomaticBackupCleanupHours = 12 // Set default of 12 hours in which to delete old backed up .cdat files
-		curode.Config.AutomaticBackupTime = 60         // Automatically backup node data to backups folder every 1 hour by default if AutomaticBackups is enabled
-		curode.Config.BackupsDirectory = "backups"     // Backups by default is in the execution directory
-
-		fmt.Println("Shared cluster and node key is required.  A shared cluster and node key will encrypt all your data at rest and only allow connections that contain a correct Key: header value matching the hashed key you provide.")
-		fmt.Print("key> ")
-		key, err := term.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			curode.Printl(fmt.Sprintf("main(): %s", err.Error()), "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
-			os.Exit(1)
-		}
-
-		// Repeat key with * so Alex would be ****
-		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key))))
-		fmt.Println("")
-
-		// Hash and encode key
-		hashedKey := sha256.Sum256(key)
-		curode.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...))
-
-		// Marshal node config into yaml
-		yamlData, err := yaml.Marshal(&curode.Config)
-		if err != nil {
-			curode.Printl(fmt.Sprintf("main(): %d Could not marshal system yaml configuration ", 114)+err.Error(), "FATAL")
-			os.Exit(1)
-		}
-
-		// Write to node config
-		nodeConfigFile.Write(yamlData)
 	} else {
-		// Read node config
-		nodeConfigFile, err := os.ReadFile("./.curodeconfig")
+		err = curode.RenewNodeConfig()
 		if err != nil {
-			curode.Printl(fmt.Sprintf("main(): %d Could not open/create configuration file ", 118)+err.Error(), "FATAL")
-			os.Exit(1)
+			os.Exit(1) // We already logged so just exit
 		}
-
-		// Unmarshal node config yaml
-		err = yaml.Unmarshal(nodeConfigFile, &curode.Config)
-		if err != nil {
-			curode.Printl(fmt.Sprintf("main(): %d Could not unmarshal system yaml configuration ", 113)+err.Error(), "FATAL")
-			os.Exit(1)
-		}
-
-		// If logging is configured we create a log mutex and open up the log file
-		if curode.Config.Logging {
-			curode.LogMu = &sync.Mutex{} // Cluster node log mutex
-			curode.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
-			if err != nil {
-				curode.Printl(fmt.Sprintf("main(): %d Could not open log file ", 110)+err.Error(), "FATAL")
-				os.Exit(1)
-			}
-		}
-
 	}
 
-	if _, err := os.Stat(fmt.Sprintf("%s", ".cdat")); errors.Is(err, os.ErrNotExist) { // Not exists we create it
-		curode.Printl(fmt.Sprintf("main(): %d No previous data to read.  Creating new .cdat file.", 109), "INFO")
-	} else {
-
-		datafile := "./.cdat"        // If .cdat is corrupted we will try again with a backup
-		var latestBackup fs.FileInfo // When we search BackupsDirectory we look for latest backup also we use this variable to check if we already attempted to use this backup
-		backupCount := 0             // Will populate then decrement when we read backups directory if the directory exists
-		backedUp := false            // If a backup occurred
-
-		goto readData
-
-	readData:
-
-		cdat, err := os.OpenFile(fmt.Sprintf(datafile), os.O_RDONLY, 0777)
-		if err != nil {
-			curode.Printl("main(): "+fmt.Sprintf("%d Could not open/create data file ", 119)+err.Error(), "FATAL")
-			os.Exit(1)
-		}
-
-		var in io.Reader
-
-		decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
-		if err != nil {
-			curode.Printl("main(): "+fmt.Sprintf("%d Could not decode configured shared key. ", 115)+err.Error(), "FATAL")
-			os.Exit(1)
-			return
-		}
-
-		in = flate.NewReader(cdat, decodedKey)
-
-		dec := gob.NewDecoder(in)
-
-		err = dec.Decode(&curode.Data.Map)
-		if err != nil {
-			goto corrupt // Data is no good.  Try to recover on backup
-		}
-
-		in.(io.Closer).Close()
-
-		goto ok
-
-	corrupt:
-		curode.Printl(fmt.Sprintf("main(): %d Data file corrupt! %s", 111, err.Error()), "WARNING")
-		os.Remove(fmt.Sprintf("%s.tmp", datafile))
-		// Data file is corrupt.. If node has backups configured grab last working state.
-
-		if curode.Config.AutomaticBackups {
-			curode.Printl(fmt.Sprintf("main(): %d Attempting automatic recovery with latest backup.", 215), "INFO")
-
-			// Read backups and remove any backups older than AutomaticBackupCleanupTime days old
-			backups, err := ioutil.ReadDir(fmt.Sprintf("%s", curode.Config.BackupsDirectory))
-			if err != nil {
-				curode.Printl(fmt.Sprintf("main(): %d Could not read node backups directory %s", 208, err.Error()), "FATAL")
-				os.Exit(1)
-			}
-
-			if backupCount == 0 {
-				backupCount = len(backups)
-			}
-
-			for _, backup := range backups {
-				backedUp = true
-				if latestBackup == nil {
-					latestBackup = backup
-				} else {
-					if backup.ModTime().Before(latestBackup.ModTime()) && latestBackup.Name() != backup.Name() {
-						latestBackup = backup
-					}
-				}
-			}
-
-			if backupCount != 0 {
-				backupCount -= 1
-				datafile = fmt.Sprintf("%s%s", curode.Config.BackupsDirectory, latestBackup.Name())
-				goto readData
-			} else {
-				curode.Printl(fmt.Sprintf("main(): %d Node was unrecoverable after all attempts.", 214), "FATAL")
-				os.Exit(1)
-			}
-
-		} else {
-			curode.Printl(fmt.Sprintf("main(): %d Node was unrecoverable after all attempts.", 214), "FATAL")
-			os.Exit(1)
-			return
-		}
-
-	ok:
-
-		if backedUp { // RECOVERED
-			curode.Printl(fmt.Sprintf("main(): %d Node recovery from backup was successful.", 211), "INFO")
-		}
-
-		cdat.Close()
-
-		// Setup collection mutexes
-		for c, _ := range curode.Data.Map {
-			curode.Data.Writers[c] = &sync.RWMutex{}
-		}
-
-		curode.Printl(fmt.Sprintf("main(): %d Collection mutexes created.", 112), "INFO")
-
+	err := curode.SetupInitializeCDat()
+	if err != nil {
+		os.Exit(1) // We already logged so just exit
 	}
 
 	// Parse flags
@@ -357,9 +196,6 @@ func main() {
 	curode.Wg.Add(1)
 	go curode.StartTCP_TLS() // Start listening tcp/tls with config
 
-	time.Sleep(time.Millisecond * 200)
-	curode.StartRunQueryQueue() // Run any queries that were left behind due to failure or crisis
-
 	curode.Wg.Add(1)
 	go curode.SyncOutQueryQueue() // Listen for system signals
 
@@ -369,6 +205,206 @@ func main() {
 
 	os.Exit(0) // exit
 
+}
+
+// RenewNodeConfig renews saved cluster node config i.e .curodeconfig
+func (curode *Curode) RenewNodeConfig() error {
+	// Read node config
+	nodeConfigFile, err := os.ReadFile("./.curodeconfig")
+	if err != nil {
+		errMsg := fmt.Sprintf("main(): %d Could not open/create configuration file ", 118) + err.Error()
+		curode.Printl(errMsg, "FATAL")
+		return errors.New(errMsg)
+	}
+
+	// Unmarshal node config yaml
+	err = yaml.Unmarshal(nodeConfigFile, &curode.Config)
+	if err != nil {
+		errMsg := fmt.Sprintf("main(): %d Could not unmarshal system yaml configuration ", 113) + err.Error()
+		curode.Printl(errMsg, "FATAL")
+		return errors.New(errMsg)
+	}
+
+	// If logging is configured we create a log mutex and open up the log file
+	if curode.Config.Logging {
+		curode.LogMu = &sync.Mutex{} // Cluster node log mutex
+		curode.LogFile, err = os.OpenFile("curode.log", os.O_CREATE|os.O_RDWR, 0777)
+		if err != nil {
+			errMsg := fmt.Sprintf("main(): %d Could not open log file ", 110) + err.Error()
+			curode.Printl(errMsg, "FATAL")
+			return errors.New(errMsg)
+		}
+	}
+
+	return nil
+
+}
+
+// SetupNodeConfig sets up default cluster node config i.e .curodeconfig
+func (curode *Curode) SetupNodeConfig() error {
+	// Create .curodeconfig
+	nodeConfigFile, err := os.OpenFile("./.curodeconfig", os.O_CREATE|os.O_RDWR, 0777)
+	if err != nil {
+		errMsg := fmt.Sprintf("SetupNodeConfig(): %d Could not open/create configuration file ", 118) + err.Error()
+		curode.Printl(errMsg, "FATAL")
+		return errors.New(errMsg)
+	}
+
+	// Defer close node config
+	defer nodeConfigFile.Close()
+
+	// SETTING DEFAULTS
+	///////////////////////////////////
+	curode.Config.Port = 7682                      // Set default CursusDB node port
+	curode.Config.MaxMemory = 10240                // Max memory 10GB default
+	curode.Config.Host = "0.0.0.0"                 // Set default host of 0.0.0.0
+	curode.Config.LogMaxLines = 1000               // truncate at 1000 lines as default
+	curode.Config.Timezone = "Local"               // Local is systems local time
+	curode.Config.ReplicationSyncTime = 10         // default of every 10 minutes
+	curode.Config.ReplicationSyncTimeout = 10      // If sync doesn't complete in 10 minutes by default timeout(could lead to corrupt data so increase accordingly)
+	curode.Config.AutomaticBackupCleanupHours = 12 // Set default of 12 hours in which to delete old backed up .cdat files
+	curode.Config.AutomaticBackupTime = 60         // Automatically backup node data to backups folder every 1 hour by default if AutomaticBackups is enabled
+	curode.Config.BackupsDirectory = "backups"     // Backups by default is in the execution directory
+
+	fmt.Println("Shared cluster and node key is required.  A shared cluster and node key will encrypt all your data at rest and only allow connections that contain a correct Key: header value matching the hashed key you provide.")
+	fmt.Print("key> ")
+	key, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		errMsg := fmt.Sprintf("SetupNodeConfig(): %s", err.Error())
+		curode.Printl(errMsg, "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
+		return errors.New(errMsg)
+	}
+
+	// Repeat key with * so Alex would be ****
+	fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key))))
+	fmt.Println("")
+
+	// Hash and encode key
+	hashedKey := sha256.Sum256(key)
+	curode.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...))
+
+	// Marshal node config into yaml
+	yamlData, err := yaml.Marshal(&curode.Config)
+	if err != nil {
+		errMsg := fmt.Sprintf("SetupNodeConfig(): %d Could not marshal system yaml configuration ", 114) + err.Error()
+		curode.Printl(errMsg, "FATAL")
+		return errors.New(errMsg)
+	}
+
+	// Write to node config
+	nodeConfigFile.Write(yamlData)
+
+	return nil
+}
+
+// SetupInitializeCDat reads .cdat file and will reinstate data back into memory.  On failure and backups are setup this method will also automatically recover if corrupt or try to.
+func (curode *Curode) SetupInitializeCDat() error {
+	if _, err := os.Stat(fmt.Sprintf("%s", ".cdat")); errors.Is(err, os.ErrNotExist) { // Not exists we create it
+		curode.Printl(fmt.Sprintf("SetupInitializeCDat(): %d No previous data to read.  Creating new .cdat file.", 109), "INFO")
+	} else {
+
+		datafile := "./.cdat"        // If .cdat is corrupted we will try again with a backup
+		var latestBackup fs.FileInfo // When we search BackupsDirectory we look for latest backup also we use this variable to check if we already attempted to use this backup
+		backupCount := 0             // Will populate then decrement when we read backups directory if the directory exists
+		backedUp := false            // If a backup occurred
+
+		goto readData
+
+	readData:
+
+		cdat, err := os.OpenFile(fmt.Sprintf(datafile), os.O_RDONLY, 0777)
+		if err != nil {
+			errMsg := "SetupInitializeCDat(): " + fmt.Sprintf("%d Could not open/create data file ", 119) + err.Error()
+			curode.Printl(errMsg, "FATAL")
+			return errors.New(errMsg)
+		}
+
+		var in io.Reader
+
+		decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)
+		if err != nil {
+			errMsg := "SetupInitializeCDat(): " + fmt.Sprintf("%d Could not decode configured shared key. ", 115) + err.Error()
+			curode.Printl(errMsg, "FATAL")
+			return errors.New(errMsg)
+		}
+
+		in = flate.NewReader(cdat, decodedKey)
+
+		dec := gob.NewDecoder(in)
+
+		err = dec.Decode(&curode.Data.Map)
+		if err != nil {
+			goto corrupt // Data is no good.  Try to recover on backup
+		}
+
+		in.(io.Closer).Close()
+
+		goto ok
+
+	corrupt:
+		curode.Printl(fmt.Sprintf("SetupInitializeCDat(): %d Data file corrupt! %s", 111, err.Error()), "WARNING")
+		os.Remove(fmt.Sprintf("%s.tmp", datafile))
+		// Data file is corrupt.. If node has backups configured grab last working state.
+
+		if curode.Config.AutomaticBackups {
+			curode.Printl(fmt.Sprintf("SetupInitializeCDat(): %d Attempting automatic recovery with latest backup.", 215), "INFO")
+
+			// Read backups and remove any backups older than AutomaticBackupCleanupTime days old
+			backups, err := ioutil.ReadDir(fmt.Sprintf("%s", curode.Config.BackupsDirectory))
+			if err != nil {
+				errMsg := fmt.Sprintf("SetupInitializeCDat(): %d Could not read node backups directory %s", 208, err.Error())
+				curode.Printl(errMsg, "FATAL")
+				return errors.New(errMsg)
+			}
+
+			if backupCount == 0 {
+				backupCount = len(backups)
+			}
+
+			for _, backup := range backups {
+				backedUp = true
+				if latestBackup == nil {
+					latestBackup = backup
+				} else {
+					if backup.ModTime().Before(latestBackup.ModTime()) && latestBackup.Name() != backup.Name() {
+						latestBackup = backup
+					}
+				}
+			}
+
+			if backupCount != 0 {
+				backupCount -= 1
+				datafile = fmt.Sprintf("%s%s", curode.Config.BackupsDirectory, latestBackup.Name())
+				goto readData
+			} else {
+				errMsg := fmt.Sprintf("SetupInitializeCDat(): %d Node was unrecoverable after all attempts.", 214)
+				curode.Printl(errMsg, "FATAL")
+				return errors.New(errMsg)
+			}
+
+		} else {
+			errMsg := fmt.Sprintf("SetupInitializeCDat(): %d Node was unrecoverable after all attempts.", 214)
+			curode.Printl(errMsg, "FATAL")
+			return errors.New(errMsg)
+		}
+
+	ok:
+
+		if backedUp { // RECOVERED
+			curode.Printl(fmt.Sprintf("SetupInitializeCDat(): %d Node recovery from backup was successful.", 211), "INFO")
+		}
+
+		cdat.Close()
+
+		// Setup collection mutexes
+		for c, _ := range curode.Data.Map {
+			curode.Data.Writers[c] = &sync.RWMutex{}
+		}
+
+		curode.Printl(fmt.Sprintf("SetupInitializeCDat(): %d Collection mutexes created.", 112), "INFO")
+	}
+
+	return nil
 }
 
 // SignalListener listens for system signals
@@ -609,7 +645,7 @@ func (curode *Curode) SyncOutQueryQueue() {
 
 		out.(io.Closer).Close()
 
-		time.Sleep(time.Millisecond * 2)
+		time.Sleep(time.Millisecond * 70)
 	}
 }
 
@@ -838,6 +874,11 @@ func (curode *Curode) StartTCP_TLS() {
 		curode.SignalChannel <- os.Interrupt
 		return
 	}
+
+	go func() {
+		time.Sleep(time.Millisecond * 20)
+		curode.StartRunQueryQueue() // Run any queries that were left behind due to failure or crisis
+	}()
 
 	for {
 		conn, err := curode.TCPListener.Accept()

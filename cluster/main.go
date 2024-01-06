@@ -121,13 +121,22 @@ type NodeReplica struct {
 
 // Global variables
 var (
-	cursus *Cursus // Global cluster pointer
+	cursus       *Cursus // Global cluster pointer
+	reservedKeys = []string{`"count":`, `"$id":`, `"$indx":`, `"in":`, `"not like":`, `"!like":`,
+		`"where":`, `"*":`, `"chan":`, `"const":`, `"continue":`, `"defer":`,
+		`"else":`, `"fallthrough":`, `"func":`, `"go":`, `"goto":`, `"if":`,
+		`"interface":`, `"map":`, `"select":`, `"struct":`, `"switch":`,
+		`"var":`, `"false":`, `"true":`, `"uint8":`, `"uint16":`, `"uint32":`,
+		`"uint64":`, `"int8":`, `"int16":`, `"int32":`, `"int64":`, `"float32":`,
+		`"float64":`, `"complex64":`, `"complex128":`, `"byte":`, `"rune":`,
+		`"uint":`, `"int":`, `"uintptr":`, `"string":`}
+	reservedSymbols = []string{`"==":`, `"&&":`, `"||":`, `">":`, `"<":`, `"=>":`, `"=<":`, `"=":`}
 )
 
 // main cluster starts here
 func main() {
 	cursus = &Cursus{}                                                              // Set cluster variable
-	cursus.Wg = &sync.WaitGroup{}                                                   // create waitgroup
+	cursus.Wg = &sync.WaitGroup{}                                                   // create wait group
 	cursus.SignalChannel = make(chan os.Signal, 1)                                  // make signal channel
 	cursus.Context, cursus.ContextCancel = context.WithCancel(context.Background()) // Create context for shutdown
 	cursus.ConfigMu = &sync.RWMutex{}                                               // Cluster config mutex
@@ -136,97 +145,16 @@ func main() {
 	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
 		// .cursusconfig does not exist..
 
-		// SETTING DEFAULTS
-		///////////////////////////////////
-		cursus.Config.Port = 7681              // Default CursusDB cluster port
-		cursus.Config.NodeReaderSize = 2097152 // Default node reader size of 2097152 bytes (2MB).. Pretty large json response
-		cursus.Config.Host = "0.0.0.0"         // Default host of 0.0.0.0
-		cursus.Config.LogMaxLines = 1000       // Default of 1000 lines then truncate/clear
-		cursus.Config.Timezone = "Local"       // Default is system local time
-		cursus.Config.NodeReadDeadline = 2     // Default of 2 seconds waiting for a node to respond
-
-		// Get initial database user credentials
-		fmt.Println("Before starting your CursusDB cluster you must first create an initial database user and shared cluster and node key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell) or native client.  The shared key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your clusters.")
-		fmt.Print("username> ")
-		username, err := term.ReadPassword(int(os.Stdin.Fd()))
+		err = cursus.SetupClusterConfig() // Setup cluster config
 		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
-			os.Exit(1)
+			os.Exit(1) // We already logged so just exit
 		}
-
-		// Relay entry with asterisks
-		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(username)))) // Relay input with *
-		fmt.Println("")
-		fmt.Print("password> ")
-		password, err := term.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
-			os.Exit(1)
-		}
-
-		// Relay entry with asterisks
-		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(password)))) // Relay input with *
-		fmt.Println("")
-		fmt.Print("key> ")
-		key, err := term.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %s", err.Error()), "FATAL")
-			os.Exit(1)
-		}
-
-		// Relay entry with asterisks
-		fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key)))) // Relay input with *
-		fmt.Println("")
-
-		// Hash provided shared key
-		hashedKey := sha256.Sum256(key)
-		cursus.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...)) // Encode hashed key
-
-		cursus.NewUser(string(username), string(password), "RW") // Create new user with RW permissions
-
-		fmt.Println("")
-
-		clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777) // Create .cursusconfig yaml file
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %d Could not open/create configuration file %s", 118, err.Error()), "FATAL")
-			os.Exit(1)
-		}
-
-		// Marshal config to yaml
-		yamlData, err := yaml.Marshal(&cursus.Config)
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %d Could not marshal system yaml configuration %s", 114, err.Error()), "FATAL")
-			os.Exit(1)
-		}
-
-		clusterConfigFile.Write(yamlData) // Write to yaml config
-
-		clusterConfigFile.Close() // close up cluster config
 	} else { // .cursusconfig exists
 
-		// Read .cursus config
-		clusterConfigFile, err := os.ReadFile("./.cursusconfig")
+		err = cursus.RenewClusterConfig()
 		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %d Could not open/create configuration file %s", 118, err.Error()), "FATAL")
-			os.Exit(1)
+			os.Exit(1) // We already logged so just exit
 		}
-
-		// Unmarshal config into cluster.config
-		err = yaml.Unmarshal(clusterConfigFile, &cursus.Config)
-		if err != nil {
-			cursus.Printl(fmt.Sprintf("main(): %d Could not unmarshal system yaml configuration ", 113)+err.Error(), "FATAL")
-			os.Exit(1)
-		}
-
-		if cursus.Config.Logging {
-			cursus.LogMu = &sync.Mutex{} // Cluster log mutex
-			cursus.LogFile, err = os.OpenFile("cursus.log", os.O_CREATE|os.O_RDWR, 0777)
-			if err != nil {
-				cursus.Printl(fmt.Sprintf("main(): %d Could not open log file ", 110)+err.Error(), "FATAL")
-				os.Exit(1)
-			}
-		}
-
 	}
 
 	// If cluster configured cluster nodes is equal to 0 inform user to add at least one node
@@ -235,6 +163,7 @@ func main() {
 		os.Exit(0)
 	}
 
+	// We are ok to continue on and start the cluster
 	signal.Notify(cursus.SignalChannel, syscall.SIGINT, syscall.SIGTERM) // Setup cluster signal channel
 
 	// If port provided as flag use it instead of whats on config file
@@ -255,6 +184,112 @@ func main() {
 	cursus.Wg.Wait() // Wait for all go routines to finish up
 
 	os.Exit(0) // exit
+}
+
+// RenewClusterConfig renews saved cluster config i.e .cursusconfig
+func (cursus *Cursus) RenewClusterConfig() error {
+	// Read .cursus config
+	clusterConfigFile, err := os.ReadFile("./.cursusconfig")
+	if err != nil {
+		errMsg := fmt.Sprintf("main(): %d Could not open/create configuration file %s", 118, err.Error())
+		cursus.Printl(errMsg, "FATAL")
+		return errors.New(errMsg)
+	}
+
+	// Unmarshal config into cluster.config
+	err = yaml.Unmarshal(clusterConfigFile, &cursus.Config)
+	if err != nil {
+		errMsg := fmt.Sprintf("main(): %d Could not unmarshal system yaml configuration ", 113) + err.Error()
+		cursus.Printl(errMsg, "FATAL")
+		return errors.New(errMsg)
+	}
+
+	if cursus.Config.Logging {
+		cursus.LogMu = &sync.Mutex{} // Cluster log mutex
+		cursus.LogFile, err = os.OpenFile("cursus.log", os.O_CREATE|os.O_RDWR, 0777)
+		if err != nil {
+			errMsg := fmt.Sprintf("main(): %d Could not open log file ", 110) + err.Error()
+			cursus.Printl(errMsg, "FATAL")
+			return errors.New(errMsg)
+		}
+	}
+
+	return nil
+}
+
+// SetupClusterConfig sets up default cluster config i.e .cursusconfig
+func (cursus *Cursus) SetupClusterConfig() error {
+	cursus.Config.Port = 7681              // Default CursusDB cluster port
+	cursus.Config.NodeReaderSize = 2097152 // Default node reader size of 2097152 bytes (2MB).. Pretty large json response
+	cursus.Config.Host = "0.0.0.0"         // Default host of 0.0.0.0
+	cursus.Config.LogMaxLines = 1000       // Default of 1000 lines then truncate/clear
+	cursus.Config.Timezone = "Local"       // Default is system local time
+	cursus.Config.NodeReadDeadline = 2     // Default of 2 seconds waiting for a node to respond
+
+	// Get initial database user credentials
+	fmt.Println("Before starting your CursusDB cluster you must first create an initial database user and shared cluster and node key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell) or native client.  The shared key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your clusters.")
+	fmt.Print("username> ")
+	username, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())
+		cursus.Printl(errMsg, "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
+		return errors.New(errMsg)
+	}
+
+	// Relay entry with asterisks
+	fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(username)))) // Relay input with *
+	fmt.Println("")
+	fmt.Print("password> ")
+	password, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())
+		cursus.Printl(errMsg, "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
+		return errors.New(errMsg)
+	}
+
+	// Relay entry with asterisks
+	fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(password)))) // Relay input with *
+	fmt.Println("")
+	fmt.Print("key> ")
+	key, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())
+		cursus.Printl(errMsg, "FATAL")
+		return errors.New(errMsg)
+	}
+
+	// Relay entry with asterisks
+	fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(key)))) // Relay input with *
+	fmt.Println("")
+
+	// Hash provided shared key
+	hashedKey := sha256.Sum256(key)
+	cursus.Config.Key = base64.StdEncoding.EncodeToString(append([]byte{}, hashedKey[:]...)) // Encode hashed key
+
+	cursus.NewUser(string(username), string(password), "RW") // Create new user with RW permissions
+
+	fmt.Println("")
+
+	clusterConfigFile, err := os.OpenFile("./.cursusconfig", os.O_CREATE|os.O_RDWR, 0777) // Create .cursusconfig yaml file
+	if err != nil {
+		errMsg := fmt.Sprintf("SetupClusterConfig(): %d Could not open/create configuration file %s", 118, err.Error())
+		cursus.Printl(errMsg, "FATAL")
+		return errors.New(errMsg)
+	}
+
+	// Marshal config to yaml
+	yamlData, err := yaml.Marshal(&cursus.Config)
+	if err != nil {
+		errMsg := fmt.Sprintf("SetupClusterConfig(): %d Could not marshal system yaml configuration %s", 114, err.Error())
+		cursus.Printl(errMsg, "FATAL")
+		return errors.New(errMsg)
+	}
+
+	clusterConfigFile.Write(yamlData) // Write to yaml config
+
+	clusterConfigFile.Close() // close up cluster config
+
+	return nil
 }
 
 // SaveConfig save cluster config such as created users and so forth on shutdown (Don't make changes to .cursusconfig when running as on shutdown changes will get overwritten)
@@ -1303,265 +1338,31 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				}
 
 				// Check reserved words based on https://go.dev/ref/spec and CursusDB system reserved words
-				// What has been commented out has been tested inserting and reading like so
-				// insert into test({"case": "test"});
-				// select * from test where case = 'test';
-				switch {
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"count":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"$id":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"$indx":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"in":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"like":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"not like":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"!like":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"where":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"from":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"*":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"break":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"case":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"chan":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"const":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"continue":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"default":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"defer":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"else":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"fallthrough":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"for":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"func":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"go":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"goto":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"if":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"import":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"interface":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"map":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"package":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"range":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"return":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"select":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"struct":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"switch":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"type":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"var":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"false":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"true":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint8":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint16":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint32":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint64":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int8":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int16":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int32":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int64":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"float32":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"float64":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"complex64":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"complex128":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"byte":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"rune":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uint":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"int":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"uintptr":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"string":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-					query = ""
-					continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"make":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				//case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"new":`):
-				//	text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
-				//	query = ""
-				//	continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"==":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"&&":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"||":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `">":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"<":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
-					query = ""
-					continue
-				case strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), `"=":`):
-					text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
-					query = ""
-					continue
-				default:
-					goto keyOk // insert key is ok
+
+				// Check reserved keys within json keys
+				for _, rk := range reservedKeys {
+					if strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), rk) {
+						text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved word.", 4030))
+						query = ""
+						goto breakOutAfterBadKey
+					}
 				}
+
+				// Check reserved for reserved symbol within json keys
+				for _, rs := range reservedSymbols {
+					if strings.Contains(strings.ReplaceAll(insertJson[1], "!\":", "\":"), rs) {
+						text.PrintfLine(fmt.Sprintf("%d Key cannot use reserved symbol.", 4031))
+						query = ""
+						goto breakOutAfterBadKey
+					}
+				}
+
+				goto keyOk
+
+			breakOutAfterBadKey:
+				continue
+
+				goto keyOk // insert key is ok
 
 			keyOk:
 
