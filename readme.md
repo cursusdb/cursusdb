@@ -6,7 +6,7 @@
 </div>
 
 ## Cursus Database System
-CursusDB is a fast open source in-memory document oriented database offering security, persistence, distribution, availability and an SQL like query language.
+CursusDB is a fast open source in-memory document oriented database offering security, persistence, distribution, availability and an SQL like query language(CDQL).
 
 ## Table of contents
 <ul>
@@ -73,24 +73,23 @@ CursusDB is a fast open source in-memory document oriented database offering sec
 📙📙 https://cursusdb.com/documentation
 
 
->  The idea behind CursusDB was to create something unlimitedly scalable whilst never really slowing down. Say you have 1 billion documents stored within 1 collection spread across 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million as the cluster initiates a non insert action on all nodes simultaneously. This is the power of parallel search. The Cursus system is searching say in the users collection in multiple sections of the collection simultaneously.  A cluster can query thousands of nodes at the same time.  Think of main nodes as shards of many or one collection.  Each collection locks on insert, update and delete but because of CursusDB's distributed design it's like a concurrent switch board that allows for large amounts of concurrent transactions.  A cluster or many clusters take actions, these actions are relayed as requests to 1 or many nodes simultaneously.  Consistency and reliability was one of the main goals when designing CursusDB.  If you have many cluster's setup through a TCP load balancer you can imagine transactions just don't miss if the system is configured correctly.  One more bit! Say you have multiple updates to one document the node will work in order of operation received.  The database system is well-designed, heavily tested and very stable;  It was designed and developed for my own need's with other projects/companies I have going on; Over the period of design and development it's very much turned into something special. With that I hope you all enjoy CursusDB! 
+>  The idea behind CursusDB was to create something exceedingly scalable whilst never really slowing down. Say you have 1 billion documents stored within 1 collection spread across 100 nodes the cluster will query 1 billion documents in the time it takes to query 10 million as the cluster initiates a non insert action on all nodes simultaneously. This is the power of parallel search. The Cursus(cluster) system is searching say in the users collection in multiple sections of the collection simultaneously.  A cluster can query thousands of nodes at the same time.  Think of main nodes as shards of many or one collection.  Each collection locks on insert, update and delete but because of CursusDB's distributed design it's like a concurrent switch board that allows for large amounts of concurrent transactions.  A cluster or many clusters take actions, these actions are relayed as requests to 1 or many nodes simultaneously.  Consistency and reliability was one of the main goals when designing CursusDB.  If you have many cluster's setup through a TCP load balancer you can imagine transactions just don't miss if the system is configured correctly.  One more bit! Say you have multiple updates to one document the node will work in order of operation received.  The database system is well-designed, heavily tested and very stable;  It was designed and developed for my own need's with other projects/companies I have going on; Over the period of design and development it's very much turned into something special. With that I hope you all enjoy CursusDB! 
 
 ~ Alex Gaetano Padula
 
 <h6 id="features" />
 
 ### Features
-- Secured cluster and node(s) communication with shared key and OR TLS
-- If configured secured node sync replication with TLS using ``tls-replication`` config within ``.curodeconfig``
+- Secured cluster and node(s) communication with shared key and BASIC AUTH type implementation and OR TLS
+- If configured secured node replication sync with TLS using ``tls-replication`` config within ``.curodeconfig``
 - In-memory data during runtime
-- Parallel search. Searching section of collections within multiple nodes simultaneously at the same time.
+- Parallel search. Searching section of collections within multiple nodes or replicas simultaneously at the same time.
 - Auto generated $id key for all documents unique across all nodes
 - Database Users with basic (R, RW) permissions
-- Cluster and node authentication
 - Cluster node data replication and synchronization specifically for reads
 - JSON object insert
 - Unstructured collections
-- Cluster and client authentication
+- Cluster and client authentication using BASIC AUTH type implementation
 - Node(s) (insert, update, delete) relay to observers in real time
 - Node observer automatic reconnect if connection lost
 - SQL like query language (CDQL - Cursus Document Query Language)
@@ -127,7 +126,7 @@ CursusDB is a fast open source in-memory document oriented database offering sec
 
 ![drawing232.png](images/drawing232.png)
 
-A node keeps track of queries/txns and if something bad happens can re-trigger what hasn't been processed.  A node syncs to a .qqueue file every 2 milliseconds this is fixed and cannot be changed.
+A node keeps track of queries/txns and if something bad happens can re-trigger what hasn't been processed.  A node syncs to a .qqueue file every 70 milliseconds this is fixed and cannot be changed.
 `.qqueue` files are encrypted.
 
 
@@ -163,7 +162,7 @@ https://cursusdb.com/downloads
 <h6 id="cluster-node-setup" />
 
 ## Cluster & Node Building & Initial Setup
-Getting started with CursusDB is extremely easy!  First you  must build a cluster and node binary.  To do that clone the source and follow below:
+Getting started with CursusDB is extremely easy!  First you must build a cluster and node binary.  To do that clone the source and follow below:
 
 You must make sure you have GO installed minimum version 1.21.3, once installed follow below.
 ``` 
