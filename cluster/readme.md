@@ -38,7 +38,7 @@ Check the status
 sudo systemctl status cursus.service
 ```
 
-Make sure you enable so your node starts on boot
+Make sure you enable so your cluster starts on boot
 ```
 sudo systemctl enable cursus.service
 ```
