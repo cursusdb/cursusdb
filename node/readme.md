@@ -1,6 +1,46 @@
 ## Curode - CursusDB Cluster Node
 #### Default port is 7682
 
+## systemd
+What is usually done is binaries are pulled from website using wget onto a servers `/opt/cursusdb` directory so if you want to use the service as a default follow that structure.
+
+Once you do that you can simply save a ``curode.service ``under your `/etc/systemd/system` directory: 
+``` 
+[Unit]
+Description=CursusDB Cluster Node Service
+
+[Service]
+WorkingDirectory=/opt/cursusdb
+ExecStart=/opt/cursusdb/curode
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+
+```
+
+
+Then run 
+``` 
+sudo systemctl daemon-reload
+```
+
+``` 
+sudo systemctl start curode.service
+```
+
+Check the status
+```
+sudo systemctl status curode.service
+```
+
+Make sure you enable so your node starts on boot
+```
+sudo systemctl enable curode.service
+```
+
 ## Building
 
 ### Darwin / MacOS

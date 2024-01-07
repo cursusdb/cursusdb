@@ -3,6 +3,48 @@ The CursusDB cluster.
 
 #### Default port is 7681
 
+## systemd
+What is usually done is binaries are pulled from website using wget onto a servers `/opt/cursusdb` directory so if you want to use the service as a default follow that structure.
+
+Once you do that you can simply save a ``cursus.service`` under your `/etc/systemd/system` directory:
+``` 
+[Unit]
+Description=CursusDB Cluster Service
+
+[Service]
+WorkingDirectory=/opt/cursusdb
+ExecStart=/opt/cursusdb/cursus
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+
+```
+
+
+Then run
+``` 
+sudo systemctl daemon-reload
+```
+
+``` 
+sudo systemctl start cursus.service
+```
+
+Check the status
+```
+sudo systemctl status cursus.service
+```
+
+Make sure you enable so your node starts on boot
+```
+sudo systemctl enable cursus.service
+```
+
+## Running
+
 To run a cluster 
 ``` 
 ./cursus
