@@ -233,7 +233,7 @@ func (cursus *Cursus) SetupClusterConfig() error {
 	fmt.Println("Before starting your CursusDB cluster you must first create an initial database user and shared cluster and node key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell) or native client.  The shared key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your clusters.")
 	fmt.Print("username> ")
 	var username []byte
-	if terminal.IsTerminal(syscall.Stdin) {
+	if terminal.IsTerminal(int(syscall.Stdin)) {
 		username, err = term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())
