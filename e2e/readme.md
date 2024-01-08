@@ -12,4 +12,4 @@ Make sure you have GO, Node.JS and BASH
 go run .
 ```
 
-![e2e-test2.png](../images/e2e-test2.png)
+![e2e-test.gif](../images/e2e-test.gif)
