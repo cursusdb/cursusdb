@@ -32,6 +32,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -41,6 +42,7 @@ import (
 	"net/textproto"
 	"os"
 	"os/signal"
+	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -219,6 +221,7 @@ func (cursus *Cursus) RenewClusterConfig() error {
 
 // SetupClusterConfig sets up default cluster config i.e .cursusconfig
 func (cursus *Cursus) SetupClusterConfig() error {
+	var err error
 	cursus.Config.Port = 7681              // Default CursusDB cluster port
 	cursus.Config.NodeReaderSize = 2097152 // Default node reader size of 2097152 bytes (2MB).. Pretty large json response
 	cursus.Config.Host = "0.0.0.0"         // Default host of 0.0.0.0
@@ -229,33 +232,54 @@ func (cursus *Cursus) SetupClusterConfig() error {
 	// Get initial database user credentials
 	fmt.Println("Before starting your CursusDB cluster you must first create an initial database user and shared cluster and node key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell) or native client.  The shared key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your clusters.")
 	fmt.Print("username> ")
-	username, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())
-		cursus.Printl(errMsg, "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
-		return errors.New(errMsg)
+	var username []byte
+	if terminal.IsTerminal(syscall.Stdin) {
+		username, err = term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())
+			cursus.Printl(errMsg, "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
+			return errors.New(errMsg)
+		}
+	} else {
+		reader := bufio.NewReader(os.Stdin)
+		username, _, _ = reader.ReadLine()
 	}
 
 	// Relay entry with asterisks
 	fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(username)))) // Relay input with *
 	fmt.Println("")
 	fmt.Print("password> ")
-	password, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())
-		cursus.Printl(errMsg, "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
-		return errors.New(errMsg)
+
+	var password []byte
+
+	if terminal.IsTerminal(syscall.Stdin) {
+		password, err = term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())
+			cursus.Printl(errMsg, "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
+			return errors.New(errMsg)
+		}
+	} else {
+		reader := bufio.NewReader(os.Stdin)
+		password, _, _ = reader.ReadLine()
 	}
 
 	// Relay entry with asterisks
 	fmt.Print(strings.Repeat("*", utf8.RuneCountInString(string(password)))) // Relay input with *
 	fmt.Println("")
 	fmt.Print("key> ")
-	key, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())
-		cursus.Printl(errMsg, "FATAL")
-		return errors.New(errMsg)
+
+	var key []byte
+	if terminal.IsTerminal(syscall.Stdin) {
+		key, err = term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())
+			cursus.Printl(errMsg, "FATAL")
+			return errors.New(errMsg)
+		}
+	} else {
+		reader := bufio.NewReader(os.Stdin)
+		key, _, _ = reader.ReadLine()
 	}
 
 	// Relay entry with asterisks
@@ -1014,6 +1038,45 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 						docs = docs[:len(docs)-1]
 					}
 
+					if body["sort-key"] != "" && body["sort-pos"] != "" {
+
+						for _, d := range docs {
+
+							doc, ok := d.(map[string]interface{})[body["sort-key"].(string)]
+							if ok {
+								if reflect.TypeOf(doc).Kind().String() == "string" {
+									// alphabetical sorting based on string[0] value A,B,C asc C,B,A desc
+									sort.Slice(docs[:], func(z, x int) bool {
+										if body["sort-pos"].(string) == "asc" {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(string) < docs[x].(map[string]interface{})[body["sort-key"].(string)].(string)
+										} else {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(string) > docs[x].(map[string]interface{})[body["sort-key"].(string)].(string)
+										}
+									})
+								} else if reflect.TypeOf(d.(map[string]interface{})[body["sort-key"].(string)]).Kind().String() == "float64" {
+									// numerical sorting based on float64[0] value 1.1,1.0,0.9 desc 0.9,1.0,1.1 asc
+									sort.Slice(docs[:], func(z, x int) bool {
+										if body["sort-pos"].(string) == "asc" {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(float64) < docs[x].(map[string]interface{})[body["sort-key"].(string)].(float64)
+										} else {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(float64) > docs[x].(map[string]interface{})[body["sort-key"].(string)].(float64)
+										}
+									})
+								} else if reflect.TypeOf(d.(map[string]interface{})[body["sort-key"].(string)]).Kind().String() == "int" {
+									// numerical sorting based on int[0] value 22,12,3 desc 3,12,22 asc
+									sort.Slice(docs[:], func(z, x int) bool {
+										if body["sort-pos"].(string) == "asc" {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(int) < docs[x].(map[string]interface{})[body["sort-key"].(string)].(int)
+										} else {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(int) > docs[x].(map[string]interface{})[body["sort-key"].(string)].(int)
+										}
+									})
+								}
+
+							}
+
+						}
+					}
 					docsJson, err := json.Marshal(docs)
 					if err != nil {
 						return errors.New(fmt.Sprintf("%d Could not marshal JSON.", 4012))
@@ -1021,7 +1084,45 @@ func (cursus *Cursus) QueryNodes(connection *Connection, body map[string]interfa
 
 					connection.Text.PrintfLine(string(docsJson))
 				} else {
+					if body["sort-key"] != "" && body["sort-pos"] != "" {
 
+						for _, d := range docs {
+
+							doc, ok := d.(map[string]interface{})[body["sort-key"].(string)]
+							if ok {
+								if reflect.TypeOf(doc).Kind().String() == "string" {
+									// alphabetical sorting based on string[0] value A,B,C asc C,B,A desc
+									sort.Slice(docs[:], func(z, x int) bool {
+										if body["sort-pos"].(string) == "asc" {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(string) < docs[x].(map[string]interface{})[body["sort-key"].(string)].(string)
+										} else {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(string) > docs[x].(map[string]interface{})[body["sort-key"].(string)].(string)
+										}
+									})
+								} else if reflect.TypeOf(d.(map[string]interface{})[body["sort-key"].(string)]).Kind().String() == "float64" {
+									// numerical sorting based on float64[0] value 1.1,1.0,0.9 desc 0.9,1.0,1.1 asc
+									sort.Slice(docs[:], func(z, x int) bool {
+										if body["sort-pos"].(string) == "asc" {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(float64) < docs[x].(map[string]interface{})[body["sort-key"].(string)].(float64)
+										} else {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(float64) > docs[x].(map[string]interface{})[body["sort-key"].(string)].(float64)
+										}
+									})
+								} else if reflect.TypeOf(d.(map[string]interface{})[body["sort-key"].(string)]).Kind().String() == "int" {
+									// numerical sorting based on int[0] value 22,12,3 desc 3,12,22 asc
+									sort.Slice(docs[:], func(z, x int) bool {
+										if body["sort-pos"].(string) == "asc" {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(int) < docs[x].(map[string]interface{})[body["sort-key"].(string)].(int)
+										} else {
+											return docs[z].(map[string]interface{})[body["sort-key"].(string)].(int) > docs[x].(map[string]interface{})[body["sort-key"].(string)].(int)
+										}
+									})
+								}
+
+							}
+
+						}
+					}
 					docsJson, err := json.Marshal(docs)
 					if err != nil {
 						return errors.New(fmt.Sprintf("%d Could not marshal JSON.", 4012))

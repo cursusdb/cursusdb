@@ -930,6 +930,7 @@ func TestCursus_SetupClusterConfig(t *testing.T) {
 		fields  fields
 		wantErr bool
 	}{
+		{wantErr: false},
 		// optional tests here if you please
 	}
 	for _, tt := range tests {
@@ -1017,6 +1018,7 @@ func TestCursus_StartTCP_TLS(t *testing.T) {
 		fields fields
 	}{
 		// optional tests here if you please
+
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1063,6 +1065,8 @@ func TestCursus_ValidatePermission(t *testing.T) {
 		args   args
 		want   bool
 	}{
+		{want: true, args: args{perm: "R"}},
+		{want: true, args: args{perm: "RW"}},
 		// optional tests here if you please
 	}
 	for _, tt := range tests {

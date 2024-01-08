@@ -33,6 +33,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -268,11 +269,18 @@ func (curode *Curode) SetupNodeConfig() error {
 
 	fmt.Println("Shared cluster and node key is required.  A shared cluster and node key will encrypt all your data at rest and only allow connections that contain a correct Key: header value matching the hashed key you provide.")
 	fmt.Print("key> ")
-	key, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		errMsg := fmt.Sprintf("SetupNodeConfig(): %s", err.Error())
-		curode.Printl(errMsg, "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
-		return errors.New(errMsg)
+	var key []byte
+
+	if terminal.IsTerminal(syscall.Stdin) {
+		key, err = term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			errMsg := fmt.Sprintf("SetupNodeConfig(): %s", err.Error())
+			curode.Printl(errMsg, "FATAL") // No need to report status code this should be pretty apparent to troubleshoot for a user and a developer
+			return errors.New(errMsg)
+		}
+	} else {
+		reader := bufio.NewReader(os.Stdin)
+		key, _, _ = reader.ReadLine()
 	}
 
 	// Repeat key with * so Alex would be ****

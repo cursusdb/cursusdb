@@ -1,0 +1,15 @@
+{
+  "name": "e2e-observer",
+  "version": "1.0.0",
+  "description": "This is a node.js application that is used for our end to end system test.  The test's main nodes are configured for this observer and on start up of the Integration test this server will be started to test node to observer connection functionalities.",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "cursusdb-observer-node": "^1.0.4"
+  }
+}

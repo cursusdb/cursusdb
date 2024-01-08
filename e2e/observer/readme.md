@@ -1,0 +1,2 @@
+## Observer For Integration Test
+This is a node.js application that is used for our end to end system test.  The test's main nodes are configured for this observer and on start up of the Integration test this server will be started to test node to observer connection functionalities.

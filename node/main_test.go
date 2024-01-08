@@ -210,6 +210,7 @@ func TestCurode_CountLog(t *testing.T) {
 		want   int
 	}{
 		// optional tests here if you please
+		{want: 0}, // just not 99999999
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
