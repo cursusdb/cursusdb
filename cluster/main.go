@@ -252,7 +252,7 @@ func (cursus *Cursus) SetupClusterConfig() error {
 
 	var password []byte
 
-	if terminal.IsTerminal(syscall.Stdin) {
+	if terminal.IsTerminal(int(syscall.Stdin)) {
 		password, err = term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())
@@ -270,7 +270,7 @@ func (cursus *Cursus) SetupClusterConfig() error {
 	fmt.Print("key> ")
 
 	var key []byte
-	if terminal.IsTerminal(syscall.Stdin) {
+	if terminal.IsTerminal(int(syscall.Stdin)) {
 		key, err = term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			errMsg := fmt.Sprintf("SetupClusterConfig(): %s", err.Error())

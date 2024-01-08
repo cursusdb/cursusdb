@@ -271,7 +271,7 @@ func (curode *Curode) SetupNodeConfig() error {
 	fmt.Print("key> ")
 	var key []byte
 
-	if terminal.IsTerminal(syscall.Stdin) {
+	if terminal.IsTerminal(int(syscall.Stdin)) {
 		key, err = term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			errMsg := fmt.Sprintf("SetupNodeConfig(): %s", err.Error())

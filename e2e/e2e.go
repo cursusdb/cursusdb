@@ -1,6 +1,9 @@
 /*
 * CursusDB
 * Integration/E2E Test for CursusDB
+* Originally authored by Alex Gaetano Padula
+* Copyright (C) CursusDB
+*
 * Goes through every functionality on CursusDB and could take a few minutes to complete!
 ** IF YOU HAVE ANYTHING SETUP ON YOUR NODE DIRECTORY PLEASE MOVE THEM AS THIS INTEGRATION TEST WILL DELETE ALL CONFIGS AND GENERATED FILES **
 * ******************************************************************
@@ -39,6 +42,7 @@ import (
 	"time"
 )
 
+// copy copies from source to destination
 func copy(source, destination string) error {
 	var err error = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
 		var relPath string = strings.Replace(path, source, "", 1)
@@ -62,9 +66,10 @@ func copy(source, destination string) error {
 	return err
 }
 
+// main test starts here
 func main() {
 
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.SetFlags(log.LstdFlags | log.Lshortfile) // log file etc..
 
 	// Clear up node/ and cluster/ directories
 
@@ -101,6 +106,8 @@ func main() {
 	}
 
 	// build cluster and node
+
+	// build cluster
 	cmd := exec.Command("go", "build") // or whatever the program is
 	cmd.Dir = "../cluster"             // or whatever directory it's in
 	out, err := cmd.Output()
@@ -110,8 +117,9 @@ func main() {
 		fmt.Printf("%s", out)
 	}
 
-	cmd = exec.Command("go", "build") // or whatever the program is
-	cmd.Dir = "../node"               // or whatever directory it's in
+	// build node
+	cmd = exec.Command("go", "build")
+	cmd.Dir = "../node"
 	out, err = cmd.Output()
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
@@ -119,6 +127,7 @@ func main() {
 		fmt.Printf("%s", out)
 	}
 
+	// Remove any current test directories
 	err = os.RemoveAll("./cluster")
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
@@ -143,58 +152,69 @@ func main() {
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
+	// remove prior if any
 
+	// make test cluster directory
 	err = os.MkdirAll("cluster", os.ModePerm)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
+
+	// make node 1 directory
 	err = os.MkdirAll("node1", os.ModePerm)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
+
+	// make node 2 directory
 	err = os.MkdirAll("node2", os.ModePerm)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
+
+	// make node 1 replica directory
 	err = os.MkdirAll("node1replica", os.ModePerm)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
+
+	// make node 2 replica directory
 	err = os.MkdirAll("node2replica", os.ModePerm)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
+	// copy built cluster to test cluster directory
 	err = copy("../cluster", "./cluster")
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
+	// copy built node to node1 directory
 	err = copy("../node", "./node1")
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
-	err = copy("../node", "./node1")
-	if err != nil {
-		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
-	}
-
+	// copy built node to node2 directory
 	err = copy("../node", "./node2")
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
+	// copy built node to node1 replica directory
 	err = copy("../node", "./node1replica")
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
+	// copy built node to node2 replica directory
 	err = copy("../node", "./node2replica")
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
+	// Run cluster and node setup setting shared key as testkey and initial user as test and password as password
 	cmd = exec.Command("/bin/sh", "cluster-nodes-setup.sh") // or whatever the program is
 
 	var outBuff bytes.Buffer
@@ -215,18 +235,19 @@ func main() {
 
 	// I know we could have split the structs into a package and imported them, I may do that later.
 
-	// Replica is a cluster node that current node data will be replicated/synced to
+	// Replica is a test cluster node that current node data will be replicated/synced to
 	type Replica struct {
 		Host string `yaml:"host"` // Host of replica i.e an ip or fqdn
 		Port int    `yaml:"port"` // Port of replica
 	}
 
-	// Observer is a CursusDB Observer which listens for realtime node events.
+	// Observer is a test CursusDB Observer which listens for realtime node events.
 	type Observer struct {
 		Host string `yaml:"host"` // Host of Observer i.e an ip or fqdn
 		Port int    `yaml:"port"` // Port of Observer
 	}
 
+	// NodeConfig is test node config
 	type NodeConfig struct {
 		Replicas                    []Replica  `yaml:"replicas"`                                 // Replicas are replica of this current node
 		TLSCert                     string     `yaml:"tls-cert"`                                 // TLS cert path
@@ -251,19 +272,20 @@ func main() {
 		BackupsDirectory            string     `yaml:"backups-directory"`                        // Backups directory by default is in the execution directory /backups/ Whatever is provided the system will create the director(ies) if they doesn't exist.
 	}
 
-	// NodeReplica is a replica of original node.  Used in-case active node is not available
+	// NodeReplica is a test replica of master node.  Used in-case active node is not available
 	type NodeReplica struct {
 		Host string `yaml:"host"` // Cluster node replica host i.e 0.0.0.0 or cluster0.example.com
 		Port int    `yaml:"port"` // Default cluster node port of 7682 but can be configured
 	}
 
-	// Node is a cluster node
+	// Node is a test cluster node
 	type Node struct {
 		Host     string        `yaml:"host"` // Cluster node host i.e 0.0.0.0 or cluster0.example.com
 		Port     int           `yaml:"port"` // Cluster node port default for a cluster node is 7682
 		Replicas []NodeReplica // Cluster node replicas of configured.  If node becomes unavailable where to go to instead.
 	}
 
+	// ClusterConfig is the test cluster config
 	type ClusterConfig struct {
 		Nodes            []Node   `yaml:"nodes"`                         // Node host/ips
 		Host             string   `yaml:"host"`                          // Cluster host
@@ -323,7 +345,6 @@ func main() {
 
 	defer clusterConfigOverwrite.Close()
 
-	// Marshal config to yaml
 	yamlClusterConfig, err := yaml.Marshal(&clusterConfig)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
@@ -339,7 +360,6 @@ func main() {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
-	// Unmarshal our input YAML file into empty Car (var c)
 	if err := yaml.Unmarshal(curodeNode1Yaml, &node1Config); err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
@@ -352,6 +372,7 @@ func main() {
 	node1Config.Port = 7682
 	node1Config.Logging = true
 	node1Config.AutomaticBackups = true
+	node1Config.AutomaticBackupTime = 1
 	node1Config.ReplicationSyncTime = 1
 	node1Config.AutomaticBackupCleanupHours = 1
 
@@ -383,7 +404,6 @@ func main() {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
-	// Unmarshal our input YAML file into empty Car (var c)
 	if err := yaml.Unmarshal(curodeNode2Yaml, &node2Config); err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
@@ -397,6 +417,7 @@ func main() {
 	node2Config.Logging = true
 	node2Config.AutomaticBackups = true
 	node2Config.ReplicationSyncTime = 1
+	node2Config.AutomaticBackupTime = 1
 	node2Config.AutomaticBackupCleanupHours = 1
 
 	node2Config.Replicas = append([]Replica{}, Replica{
@@ -411,7 +432,6 @@ func main() {
 
 	defer node2ConfigOverwrite.Close()
 
-	// Marshal config to yaml
 	yamlNode2Config, err := yaml.Marshal(&node2Config)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
@@ -427,7 +447,6 @@ func main() {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
-	// Unmarshal our input YAML file into empty Car (var c)
 	if err := yaml.Unmarshal(curodeNode1RepYaml, &node1RepConfig); err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
@@ -435,6 +454,7 @@ func main() {
 	node1RepConfig.Port = 7683
 	node1RepConfig.Logging = true
 	node1RepConfig.AutomaticBackups = true
+	node1RepConfig.AutomaticBackupTime = 1
 	node1RepConfig.AutomaticBackupCleanupHours = 1
 
 	node1RepConfigOverwrite, err := os.OpenFile("./node1replica/.curodeconfig", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0777)
@@ -460,13 +480,13 @@ func main() {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
-	// Unmarshal our input YAML file into empty Car (var c)
 	if err := yaml.Unmarshal(curodeNode2RepYaml, &node2RepConfig); err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
 	node2RepConfig.Port = 7685
 	node2RepConfig.Logging = true
+	node2RepConfig.AutomaticBackupTime = 1
 	node2RepConfig.AutomaticBackups = true
 	node2RepConfig.AutomaticBackupCleanupHours = 1
 
@@ -591,7 +611,7 @@ func main() {
 	json.Unmarshal([]byte(res), &orderedCollDesc)
 
 	for i, u := range orderedCollDesc {
-		// first user should be alex
+		// first user should be John
 		if i == 0 {
 			if u["name"] == "John" {
 				log.Println("✅ PASS SELECT COLL ORDER BY DESC")
@@ -613,7 +633,7 @@ passOrderedCollDesc:
 	json.Unmarshal([]byte(res), &orderedCollAsc)
 
 	for i, u := range orderedCollAsc {
-		// first user should be John
+		// first user should be Alex
 		if i == 0 {
 			if u["name"] == "Alex" {
 				log.Println("✅ PASS SELECT COLL ORDER BY ASC")
@@ -635,7 +655,7 @@ passOrderedCollAsc:
 	json.Unmarshal([]byte(res), &orderedCollWLimitDesc)
 
 	for i, u := range orderedCollWLimitDesc {
-		// first user should be alex
+		// first user should be John
 		if i == 0 {
 			if u["name"] == "John" {
 				log.Println("✅ PASS SELECT LIMIT COLL ORDER BY DESC")
@@ -656,7 +676,7 @@ passOrderedCollWLimitDesc:
 	json.Unmarshal([]byte(res), &orderedCollWLimitAsc)
 
 	for i, u := range orderedCollWLimitAsc {
-		// first user should be alex
+		// first user should be Alex
 		if i == 0 {
 			if u["name"] == "Alex" {
 				log.Println("✅ PASS SELECT LIMIT COLL ORDER BY ASC")
