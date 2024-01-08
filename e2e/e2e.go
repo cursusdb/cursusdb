@@ -71,6 +71,8 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // log file etc..
 
+	log.Println("🧪 STARTING CURSUSDB E2E TEST")
+
 	// Clear up node/ and cluster/ directories
 
 	// Remove .cdat
@@ -756,6 +758,110 @@ passOrderedCollWLimitAsc:
 	}
 
 	// Deletes
+	res, err = client.Query(`delete * from users where name = 'John' && tags = 'tag1' && last = 'Lee';`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"statusCode\":2000") {
+		log.Println("✅ PASS DELETE ALL MULTI CONDITION")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL PASS DELETE ALL MULTI CONDITION"))
+	}
+
+	res, err = client.Query(`delete 1 from users where name = 'Alex' && last = 'Lee';`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"statusCode\":2000") {
+		log.Println("✅ PASS DELETE LIMIT MULTI CONDITION")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL DELETE LIMIT MULTI CONDITION"))
+	}
+
+	// Check collection as there should be NONE now as we deleted all records
+	res, err = client.Query(`collections;`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"collections\":null") {
+		log.Println("✅ PASS EMPTY COLLECTIONS WHEN NO DOCS")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL EMPTY COLLECTIONS WHEN NO DOCS"))
+	}
+
+	// check list users should only be ["test"] currently
+	res, err = client.Query(`users;`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "[\"test\"]") {
+		log.Println("✅ PASS LIST USERS #1")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL LIST USERS #1"))
+	}
+
+	res, err = client.Query(`users;`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "[\"test\"]") {
+		log.Println("✅ PASS LIST USERS #1")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL LIST USERS #1"))
+	}
+
+	// try to delete sole database user
+	res, err = client.Query(`delete user test;`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "204 ") {
+		log.Println("✅ PASS MUST ALWAYS BE ATLEAST ONE DB USER")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL MUST ALWAYS BE ATLEAST ONE DB USER"))
+	}
+
+	// Try to create dupe db user
+	res, err = client.Query(`new user test, password, RW;`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "103 ") {
+		log.Println("✅ PASS DUPE DB USER TEST")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL DUPE DB USER TEST"))
+	}
+
+	// Create new db user
+	res, err = client.Query(`new user test2, password, RW;`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "200 ") {
+		log.Println("✅ PASS NEW DB USER")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL NEW DB USER"))
+	}
+
+	// Remove new db user
+	res, err = client.Query(`delete user test2;`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "201 ") {
+		log.Println("✅ PASS REMOVE DB USER")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ REMOVE NEW DB USER"))
+	}
 
 	// Reinsert few more records
 
@@ -776,6 +882,8 @@ passOrderedCollWLimitAsc:
 	os.RemoveAll("node1replica")
 	os.RemoveAll("node2replica")
 
+	log.Println("✅ FIN")
+
 	cmds = exec.Command("/bin/sh", "kill.sh")
 	cmds.Stdout = os.Stdout
 	cmds.Stderr = os.Stderr
@@ -784,5 +892,4 @@ passOrderedCollWLimitAsc:
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
 
-	log.Println("✅ FIN")
 }
