@@ -4,3 +4,4 @@ node2
 node1replica
 node2replica
 observer/node_modules
+observer/test.log

@@ -265,7 +265,12 @@ func (curode *Curode) SetupNodeConfig() error {
 	curode.Config.ReplicationSyncTimeout = 10      // If sync doesn't complete in 10 minutes by default timeout(could lead to corrupt data so increase accordingly)
 	curode.Config.AutomaticBackupCleanupHours = 12 // Set default of 12 hours in which to delete old backed up .cdat files
 	curode.Config.AutomaticBackupTime = 60         // Automatically backup node data to backups folder every 1 hour by default if AutomaticBackups is enabled
-	curode.Config.BackupsDirectory = "backups"     // Backups by default is in the execution directory
+
+	if runtime.GOOS == "windows" {
+		curode.Config.BackupsDirectory = ".\\backups" // Backups by default is in the execution directory (windows)
+	} else {
+		curode.Config.BackupsDirectory = "./backups" // Backups by default is in the execution directory
+	}
 
 	fmt.Println("Shared cluster and node key is required.  A shared cluster and node key will encrypt all your data at rest and only allow connections that contain a correct Key: header value matching the hashed key you provide.")
 	fmt.Print("key> ")
@@ -382,7 +387,11 @@ func (curode *Curode) SetupInitializeCDat() error {
 
 			if backupCount != 0 {
 				backupCount -= 1
-				datafile = fmt.Sprintf("%s%s", curode.Config.BackupsDirectory, latestBackup.Name())
+				if runtime.GOOS == "windows" {
+					datafile = fmt.Sprintf("%s\\%s", curode.Config.BackupsDirectory, latestBackup.Name())
+				} else {
+					datafile = fmt.Sprintf("%s/%s", curode.Config.BackupsDirectory, latestBackup.Name())
+				}
 				goto readData
 			} else {
 				errMsg := fmt.Sprintf("SetupInitializeCDat(): %d Node was unrecoverable after all attempts.", 214)
@@ -832,11 +841,23 @@ func (curode *Curode) WriteToFile(backup bool) {
 	} else {
 		var out io.Writer
 
-		f, err := os.OpenFile(fmt.Sprintf("%s.cdat.%d", curode.Config.BackupsDirectory, t.Unix()), os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
-		if err != nil {
-			curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
-			curode.SignalChannel <- os.Interrupt
-			return
+		var f *os.File
+		var err error
+
+		if runtime.GOOS == "windows" {
+			f, err = os.OpenFile(fmt.Sprintf("%s\\.cdat.%d", curode.Config.BackupsDirectory, t.Unix()), os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
+			if err != nil {
+				curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+				curode.SignalChannel <- os.Interrupt
+				return
+			}
+		} else {
+			f, err = os.OpenFile(fmt.Sprintf("%s/.cdat.%d", curode.Config.BackupsDirectory, t.Unix()), os.O_TRUNC|os.O_CREATE|os.O_RDWR|os.O_APPEND, 0777)
+			if err != nil {
+				curode.Printl(fmt.Sprintf("WriteToFile(): %s", err.Error()), "ERROR")
+				curode.SignalChannel <- os.Interrupt
+				return
+			}
 		}
 
 		decodedKey, err := base64.StdEncoding.DecodeString(curode.Config.Key)

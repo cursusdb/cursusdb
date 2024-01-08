@@ -73,10 +73,18 @@ func main() {
 
 	log.Println("🧪 STARTING CURSUSDB E2E TEST")
 
+	observerCmd := exec.Command("/bin/sh", "start-observer.sh")
+	observerCmd.Stdout = os.Stdout
+	observerCmd.Stderr = os.Stderr
+	err := observerCmd.Run()
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
 	// Clear up node/ and cluster/ directories
 
 	// Remove .cdat
-	err := os.Remove("../node/.cdat")
+	err = os.Remove("../node/.cdat")
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) { // avoid ../cluster/.cursusconfig: no such file or directory
 			log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
@@ -85,6 +93,14 @@ func main() {
 
 	// Remove .curodeconfig
 	err = os.Remove("../node/.curodeconfig")
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+		}
+	}
+
+	// Remove backups if any
+	err = os.Remove("../node/backups")
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
@@ -322,7 +338,7 @@ func main() {
 	}
 
 	clusterConfig.JoinResponses = true
-
+	clusterConfig.Logging = true
 	clusterConfig.Nodes = append(clusterConfig.Nodes, Node{
 		Host: "0.0.0.0",
 		Port: 7682,
@@ -527,15 +543,13 @@ func main() {
 		ClusterPort:        7681,
 		Username:           "test",
 		Password:           "password",
-		ClusterReadTimeout: time.Now().Add(time.Second * 10),
+		ClusterReadTimeout: time.Now().Add(time.Second * 500),
 	}
 
 	err = client.Connect()
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
-
-	defer client.Close()
 
 	res, err := client.Query(`ping;`)
 	if err != nil {
@@ -735,6 +749,52 @@ passOrderedCollWLimitAsc:
 		log.Fatal(fmt.Sprintf("❌ FAIL SELECT LIMIT FROM COLL WITH CONDITIONS"))
 	}
 
+	// You must have at least 3 documents to skip***************
+
+	res, err = client.Query(fmt.Sprintf(`insert into users({"name": "Mary", "last": "Adda", "age": 54, "tags": ["tag1", "tag2"], "createdOn": 1704682791});`))
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if !strings.Contains(res, "statusCode\":2000") {
+		log.Fatal(fmt.Sprintf("❌ FAIL SELECT SKIP"))
+	}
+
+	time.Sleep(time.Millisecond * 250)
+
+	res, err = client.Query(`select 1,1 from users;`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"name\":\"Mary\"") {
+		log.Println("✅ PASS SELECT SKIP")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL SELECT SKIP"))
+	}
+
+	res, err = client.Query(fmt.Sprintf(`delete * from users where name = 'Mary';`))
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if !strings.Contains(res, "statusCode\":2000") {
+		log.Fatal(fmt.Sprintf("❌ FAIL SELECT SKIP"))
+	}
+
+	time.Sleep(time.Millisecond * 250)
+
+	res, err = client.Query(`select 0,1 from users where name = 'John';`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"name\":\"John\"") {
+		log.Println("✅ PASS SELECT SKIP WITH CONDITION")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL SELECT SKIP WITH CONDITION"))
+	}
+
 	res, err = client.Query(`update * in users where name = 'John' set name = 'Johnny';`)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
@@ -863,17 +923,186 @@ passOrderedCollWLimitAsc:
 		log.Fatal(fmt.Sprintf("❌ REMOVE NEW DB USER"))
 	}
 
+	res, err = client.Query(`users;`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "[\"test\"]") {
+		log.Println("✅ PASS LIST USERS #2")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL LIST USERS #2"))
+	}
+
 	// Reinsert few more records
 
-	// Wait 2 minutes to check on backups and sync to replicas
+	res, err = client.Query(fmt.Sprintf(`insert into users({"name": "Nicole", "last": "Chambers", "age": 42, "tags": ["tag1", "tag2"], "createdOn": 1704682791});`))
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
 
-	// What we will do now is shutdown main node 1 and test is data is persisted to replica
+	if strings.Contains(res, "statusCode\":2000") {
+		log.Println("✅ PASS CLUSTER INSERT INTO NODE TEST 3")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL CLUSTER INSERT INTO NODE TEST 3"))
+	}
+
+	res, err = client.Query(fmt.Sprintf(`insert into users({"name": "Hank", "last": "Chambers", "age": 46, "tags": ["tag1", "tag2"], "createdOn": 1704682791});`))
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "statusCode\":2000") {
+		log.Println("✅ PASS CLUSTER INSERT INTO NODE TEST 4")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL CLUSTER INSERT INTO NODE TEST 4"))
+	}
+
+	res, err = client.Query(fmt.Sprintf(`insert into users({"name": "Jack", "last": "Chambers", "age": 49, "tags": ["tag1", "tag2"], "createdOn": 1704682791});`))
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "statusCode\":2000") {
+		log.Println("✅ PASS CLUSTER INSERT INTO NODE TEST 5")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL CLUSTER INSERT INTO NODE TEST 5"))
+	}
+
+	res, err = client.Query(fmt.Sprintf(`select count from users;`))
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	log.Println("⌛ Waiting for master to replica sync as well as all node backups")
+	time.Sleep(time.Second * 120)
+
+	node1Backups, err := os.ReadDir("node1/backups")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if len(node1Backups) == 0 {
+		log.Fatal(fmt.Sprintf("❌ FAIL NODE 1 BACKUP"))
+	}
+
+	for _, file := range node1Backups {
+		log.Println("✅ PASS NODE 1 BACKUP", file.Name(), file.IsDir())
+	}
+
+	node2Backups, err := os.ReadDir("node2/backups")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if len(node2Backups) == 0 {
+		log.Fatal(fmt.Sprintf("❌ FAIL NODE 2 BACKUP"))
+	}
+
+	for _, file := range node2Backups {
+		log.Println("✅ PASS NODE 2 BACKUP", file.Name(), file.IsDir())
+	}
+
+	node1ReplicaBackups, err := os.ReadDir("node1replica/backups")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if len(node1ReplicaBackups) == 0 {
+		log.Fatal(fmt.Sprintf("❌ FAIL NODE 1 REPLICA BACKUP"))
+	}
+
+	for _, file := range node1ReplicaBackups {
+		log.Println("✅ PASS NODE 1 REPLICA BACKUP", file.Name(), file.IsDir())
+	}
+
+	node2ReplicaBackups, err := os.ReadDir("node2replica/backups")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if len(node2ReplicaBackups) == 0 {
+		log.Fatal(fmt.Sprintf("❌ FAIL NODE 2 REPLICA BACKUP"))
+	}
+
+	for _, file := range node2ReplicaBackups {
+		log.Println("✅ PASS NODE 2 REPLICA BACKUP", file.Name(), file.IsDir())
+	}
+
+	// Check node 1 and node 2 replica logs for status 217
+	replicaCheckNode1, err := os.ReadFile("node1replica/curode.log")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(string(replicaCheckNode1), "217 ") {
+		log.Println("✅ PASS NODE 1 REPLICA SYNC WITH MASTER")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL NODE 1 REPLICA SYNC WITH MASTER"))
+	}
+
+	replicaCheckNode2, err := os.ReadFile("node2replica/curode.log")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(string(replicaCheckNode2), "217 ") {
+		log.Println("✅ PASS NODE 2 REPLICA SYNC WITH MASTER")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL NODE 2 REPLICA SYNC WITH MASTER"))
+	}
+
+	//What we will do now is shutdown main node 1 and test is data is persisted to replica
+	cmds = exec.Command("npx", "kill-port", "7682")
+	cmds.Stdout = os.Stdout
+	cmds.Stderr = os.Stderr
+	err = cmds.Run()
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	time.Sleep(time.Millisecond * 250)
+
+	res, err = client.Query(fmt.Sprintf(`select count from users;`))
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "{\"count\":3}") {
+		log.Println("✅ PASS NODE 1 REPLICATION")
+	}
+
+	// Corrupt main .cdat for node1
+	node1cdat, err := os.OpenFile("node1/.cdat", os.O_APPEND|os.O_RDWR, 0777)
+
+	node1cdat.Write([]byte("CORRRRRRRRRRRRRRRRRRRRRUPT"))
+	node1cdat.Close()
+
+	time.Sleep(time.Millisecond * 250)
 
 	// Ok now we will recover node 1 by deleting main .cdat and making sure it recovers
+	cmds = exec.Command("/bin/sh", "./curode")
+	cmds.Dir = "./node1"
+	cmds.Stdout = os.Stdout
+	cmds.Stderr = os.Stderr
+	err = cmds.Start()
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
 
-	// Once recovered do one more select
+	time.Sleep(time.Millisecond * 250)
 
-	// Check logging to file
+	res, err = client.Query(fmt.Sprintf(`select count from users;`))
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	log.Println(res)
+	if strings.Contains(res, "{\"count\":3}") {
+		log.Println("✅ PASS NODE 1 RECOVERY")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL NODE 1 RECOVERY"))
+	}
 
 	// Fin
 	os.RemoveAll("cluster")
@@ -882,14 +1111,29 @@ passOrderedCollWLimitAsc:
 	os.RemoveAll("node1replica")
 	os.RemoveAll("node2replica")
 
-	log.Println("✅ FIN")
+	observerLog, err := os.ReadFile("observer/test.log")
 
-	cmds = exec.Command("/bin/sh", "kill.sh")
-	cmds.Stdout = os.Stdout
-	cmds.Stderr = os.Stderr
+	if strings.Contains(string(observerLog), "\"message\":\"Document inserted successfully.\",\"statusCode\":2000}") {
+		log.Println("✅ PASS OBSERVER RECEIVAL")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL OBSERVER RECEIVAL"))
+	}
+
+	// No we don't test automatic backup cleanup because the default is 1 hour.  You can test this if you want locally.
+	// Create backups for every 10 minutes and remove the ones older than 1 hour(default)
+	// what will happen here is you should have 6 backups available depending on how long it takes to backup your nodes if you have large ones and a slow system.
+
+	log.Println("✅ FIN")
+	client.Close()
+
+	cmdKill := exec.Command("/bin/sh", "kill.sh")
+	cmdKill.Stdout = os.Stdout
+	cmdKill.Stderr = os.Stderr
 	err = cmds.Run()
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
 	}
+
+	return
 
 }
