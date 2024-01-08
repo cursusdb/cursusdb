@@ -3,13 +3,12 @@
 * ******************************************************************
  */
 import Observer from 'cursusdb-observer-node' // Observer for Node.js required
-import {fs} from 'fs'
 
 let ob = new Observer("sharedkey")
 import fs from 'fs'
 import util from 'util'
 
-let log_file = fs.createWriteStream(__dirname + '/test.log', {flags : 'w'});
+let log_file = fs.createWriteStream('./test.log', {flags : 'w'});
 let log_stdout = process.stdout;
 
 console.log = function(d) { //
