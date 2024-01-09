@@ -656,6 +656,7 @@ A CursusDB status code is a numerical value assigned to a specific message.  The
 - ``4029`` Invalid limiting value (with description)
 - ``4030`` Key cannot use reserved word
 - ``4031`` Key cannot use reserved symbol
+- ``4032`` Invalid set array values (with description)
 
 <h6 id="reserved-doc-keys" />
 

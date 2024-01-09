@@ -835,6 +835,84 @@ passOrderedCollWLimitAsc:
 
 	time.Sleep(time.Millisecond * 100)
 
+	res, err = client.Query(`select 1 from users where name like 'J%';`) // starts with J
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"name\":\"John\"") {
+		log.Println("✅ PASS SELECT LIMIT FROM COLL WITH CONDITION (LIKE)")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL SELECT LIMIT FROM COLL WITH CONDITION (LIKE)"))
+	}
+
+	time.Sleep(time.Millisecond * 100)
+
+	res, err = client.Query(`select 1 from users where name like '%ohn%';`) // contains "ohn"
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"name\":\"John\"") {
+		log.Println("✅ PASS SELECT LIMIT FROM COLL WITH CONDITION (LIKE 2)")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL SELECT LIMIT FROM COLL WITH CONDITION (LIKE 2)"))
+	}
+
+	time.Sleep(time.Millisecond * 100)
+
+	res, err = client.Query(`select 1 from users where name like '%hn';`) // end with "hn"
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"name\":\"John\"") {
+		log.Println("✅ PASS SELECT LIMIT FROM COLL WITH CONDITION (LIKE 3)")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL SELECT LIMIT FROM COLL WITH CONDITION (LIKE 3)"))
+	}
+
+	time.Sleep(time.Millisecond * 100)
+
+	res, err = client.Query(`select 1 from users where name not like 'J%';`) // starts with J
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"name\":\"Alex\"") {
+		log.Println("✅ PASS SELECT LIMIT FROM COLL WITH CONDITION (NOT LIKE)")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL SELECT LIMIT FROM COLL WITH CONDITION (NOT LIKE)"))
+	}
+
+	time.Sleep(time.Millisecond * 100)
+
+	res, err = client.Query(`select 1 from users where name not like '%ohn%';`) // contains "ohn"
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"name\":\"Alex\"") {
+		log.Println("✅ PASS SELECT LIMIT FROM COLL WITH CONDITION (NOT LIKE 2)")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL SELECT LIMIT FROM COLL WITH CONDITION (NOT LIKE 2)"))
+	}
+
+	time.Sleep(time.Millisecond * 100)
+
+	res, err = client.Query(`select 1 from users where name like '%hn';`) // end with "hn"
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"name\":\"John\"") {
+		log.Println("✅ PASS SELECT LIMIT FROM COLL WITH CONDITION (LIKE 3)")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL SELECT LIMIT FROM COLL WITH CONDITION (LIKE 3)"))
+	}
+
+	time.Sleep(time.Millisecond * 100)
+
 	res, err = client.Query(`select * from users where name = 'John' && tags = 'tag1';`)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
@@ -983,6 +1061,19 @@ passOrderedCollWLimitAsc:
 		log.Println("✅ PASS UPDATE ALL FROM COLL WITH CONDITIONS AND MULTI SET")
 	} else {
 		log.Fatal(fmt.Sprintf("❌ FAIL UPDATE ALL FROM COLL WITH CONDITIONS AND MULTI SET"))
+	}
+
+	time.Sleep(time.Millisecond * 100)
+
+	res, err = client.Query(`update * in users where name = 'John' && tags = 'tag1' set name = 'John' set last = 'Lee' set someArr = ["works", "good"];`)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("❌ FAIL %s", err.Error()))
+	}
+
+	if strings.Contains(res, "\"name\":\"John\"") && strings.Contains(res, "\"someArr\":[\"works\",\"good\"]") {
+		log.Println("✅ PASS UPDATE ALL FROM COLL WITH CONDITIONS AND MULTI SET WITH ARRAY SET")
+	} else {
+		log.Fatal(fmt.Sprintf("❌ FAIL UPDATE ALL FROM COLL WITH CONDITIONS AND MULTI SET WITH ARRAY SET"))
 	}
 
 	time.Sleep(time.Millisecond * 100)

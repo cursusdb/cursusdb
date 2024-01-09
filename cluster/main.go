@@ -2015,7 +2015,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 
 					for _, s := range strings.Split(query, "set ")[1:] {
-						newValues := strings.Split(strings.ReplaceAll(s, "set ", ""), ",")
+						newValues := []string{strings.ReplaceAll(s, "set ", "")}
 
 						for _, nvSet := range newValues {
 							spl := strings.Split(nvSet, " = ")
@@ -2030,6 +2030,16 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							val = strings.TrimSuffix(strings.TrimSpace(spl[1]), ";")
 							if strings.EqualFold(val.(string), "null") {
 								val = nil
+							} else if cursus.isArray(val.(string)) {
+								var jsonArrSlice []interface{}
+								err = json.Unmarshal([]byte(val.(string)), &jsonArrSlice)
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Invalid set array values. %s", 4032, err))
+									query = ""
+									goto extCont5
+								}
+
+								val = jsonArrSlice
 							} else if cursus.IsString(val.(string)) {
 
 								val = strings.TrimSuffix(val.(string), "\"")
@@ -2155,12 +2165,14 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 					}
 
 					for _, s := range strings.Split(query, "set ")[1:] {
-						newValues := strings.Split(strings.ReplaceAll(s, "set ", ""), ",")
+
+						newValues := []string{strings.ReplaceAll(s, "set ", "")}
 
 						for _, nvSet := range newValues {
 							spl := strings.Split(nvSet, " = ")
 							body["update-keys"] = append(body["update-keys"].([]interface{}), strings.TrimSpace(spl[0]))
 							var val interface{}
+
 							if len(spl) != 2 {
 								text.PrintfLine(fmt.Sprintf("%d Set is missing =.", 4008))
 								query = ""
@@ -2170,6 +2182,16 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							val = strings.TrimSuffix(strings.TrimSpace(spl[1]), ";")
 							if strings.EqualFold(val.(string), "null") {
 								val = nil
+							} else if cursus.isArray(val.(string)) {
+								var jsonArrSlice []interface{}
+								err = json.Unmarshal([]byte(val.(string)), &jsonArrSlice)
+								if err != nil {
+									text.PrintfLine(fmt.Sprintf("%d Invalid set array values. %s", 4032, err))
+									query = ""
+									goto extCont3
+								}
+
+								val = jsonArrSlice
 							} else if cursus.IsString(val.(string)) {
 
 								val = strings.TrimSuffix(val.(string), "\"")
@@ -2770,6 +2792,16 @@ func (cursus *Cursus) IsString(str string) bool {
 	case strings.HasPrefix(str, "\"") && strings.HasSuffix(str, "\""): // has " and "
 		return true
 	case strings.HasPrefix(str, "'") && strings.HasSuffix(str, "'"): // has ' and '
+		return true
+	default:
+		return false
+	}
+}
+
+// isArray is a provided value a JSON array?
+func (cursus *Cursus) isArray(str string) bool {
+	switch {
+	case strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]"):
 		return true
 	default:
 		return false
