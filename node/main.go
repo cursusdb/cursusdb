@@ -148,7 +148,8 @@ func main() {
 	gob.Register([]interface{}(nil))       // Fixes {"k": []}
 	gob.Register(map[string]interface{}{}) // Mainly for query queue
 
-	signal.Notify(curode.SignalChannel, syscall.SIGINT, syscall.SIGTERM) // setup signal channel
+	// https://man.netbsd.org/signal.7
+	signal.Notify(curode.SignalChannel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT, syscall.SIGABRT) // setup signal channel
 
 	// Check if .curodeconfig exists
 	if _, err := os.Stat("./.curodeconfig"); errors.Is(err, os.ErrNotExist) {
