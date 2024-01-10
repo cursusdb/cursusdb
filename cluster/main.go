@@ -1407,6 +1407,12 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				// start insert
 				// insert into users({"firstName": "John", "lastName": "Doe"});
 
+				if len(strings.Split(query, "},")) > 1 {
+					text.PrintfLine(fmt.Sprintf("%d Batch insertion not supported.", 4024))
+					query = ""
+					continue
+				}
+
 				retries := 5 // how many times to retry if a node is not available for $id uniqueness. Mind you we already retry nodes and replicas at this stage.
 				// query is not valid
 				// must have a full prefix of 'insert into '

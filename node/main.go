@@ -1262,25 +1262,21 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd *[]int, collection str
 	// This could be a case of "select * from users;" for example if passing skip and volume checks
 	if ks == nil && vs == nil && oprs == nil {
 
-		// if a volume is set check if we are at wanted document volume for query
-		if vol != -1 {
-			if len(*objs) == vol { // Does currently collected documents equal desired volume?
-				return
-			}
-		}
-
 		// add document to objects
 		if update {
 			curode.Data.Map[collection][i]["$indx"] = i
 		}
 
-		mu.Lock()
+		if len(*objs) == vol {
+			return
+		}
+
 		*objs = append(*objs, curode.Data.Map[collection][i])
 
 		if del {
 			*tbd = append(*tbd, i)
 		}
-		mu.Unlock()
+
 		return
 	} else {
 
@@ -2266,29 +2262,29 @@ func (curode *Curode) Select(collection string, ks interface{}, vs interface{}, 
 
 		// top to middle search
 		searchWg.Add(1)
-		go func(wg *sync.WaitGroup, mid int, objs *[]interface{}, mu *sync.RWMutex) {
+		go func(wg *sync.WaitGroup, mid int, objs *[]interface{}, mu *sync.RWMutex, v int) {
 			defer wg.Done()
 			for i := 0; i <= mid; i++ {
 				if curode.Context.Err() != nil {
 					return
 				}
 
-				curode.Search(searchResMu, i, &tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
+				curode.Search(searchResMu, i, &tbd, collection, ks, vs, v, skip, oprs, conditions, del, update, objs)
 			}
-		}(searchWg, middle, &objects, searchResMu)
+		}(searchWg, middle, &objects, searchResMu, vol)
 
 		// bottom to middle search
 		searchWg.Add(1)
-		go func(wg *sync.WaitGroup, mid int, objs *[]interface{}, mu *sync.RWMutex) {
+		go func(wg *sync.WaitGroup, mid int, objs *[]interface{}, mu *sync.RWMutex, v int) {
 			defer wg.Done()
 			for i := len(curode.Data.Map[collection]) - 1; i > mid; i-- {
 				if curode.Context.Err() != nil {
 					return
 				}
 
-				curode.Search(searchResMu, i, &tbd, collection, ks, vs, vol, skip, oprs, conditions, del, update, objs)
+				curode.Search(searchResMu, i, &tbd, collection, ks, vs, v, skip, oprs, conditions, del, update, objs)
 			}
-		}(searchWg, middle, &objects, searchResMu)
+		}(searchWg, middle, &objects, searchResMu, vol)
 
 		searchWg.Wait()
 	} else {
