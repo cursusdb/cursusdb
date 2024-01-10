@@ -1267,15 +1267,17 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd *[]int, collection str
 			curode.Data.Map[collection][i]["$indx"] = i
 		}
 
+		mu.Lock()
 		if len(*objs) == vol {
+			mu.Unlock()
 			return
 		}
 
 		*objs = append(*objs, curode.Data.Map[collection][i])
-
 		if del {
 			*tbd = append(*tbd, i)
 		}
+		mu.Unlock()
 
 		return
 	} else {
@@ -1285,12 +1287,6 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd *[]int, collection str
 
 			if oprs.([]interface{})[m] == "" {
 				return
-			}
-
-			if vol != -1 {
-				if len(*objs) == vol {
-					return
-				}
 			}
 
 			vType := fmt.Sprintf("%T", vs.([]interface{})[m])
@@ -1310,12 +1306,6 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd *[]int, collection str
 
 				if reflect.TypeOf(curode.Data.Map[collection][i][k.(string)]).Kind() == reflect.Slice {
 					for _, dd := range curode.Data.Map[collection][i][k.(string)].([]interface{}) {
-
-						if vol != -1 {
-							if len(*objs) == vol {
-								return
-							}
-						}
 
 						if reflect.TypeOf(dd).Kind() == reflect.Float64 {
 							if vType == "int" {
@@ -2175,17 +2165,30 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd *[]int, collection str
 				if update {
 					curode.Data.Map[collection][i]["$indx"] = i
 				}
+
 				mu.Lock()
+				if len(*objs) == vol {
+					mu.Unlock()
+					return
+				}
+
 				*objs = append(*objs, curode.Data.Map[collection][i])
 				if del {
 					*tbd = append(*tbd, i)
 				}
 				mu.Unlock()
+
 			} else if slices.Contains(conditions, "||") && conditionsMetDocument > 0 {
 				if update {
 					curode.Data.Map[collection][i]["$indx"] = i
 				}
+
 				mu.Lock()
+				if len(*objs) == vol {
+					mu.Unlock()
+					return
+				}
+
 				*objs = append(*objs, curode.Data.Map[collection][i])
 				if del {
 					*tbd = append(*tbd, i)
@@ -2196,7 +2199,13 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd *[]int, collection str
 			if update {
 				curode.Data.Map[collection][i]["$indx"] = i
 			}
+
 			mu.Lock()
+			if len(*objs) == vol {
+				mu.Unlock()
+				return
+			}
+
 			*objs = append(*objs, curode.Data.Map[collection][i])
 			if del {
 				*tbd = append(*tbd, i)
@@ -2206,12 +2215,17 @@ func (curode *Curode) Search(mu *sync.RWMutex, i int, tbd *[]int, collection str
 			if update {
 				curode.Data.Map[collection][i]["$indx"] = i
 			}
+
 			mu.Lock()
+			if len(*objs) == vol {
+				mu.Unlock()
+				return
+			}
+
 			*objs = append(*objs, curode.Data.Map[collection][i])
 			if del {
 				*tbd = append(*tbd, i)
 			}
-
 			mu.Unlock()
 		}
 
