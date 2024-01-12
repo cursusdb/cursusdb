@@ -68,6 +68,7 @@ type Cursus struct {
 	Context         context.Context    // Main looped go routine context.  This is for listeners, event loops and so forth
 	LogMu           *sync.Mutex        // Log file mutex (only if logging enabled)
 	LogFile         *os.File           // Opened log file (only if logging enabled)
+	UniquenessMu    *sync.Mutex        // If many connections are inserting the same document there is a chance for the same document so if uniqueness is required there is a lock on insert on the cluster.  The cluster does lock nodes on reads but as this is a concurrent system 2 connections at the same time can cause 2 of the same records without this lock.
 }
 
 // NodeConnection is the cluster connected to a node as a client.
@@ -142,7 +143,7 @@ func main() {
 	cursus.SignalChannel = make(chan os.Signal, 1)                                  // make signal channel
 	cursus.Context, cursus.ContextCancel = context.WithCancel(context.Background()) // Create context for shutdown
 	cursus.ConfigMu = &sync.RWMutex{}                                               // Cluster config mutex
-
+	cursus.UniquenessMu = &sync.Mutex{}
 	// We check if a .cursusconfig file exists
 	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
 		// .cursusconfig does not exist..
@@ -1480,6 +1481,10 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				// Cursus will check all values within the basic array.
 
 				indexedRes := indexed.FindAllStringSubmatch(query, -1)
+				if len(indexedRes) > 0 {
+					cursus.UniquenessMu.Lock()
+				}
+
 				// loop over unique key value pairs checking nodes
 				// Returns error 4004 to client if a document exists
 				for _, indx := range indexedRes {
@@ -1517,7 +1522,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							if err != nil {
 								text.PrintfLine(fmt.Sprintf("%d Unmarsharable JSON insert.", 4000))
 								query = ""
-								continue
+								goto cont
 							}
 
 							for j, a := range arr {
@@ -1560,7 +1565,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								if err != nil {
 									text.PrintfLine(fmt.Sprintf("%d Unparsable int value.", 4015))
 									query = ""
-									continue
+									goto cont
 								}
 
 								body["values"].([]interface{})[0] = i
@@ -1571,7 +1576,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								if err != nil {
 									text.PrintfLine(fmt.Sprintf("%d Unparsable float value.", 4014))
 									query = ""
-									continue
+									goto cont
 								}
 
 								body["values"].([]interface{})[0] = f
@@ -1581,7 +1586,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 								if err != nil {
 									text.PrintfLine(fmt.Sprintf("%d Unparsable boolean value.", 4013))
 									query = ""
-									continue
+									goto cont
 								}
 
 								body["values"].([]interface{})[0] = b
@@ -1608,6 +1613,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 				goto ok
 
 			cont:
+				if len(indexedRes) > 0 {
+					cursus.UniquenessMu.Unlock()
+				}
 				query = ""
 				continue
 
@@ -1658,6 +1666,7 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 							retries -= 1
 							goto retry // $id already exist
 						} else {
+							text.PrintfLine(fmt.Sprintf("%d No unique $id could be found for insert.", 4023)) // Wouldn't happen ever but if it does the system as you can see would try at least 5 times
 							goto cont
 						}
 					}
@@ -1667,7 +1676,9 @@ func (cursus *Cursus) HandleClientConnection(conn net.Conn, user map[string]inte
 
 			insert:
 				cursus.InsertIntoNode(&Connection{Conn: conn, Text: text, User: nil}, strings.ReplaceAll(insertJson[1], "!\":", "\":"), collection, body["values"].([]interface{})[0].(string))
-
+				if len(indexedRes) > 0 {
+					cursus.UniquenessMu.Unlock()
+				}
 				query = ""
 				continue
 				// end insert
