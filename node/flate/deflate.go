@@ -4,6 +4,7 @@
 * ******************************************************************
 * Originally authored by Go Authors then modified for with encryption capabilities by Alex Gaetano Padula
 * Copyright (C) CursusDB
+* We encrypt then compress blocks data which have the benefit of making statistical analysis a bit harder.  We don't compress then encrypt, it can lead to plaintext exposure.
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
