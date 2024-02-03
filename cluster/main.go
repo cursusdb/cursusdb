@@ -132,8 +132,8 @@ var (
 		`"var":`, `"false":`, `"true":`, `"uint8":`, `"uint16":`, `"uint32":`,
 		`"uint64":`, `"int8":`, `"int16":`, `"int32":`, `"int64":`, `"float32":`,
 		`"float64":`, `"complex64":`, `"complex128":`, `"byte":`, `"rune":`,
-		`"uint":`, `"int":`, `"uintptr":`, `"string":`}
-	reservedSymbols = []string{`"==":`, `"&&":`, `"||":`, `">":`, `"<":`, `"=>":`, `"=<":`, `"=":`}
+		`"uint":`, `"int":`, `"uintptr":`, `"string":`} // Reserved document keys
+	reservedSymbols = []string{`"==":`, `"&&":`, `"||":`, `">":`, `"<":`, `"=>":`, `"=<":`, `"=":`} // These are reserved symbols in which cannot be used as document keys
 )
 
 // main cluster starts here
@@ -173,7 +173,7 @@ func main() {
 	flag.IntVar(&cursus.Config.Port, "port", cursus.Config.Port, "port for cluster")
 	flag.Parse()
 
-	cursus.ConnectToNodes() // Connect to configured nodes and node replicas for fast communication
+	cursus.ConnectToNodes() // Connect to configured nodes and node replicas for fast communication. We keep the connections alive
 
 	cursus.Wg.Add(1)
 	go cursus.SignalListener() // Listen to system signals
@@ -493,14 +493,14 @@ func (cursus *Cursus) ConnectToNodes() {
 			// Did response start with a 0?  This indicates successful authentication
 			if strings.HasPrefix(string(authBuf[:r]), "0") {
 
-				// Add new node connection to slice
+				// Add new node connection to node connections slice
 				cursus.NodeConnections = append(cursus.NodeConnections, &NodeConnection{
 					Conn:       conn,
 					SecureConn: secureConn,
 					Text:       textproto.NewConn(secureConn),
 					Node:       n,
-					Mu:         &sync.Mutex{},
-					Ok:         true,
+					Mu:         &sync.Mutex{}, // Mutex for node, again one concurrent connection can request a node at a time
+					Ok:         true,          // The node is Ok :)
 				})
 
 				for _, rep := range n.Replicas {
