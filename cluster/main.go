@@ -1,6 +1,7 @@
 /*
 * CursusDB
-* Cluster
+* Cluster (Cursus)
+* Cursus is the CursusDB cluster
 * ******************************************************************
 * Originally authored by Alex Gaetano Padula
 * Copyright (C) CursusDB

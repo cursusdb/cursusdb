@@ -98,6 +98,7 @@ type Config struct {
 	Observers                   []Observer `yaml:"observers"`                                // Observer servers listening for realtime node events (insert,update,delete).  Curode if configured will relay successful inserts, updates, and deletes to all Observer(s)
 	TLSObservers                bool       `yaml:"tls-observers"`                            // Set whether your Observers are listening on tls or not
 	BackupsDirectory            string     `yaml:"backups-directory"`                        // Backups directory by default is in the execution directory /backups/ Whatever is provided the system will create the director(ies) if they doesn't exist.
+	DiskMode                    bool       `default:"false" yaml:"disk-mode"`                // If set to true the system will write data to disk and read from disk.  This is useful for large data sets that may not fit in memory.
 }
 
 // Replica is a cluster node that current node data will be replicated/synced to
