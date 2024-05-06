@@ -69,7 +69,7 @@ type Cursus struct {
 	Context         context.Context    // Main looped go routine context.  This is for listeners, event loops and so forth
 	LogMu           *sync.Mutex        // Log file mutex (only if logging enabled)
 	LogFile         *os.File           // Opened log file (only if logging enabled)
-	UniquenessMu    *sync.Mutex        // If many connections are inserting the same document there is a chance for the same document so if uniqueness is required there is a lock on insert on the cluster.  The cluster does lock nodes on reads but as this is a concurrent system 2 connections at the same time can cause 2 of the same records without this lock.
+	UniquenessMu    *sync.Mutex        // Distributed unique mutex (for id's, and unique keys)
 }
 
 // NodeConnection is the cluster connected to a node as a client.
@@ -139,12 +139,17 @@ var (
 
 // main cluster starts here
 func main() {
-	cursus = &Cursus{}                                                              // Set cluster variable
-	cursus.Wg = &sync.WaitGroup{}                                                   // create wait group
-	cursus.SignalChannel = make(chan os.Signal, 1)                                  // make signal channel
+
+	cursus = &Cursus{} // Set cluster variable
+
+	cursus.Wg = &sync.WaitGroup{}                  // create wait group
+	cursus.SignalChannel = make(chan os.Signal, 1) // make signal channel
+
 	cursus.Context, cursus.ContextCancel = context.WithCancel(context.Background()) // Create context for shutdown
-	cursus.ConfigMu = &sync.RWMutex{}                                               // Cluster config mutex
+
+	cursus.ConfigMu = &sync.RWMutex{} // Cluster config mutex
 	cursus.UniquenessMu = &sync.Mutex{}
+
 	// We check if a .cursusconfig file exists
 	if _, err := os.Stat("./.cursusconfig"); errors.Is(err, os.ErrNotExist) {
 		// .cursusconfig does not exist..
@@ -163,7 +168,7 @@ func main() {
 
 	// If cluster configured cluster nodes is equal to 0 inform user to add at least one node
 	if len(cursus.Config.Nodes) == 0 {
-		cursus.Printl("main(): You must setup nodes your CursusDB cluster to read from in your .cursusconfig file.", "INFO")
+		cursus.Printl("main(): Before starting your CursusDB cluster you must configure your cluster nodes in your .cursusconfig file.", "INFO")
 		os.Exit(0)
 	}
 
@@ -232,7 +237,7 @@ func (cursus *Cursus) SetupClusterConfig() error {
 	cursus.Config.NodeReadDeadline = 2     // Default of 2 seconds waiting for a node to respond
 
 	// Get initial database user credentials
-	fmt.Println("Before starting your CursusDB cluster you must first create an initial database user and shared cluster and node key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell) or native client.  The shared key is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your clusters.")
+	fmt.Println("Before starting your CursusDB cluster you must first create an initial database user and shared cluster-node key.  This initial database user will have read and write permissions.  To add more users use curush (The CursusDB Shell) or native client.  The key you setup now is checked against what you setup on your nodes and used for data encryption.  All your nodes should share the same key you setup on your cluster.")
 	fmt.Print("username> ")
 	var username []byte
 	if terminal.IsTerminal(int(syscall.Stdin)) {
